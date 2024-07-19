@@ -24,7 +24,7 @@ The following values were measured with SDK v.3.0.3
 | Receive  | 60 mA          |
 | Scan     | 95 mA          |
 
-The power consumption was significantlty improved since SDK v.2. Yet its still not quite suitable for battery powered applications.
+The power consumption was significantly improved since SDK v.2. Yet its still not quite suitable for battery powered applications.
 
 ## Range testing results
 The maximum distance over which we can safely transmit data is an important issue in many applications. Typically small and cheap ESP32 modules have small chip antenna soldered on board. With such modules one can expect the opearating distance around 10 meters. The efficiency of such chip antenna is close to nothing. Even printed circuit antenna is better and gives you more range. The external antenna is much better choice. One can solder it just above the chip antenna as shown on the figure below.
