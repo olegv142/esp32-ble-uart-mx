@@ -20,4 +20,5 @@ The following values were measured with SDK v.3.0.3
 | Transmit | 46 mA          |
 | Receive  | 60 mA          |
 | Scan     | 95 mA          |
-The power consumption were significantlty improved since SDK v.2. Yet its still not quite suitable for battery powered applications.
+
+The power consumption was significantlty improved since SDK v.2. Yet its still not quite suitable for battery powered applications.
