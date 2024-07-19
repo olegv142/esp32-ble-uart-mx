@@ -9,7 +9,7 @@ To be able to build this code examples add the following to Arduino Additional b
 ```
 https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
 ```
-Then go to Boars Manager and install **esp32 by Espressif Systems**.
+Then go to Boards Manager and install **esp32 by Espressif Systems**.
 
 In case you are failed to flash ESP32 board from Arduino do the following:
 * press BOOT button
