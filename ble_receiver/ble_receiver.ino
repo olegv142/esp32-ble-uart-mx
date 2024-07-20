@@ -3,10 +3,11 @@
  * to the characteristic updates.
  *
  * Its based on the official Arduino examples with the following improvements:
- *  1. Increase the RF power for longer range
- *  2. Use watchdog to avoid hanging at connecting to device
- *  3. Automatic reconnect after disconnection
- *  4. LED to indicate connection status
+ *  1. Increased the RF power for longer range
+ *  2. Using watchdog to avoid hanging at connecting to device
+ *  3. Increased MTU
+ *  4. Automatic reconnect after disconnection
+ *  5. LED to indicate connection status
  *
  * Tested on ESP32 C3 with SDK v.3.0
  * Use ../ble_transmitter for other side of the connection.
@@ -26,7 +27,7 @@
 #define CHARACTERISTIC_UUID_TX "0000ffe1-0000-1000-8000-00805f9b34fb"
 #define SCAN_TIME              5     // sec
 #define CONNECT_TOUT           5000  // msec
-#define WDT_TIMEOUT            30000 // msec
+#define WDT_TIMEOUT            10000 // msec
 
 // The remote service we wish to connect to.
 static BLEUUID serviceUUID(SERVICE_UUID);
@@ -51,15 +52,20 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   }
 };
 
+static inline void watchdog_init()
+{
+  esp_task_wdt_config_t wdt_cfg = {.timeout_ms = WDT_TIMEOUT, .idle_core_mask = (1<<portNUM_PROCESSORS)-1, .trigger_panic = true};
+  esp_task_wdt_reconfigure(&wdt_cfg); // enable panic so ESP32 restarts
+  esp_task_wdt_add(NULL);             // add current thread to WDT watch
+}
+
 void setup()
 {
   Serial.begin(115200);
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
-  esp_task_wdt_config_t wdt_cfg = {.timeout_ms = WDT_TIMEOUT, .idle_core_mask = (1<<portNUM_PROCESSORS)-1, .trigger_panic = true};
-  esp_task_wdt_reconfigure(&wdt_cfg); // enable panic so ESP32 restarts
-  esp_task_wdt_add(NULL);             // add current thread to WDT watch
 
+  watchdog_init();
   BLEDevice::init("");
 
   // Set maximum transmit power
@@ -102,7 +108,7 @@ bool connectToServer()
 
   // Connect to the remove BLE Server.
   pClient->connect(myDevice);
-  pClient->setMTU(517);  // set client to request maximum MTU from server (default is 23 otherwise)
+  pClient->setMTU(247);  // set client to request maximum MTU from server (default is 23 otherwise)
 
   // Obtain a reference to the service we are after in the remote BLE server.
   BLERemoteService *pRemoteService = pClient->getService(serviceUUID);
@@ -126,8 +132,10 @@ bool connectToServer()
     pClient->disconnect();
     return false;
   }
-  Serial.println(" connected");
-  return true;
+  bool const connected = pClient->isConnected();
+  if (connected)
+    Serial.println(" connected");
+  return connected;
 }
 
 void scan_complete_cb(BLEScanResults res)

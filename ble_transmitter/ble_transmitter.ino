@@ -1,10 +1,10 @@
 /*
- * The BLE transmitter periodically updated its characteristic allowing
+ * The BLE transmitter periodically updating its characteristic allowing
  * peer to subscribe to updates. 
  *
  * Its based on the official Arduino examples with the following improvements:
- *  1. Increase the RF power for longer range
- *  2. Add more data to advertising so it can be correctly discovered
+ *  1. Increased the RF power for longer range
+ *  2. Adding more data to advertising so it can be correctly discovered
  *  3. LED to indicate connection status
  *
  * Tested on ESP32 C3 with SDK v.3.0
@@ -31,18 +31,18 @@ uint8_t txValue = '0';
 #define LED_BUILTIN 8
 
 class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-      deviceConnected = true;
-      connectedTs = millis();
-      advertising = false;
-      digitalWrite(LED_BUILTIN, LOW);
-    };
+  void onConnect(BLEServer* pServer) {
+    deviceConnected = true;
+    connectedTs = millis();
+    advertising = false;
+    digitalWrite(LED_BUILTIN, LOW);
+  };
 
-    void onDisconnect(BLEServer* pServer) {
-      deviceConnected = false;
-      connectedTs = millis();
-      digitalWrite(LED_BUILTIN, HIGH);
-    }
+  void onDisconnect(BLEServer* pServer) {
+    deviceConnected = false;
+    connectedTs = millis();
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
 };
 
 void setup()
@@ -90,17 +90,17 @@ void setup()
 
 void loop()
 {
-    if (deviceConnected) {
-      if (++txValue > '9')
-        txValue = '0';
-      Serial.println((char)txValue);
-      pTxCharacteristic->setValue(&txValue, 1);
-      pTxCharacteristic->notify();
-      delay(1000);
-  	}
+  if (deviceConnected) {
+    if (++txValue > '9')
+      txValue = '0';
+    Serial.println((char)txValue);
+    pTxCharacteristic->setValue(&txValue, 1);
+    pTxCharacteristic->notify();
+    delay(1000);
+  }
 
-    if (!deviceConnected && !advertising && millis() - connectedTs > 500) {
-      BLEDevice::startAdvertising(); // restart advertising
-      advertising = true;
-    }
+  if (!deviceConnected && !advertising && millis() - connectedTs > 500) {
+    BLEDevice::startAdvertising(); // restart advertising
+    advertising = true;
+  }
 }
