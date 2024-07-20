@@ -1,0 +1,178 @@
+/*
+ * The BLE transmitter receiving data from serial port and updating its characteristic allowing
+ * peer to subscribe to updates. 
+ *
+ * Its based on the ble_receiver example with the following additions:
+ *  1. Reading data to transmit from serial port
+ *  2. Using watchdog for better reliability
+ *  3. Increased MTU
+ *  4. Optionally adding suffix based on MAC to device name to make it distinguishable
+ *
+ * Tested on ESP32 C3 with SDK v.3.0
+ * Use ../ble_receiver for other side of the connection.
+ */
+
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+#include <esp_mac.h>
+#include <esp_task_wdt.h>
+
+BLEServer *pServer = NULL;
+BLECharacteristic * pTxCharacteristic;
+bool deviceConnected = false;
+bool advertising = false;
+uint32_t connectedTs;
+
+String serial_buff;
+uint32_t serial_ts;
+
+#undef  LED_BUILTIN
+#define LED_BUILTIN 8
+
+#define SERVICE_UUID           "FFE0"
+#define CHARACTERISTIC_UUID_TX "FFE1"
+#define DEV_NAME               "TestC3"
+// Uncomment to add suffix based on MAC to device name to make it distinguishable
+//#define DEV_NAME_SUFF_LEN      6
+
+#define WDT_TIMEOUT            10000 // msec
+
+String dev_name(DEV_NAME);
+
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+      connectedTs = millis();
+      advertising = false;
+      digitalWrite(LED_BUILTIN, LOW);
+    };
+
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+      connectedTs = millis();
+      serial_buff = "";
+      digitalWrite(LED_BUILTIN, HIGH);
+    }
+};
+
+static inline char hex_digit(uint8_t v)
+{
+    return v < 10 ? '0' + v : 'A' + v - 10;
+}
+
+static inline char byte_signature(uint8_t v)
+{
+    return hex_digit((v & 0xf) ^ (v >> 4));
+}
+
+static void init_dev_name()
+{
+#ifdef DEV_NAME_SUFF_LEN
+  uint8_t mac[8] = {0};
+  if (ESP_OK == esp_efuse_mac_get_default(mac)) {
+    for (int i = 0; i < DEV_NAME_SUFF_LEN && i < ESP_BD_ADDR_LEN; ++i)
+      dev_name += byte_signature(mac[i]);
+  }
+#endif
+}
+
+static inline void watchdog_init()
+{
+  esp_task_wdt_config_t wdt_cfg = {.timeout_ms = WDT_TIMEOUT, .idle_core_mask = (1<<portNUM_PROCESSORS)-1, .trigger_panic = true};
+  esp_task_wdt_reconfigure(&wdt_cfg); // enable panic so ESP32 restarts
+  esp_task_wdt_add(NULL);             // add current thread to WDT watch
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  Serial.setTimeout(10);
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, HIGH);
+
+  watchdog_init();
+  // Create the BLE Device
+  init_dev_name();
+  BLEDevice::init(dev_name);
+  BLEDevice::setMTU(247);
+
+  // Set maximum transmit power
+  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P21); 
+  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,     ESP_PWR_LVL_P21);
+  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN,    ESP_PWR_LVL_P21);
+
+  // Create the BLE Server
+  pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+
+  // Create the BLE Service
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+
+  // Create a BLE Characteristic
+  pTxCharacteristic = pService->createCharacteristic(
+										CHARACTERISTIC_UUID_TX,
+										BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ
+									);
+
+  pTxCharacteristic->addDescriptor(new BLE2902());
+
+  // Start the service
+  pService->start();
+
+  // Start advertising
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  BLEAdvertisementData data;
+  data.setName(dev_name);
+  pAdvertising->setAdvertisementData(data);
+  pAdvertising->setScanResponse(true);
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  BLEDevice::startAdvertising();
+  advertising = true;
+}
+
+static void do_transmit(uint16_t max_chunk, bool all)
+{
+  uint8_t* pdata = (uint8_t*)serial_buff.c_str();
+  unsigned data_len = serial_buff.length(), sent = 0;
+  while (data_len) {
+    unsigned const chunk = data_len > max_chunk ? max_chunk : data_len;
+    pTxCharacteristic->setValue(pdata, chunk);
+    pTxCharacteristic->notify();
+    sent     += chunk;
+    pdata    += chunk;
+    data_len -= chunk;
+    if (!all)
+      break;
+  }
+  serial_buff = serial_buff.substring(sent);
+}
+
+static inline bool is_msg_terminator(char c)
+{
+  return c == '\n' || c == '\r';
+}
+
+void loop()
+{
+  String const received = Serial.readString();
+  if (deviceConnected) {
+    if (received.length()) {
+      serial_buff += received;
+      serial_ts = millis();
+    }
+    unsigned const data_len = serial_buff.length();
+    if (data_len) {
+      uint16_t const max_chunk = BLEDevice::getMTU() - 3;
+      bool const full_msg = is_msg_terminator(serial_buff[data_len-1]);
+      if (full_msg || data_len >= max_chunk || millis() - serial_ts > 100)
+        do_transmit(max_chunk, full_msg);
+    }
+  }
+  if (!deviceConnected && !advertising && millis() - connectedTs > 500) {
+    BLEDevice::startAdvertising(); // restart advertising
+    advertising = true;
+  }
+  esp_task_wdt_reset();
+}
