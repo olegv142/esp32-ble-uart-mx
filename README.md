@@ -4,6 +4,8 @@ The collection of useful ESP32 BLE projects for Arduino targeting telemetry / mo
 ## Simple receiver / transmitter
 The ble_receiver / ble_transmitter are examples of creating one way communication channel with automatic reconnection. The code also illustrates using watchdog for improved reliability and maximizing transmission power for extending range.
 
+The ble_uart_tx example adds receiving data for transmission from the serial port, increasing the MTU, and the ability to add a hexadecimal suffix to the device name so that it can be distinguished in case there are several devices around with the same firmware.
+
 ## Building and flashing
 To be able to build this code examples add the following to Arduino Additional board manager URLs:
 ```
