@@ -31,13 +31,20 @@ uint32_t serial_ts;
 #undef  LED_BUILTIN
 #define LED_BUILTIN 8
 
+#define WDT_TIMEOUT 10000 // msec
+
 #define SERVICE_UUID           "FFE0"
 #define CHARACTERISTIC_UUID_TX "FFE1"
 #define DEV_NAME               "TestC3"
 // Uncomment to add suffix based on MAC to device name to make it distinguishable
 //#define DEV_NAME_SUFF_LEN      6
 
-#define WDT_TIMEOUT            10000 // msec
+// If defined send uptime every second instead of data from UART
+#define TEST
+
+#ifdef TEST
+uint32_t last_uptime;
+#endif
 
 String dev_name(DEV_NAME);
 
@@ -154,8 +161,14 @@ static inline bool is_msg_terminator(char c)
   return c == '\n' || c == '\r';
 }
 
+static inline uint16_t max_tx_chunk()
+{
+  return BLEDevice::getMTU() - 3;
+}
+
 void loop()
 {
+#ifndef TEST
   String const received = Serial.readString();
   if (deviceConnected) {
     if (received.length()) {
@@ -164,12 +177,21 @@ void loop()
     }
     unsigned const data_len = serial_buff.length();
     if (data_len) {
-      uint16_t const max_chunk = BLEDevice::getMTU() - 3;
+      uint16_t const max_chunk = max_tx_chunk();
       bool const full_msg = is_msg_terminator(serial_buff[data_len-1]);
       if (full_msg || data_len >= max_chunk || millis() - serial_ts > 100)
         do_transmit(max_chunk, full_msg);
     }
   }
+#else
+  uint32_t const uptime = millis() / 1000;
+  if (uptime != last_uptime) {
+    last_uptime = uptime;
+    serial_buff = String(uptime);
+    do_transmit(max_tx_chunk(), true);
+    Serial.println(uptime);
+  }
+#endif
   if (!deviceConnected && !advertising && millis() - connectedTs > 500) {
     BLEDevice::startAdvertising(); // restart advertising
     advertising = true;
