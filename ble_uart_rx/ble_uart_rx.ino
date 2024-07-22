@@ -123,7 +123,11 @@ void setup()
 }
 
 class MyClientCallback : public BLEClientCallbacks {
-  void onConnect(BLEClient *pclient) {}
+  void onConnect(BLEClient *pclient) {
+    is_connected = true;
+    Serial.println("connected");
+    digitalWrite(LED_BUILTIN, LOW);
+  }
   void onDisconnect(BLEClient *pclient) {
     is_connected = false;
     Serial.println("disconnected");
@@ -142,7 +146,7 @@ static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, ui
 #endif
 }
 
-bool connectToServer()
+void connectToServer()
 {
   Serial.print("connecting to ");
   Serial.println(myDevice->getAddress().toString().c_str());
@@ -159,14 +163,14 @@ bool connectToServer()
   if (!pRemoteService) {
     Serial.print("Failed to find our service UUID");
     pClient->disconnect();
-    return false;
+    return;
   }
   // Obtain a reference to the characteristic in the service of the remote BLE server.
   BLERemoteCharacteristic *pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
   if (!pRemoteCharacteristic) {
     Serial.print("Failed to find our characteristic UUID");
     pClient->disconnect();
-    return false;
+    return;
   }
   // Subscribe to updates
   if (pRemoteCharacteristic->canNotify()) {
@@ -174,12 +178,7 @@ bool connectToServer()
   } else {
     Serial.print("Notification not supported by the server");
     pClient->disconnect();
-    return false;
   }
-  bool const connected = pClient->isConnected();
-  if (connected)
-    Serial.println(" connected");
-  return connected;
 }
 
 void scan_complete_cb(BLEScanResults res)
@@ -198,10 +197,9 @@ void loop()
     pBLEScan->start(SCAN_TIME, scan_complete_cb, true);
     is_scanning = true;
   }
-  if (myDevice && !is_scanning && !is_connected) {
-    is_connected = connectToServer();
-    digitalWrite(LED_BUILTIN, !is_connected);
-  }
+  if (myDevice && !is_scanning && !is_connected)
+    connectToServer();
+
   esp_task_wdt_reset();
 }
 
