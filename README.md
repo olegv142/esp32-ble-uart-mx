@@ -23,7 +23,7 @@ In case you are failed to flash ESP32 board from Arduino do the following:
 The following values were measured with SDK v.3.0.3
 | Mode     | Supply current |
 |----------|----------------|
-| Transmit | 46 mA          |
+| Transmit | 55 mA          |
 | Receive  | 60 mA          |
 | Scan     | 95 mA          |
 
