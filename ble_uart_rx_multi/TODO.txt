@@ -1,0 +1,20 @@
+1. Serial port for control / data output (GPIO6 for RX, GPIO7 for TX)
+2. Start every out message with \1 end with \0. Second symbol is ':' for status messages
+  or '0', '1' .., 'A', 'B', ..  for conn[0], conn[1] .. data (max 32)
+3. Implement commands / status messages as follows:
+Commands (ends with \r or \n):
+  '#S Dev0 Dev1 ..' - scan for devices given their names
+  '#C'              - connect to detected devices
+  '#R'              - reset
+Optionally, commands may begin with an 8-bit checksum, expressed in hexadecimal,
+starting with the prefix ~. So the command starts with ~hh#
+Status messages:
+  ':I'               - idle, just initialized
+  ':E'               - error state (no device detected in scan or no device connected)
+  ':S'               - scanning
+  ':R[!failed_mask]' - scan done, ready to connect
+  ':C#<n>'           - connecting to the n-th peer
+  ':D[!failed_mask]' - data receiving from peers
+  If failed_mask is present its the bitmask of the peer devices
+  specified in scan start command that was not detected in scan
+  or failed to connect to.
