@@ -9,7 +9,7 @@
  *  4. Optionally adding suffix based on MAC to device name to make it distinguishable
  *
  * Tested on ESP32 C3 with SDK v.3.0
- * Use ../ble_receiver for other side of the connection.
+ * Use ../ble_receiver or ../ble_uart_rx for other side of the connection.
  */
 
 #include <BLEDevice.h>
@@ -31,7 +31,7 @@ uint32_t serial_ts;
 #undef  LED_BUILTIN
 #define LED_BUILTIN 8
 
-#define WDT_TIMEOUT 10000 // msec
+#define WDT_TIMEOUT 20000 // msec
 
 #define SERVICE_UUID           "FFE0"
 #define CHARACTERISTIC_UUID_TX "FFE1"
@@ -83,6 +83,11 @@ static void init_dev_name()
       dev_name += byte_signature(mac[i]);
   }
 #endif
+}
+
+void esp_task_wdt_isr_user_handler(void)
+{
+  esp_restart();
 }
 
 static inline void watchdog_init()

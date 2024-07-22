@@ -10,7 +10,7 @@
  *  5. LED to indicate connection status
  *
  * Tested on ESP32 C3 with SDK v.3.0
- * Use ../ble_transmitter for other side of the connection.
+ * Use ../ble_transmitter or ../ble_uart_tx for other side of the connection.
  */
 
 #include <BLEDevice.h>
@@ -27,7 +27,7 @@
 #define CHARACTERISTIC_UUID_TX "0000ffe1-0000-1000-8000-00805f9b34fb"
 #define SCAN_TIME              5     // sec
 #define CONNECT_TOUT           5000  // msec
-#define WDT_TIMEOUT            10000 // msec
+#define WDT_TIMEOUT            20000 // msec
 
 // The remote service we wish to connect to.
 static BLEUUID serviceUUID(SERVICE_UUID);
@@ -51,6 +51,11 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     }
   }
 };
+
+void esp_task_wdt_isr_user_handler(void)
+{
+  esp_restart();
+}
 
 static inline void watchdog_init()
 {
