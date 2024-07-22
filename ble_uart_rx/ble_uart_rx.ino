@@ -1,14 +1,15 @@
 /*
  * The BLE receiver connecting to the device with particular name and subscribing
- * to the characteristic updates.
+ * to the characteristic updates. Outputs received data to the hardware serial port.
+ * Its based on ../ble_receiver example with the following additions:
+ *  1. Output received data to hardware UART port. 
+ *  2. Enclose data between the start marker '\1'
+ *     and the end marker '\0'. So the receiving application will
+ *     be able to split data stream onto packets provided that the data is textual.
+ *     Undefine UART_BEGIN and UART_END to disable this feature.
+ *  3. Optional hard reset on watchdog timeout for better reliability.
+ *  4. Increased MTU
  *
- * Its based on the official Arduino examples with the following improvements:
- *  1. Increased the RF power for longer range
- *  2. Using watchdog to avoid hanging at connecting to device
- *  3. Automatic reconnect after disconnection
- *  4. LED to indicate connection status
- *
- * Tested on ESP32 C3 with SDK v.3.0
  * Use ../ble_transmitter or ../ble_uart_tx for other side of the connection.
  */
 
@@ -27,6 +28,28 @@
 #define SCAN_TIME              5     // sec
 #define CONNECT_TOUT           5000  // msec
 #define WDT_TIMEOUT            20000 // msec
+
+#define UART_BAUD_RATE 115200
+#define UART_MODE SERIAL_8N1
+#define UART_RX_PIN 6
+#define UART_TX_PIN 7
+
+#define UART_BEGIN '\1'
+#define UART_END   '\0'
+
+#define UART_PORT Serial1
+
+/*
+ The BT stack is complex and not well tested bunch of software. Using it one can easily be trapped onto the state
+ where there is no way out. The biggest problem is that connect routine may hung forever. Although the connect call
+ has timeout parameter, it does not help. The call may complete on timeout without errors, but the connection will
+ not actually be established. That's why we are using watchdog to detect connection timeout. Unfortunately its not
+ 100% reliable solution either. The watchdog does 'soft reset' which has somewhat limited effect in comparison to
+ power cycling. In particular the radio may be left in the state where it can't connect anymore. This way the
+ receiver can be reset by the watchdog in an infinite loop. The only way to prevent that is to implement hard
+ reset by connecting some output pin to EN input of the chip.
+*/
+#define RST_OUT_PIN 3
 
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
@@ -54,9 +77,19 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   }
 };
 
+static void reset_self()
+{
+#ifdef RST_OUT_PIN
+  pinMode(RST_OUT_PIN, OUTPUT);
+  digitalWrite(RST_OUT_PIN, LOW);
+#else
+  esp_restart();
+#endif
+}
+
 void esp_task_wdt_isr_user_handler(void)
 {
-  esp_restart();
+  reset_self();
 }
 
 static inline void watchdog_init()
@@ -69,6 +102,7 @@ static inline void watchdog_init()
 void setup()
 {
   Serial.begin(115200);
+  UART_PORT.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
 
@@ -99,11 +133,13 @@ class MyClientCallback : public BLEClientCallbacks {
 
 static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
-  Serial.print("data[");
-  Serial.print(length);
-  Serial.print("]: ");
-  Serial.write(pData, length);
-  Serial.println();
+#ifdef UART_BEGIN
+  UART_PORT.print(UART_BEGIN);
+#endif
+  UART_PORT.write(pData, length);
+#ifdef UART_END
+  UART_PORT.print(UART_END);
+#endif
 }
 
 bool connectToServer()
@@ -116,6 +152,7 @@ bool connectToServer()
 
   // Connect to the remove BLE Server.
   pClient->connect(myDevice);
+  pClient->setMTU(247);  // set client to request maximum MTU from server (default is 23 otherwise)
 
   // Obtain a reference to the service we are after in the remote BLE server.
   BLERemoteService *pRemoteService = pClient->getService(serviceUUID);

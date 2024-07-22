@@ -39,6 +39,9 @@ uint32_t serial_ts;
 // Uncomment to add suffix based on MAC to device name to make it distinguishable
 //#define DEV_NAME_SUFF_LEN      6
 
+// Undefine to keep default power level
+#define TX_PW_BOOST ESP_PWR_LVL_P21
+
 // If defined send uptime every second instead of data from UART
 #define TEST
 
@@ -110,10 +113,11 @@ void setup()
   BLEDevice::init(dev_name);
   BLEDevice::setMTU(247);
 
-  // Set maximum transmit power
-  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P21); 
-  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,     ESP_PWR_LVL_P21);
-  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN,    ESP_PWR_LVL_P21);
+#ifdef TX_PW_BOOST
+  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, TX_PW_BOOST); 
+  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,     TX_PW_BOOST);
+  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN,    TX_PW_BOOST);
+#endif
 
   // Create the BLE Server
   pServer = BLEDevice::createServer();

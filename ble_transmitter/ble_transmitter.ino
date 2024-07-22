@@ -30,6 +30,9 @@ uint8_t txValue = '0';
 #undef  LED_BUILTIN
 #define LED_BUILTIN 8
 
+// Undefine to keep default power level
+#define TX_PW_BOOST ESP_PWR_LVL_P21
+
 class MyServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
     deviceConnected = true;
@@ -54,10 +57,11 @@ void setup()
   // Create the BLE Device
   BLEDevice::init(DEV_NAME);
 
-  // Set maximum transmit power
-  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_P21); 
-  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,     ESP_PWR_LVL_P21);
-  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN,    ESP_PWR_LVL_P21);
+#ifdef TX_PW_BOOST
+  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, TX_PW_BOOST); 
+  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,     TX_PW_BOOST);
+  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN,    TX_PW_BOOST);
+#endif
 
   // Create the BLE Server
   pServer = BLEDevice::createServer();
