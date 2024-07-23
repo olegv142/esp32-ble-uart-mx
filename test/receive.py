@@ -38,7 +38,12 @@ def process_msg(msg):
 	if len(s) != 3 or s[1] != s[2]:
 		msg_bad += 1
 		return False
-	check_sn(int(s[0]))
+	try:
+		sn = int(s[0])
+	except ValueError:
+		msg_bad += 1
+		return False
+	check_sn(sn)
 	return True
 
 def process_chunk(chunk):
