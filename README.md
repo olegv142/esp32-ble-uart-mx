@@ -26,6 +26,7 @@ The USB virtual serial port used by ble_uart_tx example also has potential issue
 In general there are two possible data integrity models that can be implemented in the transmission channel. The strongest is data stream integrity where data can't be lost or reordered across the entire data stream (just like TCP/IP). The implementation of such integrity model is hard and typically not needed. The second model is message integrity when the message of limited length is either delivered unmodified or not delivered at all. So messages may be dropped or reordered but can't be modified (just like UDP). To implement such integrity model over unreliable data link one should take care of the following:
 * There should be means of detecting message boundaries in the data stream even if the stream is corrupted
 * There should be means of validating message integrity so the modified messages will be dropped
+
 The test scripts in the **test** folder implement message boundary detection by enclosing message between start/stop markers that can't be present in the message body. The test scripts detect corrupt messages by repeating message payload twice in the message body. The less space consuming approach typically used is to add checksum to the message.
 
 ## Building and flashing
