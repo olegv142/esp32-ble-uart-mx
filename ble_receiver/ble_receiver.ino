@@ -112,7 +112,7 @@ static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, ui
 
 void connectToServer()
 {
-  Serial.print("connecting to ");
+  Serial.print("Connecting to ");
   Serial.println(myDevice->getAddress().toString().c_str());
 
   BLEClient *pClient = BLEDevice::createClient();

@@ -43,16 +43,18 @@
  The BT stack is complex and not well tested bunch of software. Using it one can easily be trapped onto the state
  where there is no way out. The biggest problem is that connect routine may hung forever. Although the connect call
  has timeout parameter, it does not help. The call may complete on timeout without errors, but the connection will
- not actually be established. That's why we are using watchdog to detect connection timeout. Unfortunately its not
- 100% reliable solution either. The watchdog does 'soft reset' which has somewhat limited effect in comparison to
- power cycling. In particular the radio may be left in the state where it can't connect anymore. This way the
- receiver can be reset by the watchdog in an infinite loop. The only way to prevent that is to implement hard
- reset by connecting some output pin to EN input of the chip.
+ not actually be established. That's why we are using watchdog to detect connection timeout. Its unclear if soft
+ reset by watchdog is equivalent to the power cycle or reset by pulling low EN pin. That's why there is an option
+ to implement hard reset on connect timeout by hard wiring some output pin to EN input of the chip.
 */
+// If defined use hard reset on connect timeout
 #define RST_OUT_PIN 3
 
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
+
+// If defined the receiver will reset itself after being in connected state for the specified time (for testing)
+//#define SELF_RESET_AFTER_CONNECTED 60000 // msec
 
 // The remote service we wish to connect to.
 static BLEUUID serviceUUID(SERVICE_UUID);
@@ -63,6 +65,7 @@ BLEScan *pBLEScan;
 BLEAdvertisedDevice *myDevice;
 bool is_scanning;
 bool is_connected;
+uint32_t connected_ts;
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   // Called for each advertising BLE server.
@@ -131,6 +134,7 @@ void setup()
 class MyClientCallback : public BLEClientCallbacks {
   void onConnect(BLEClient *pclient) {
     is_connected = true;
+    connected_ts = millis();
     Serial.println("connected");
     digitalWrite(LED_BUILTIN, LOW);
   }
@@ -154,7 +158,7 @@ static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, ui
 
 void connectToServer()
 {
-  Serial.print("connecting to ");
+  Serial.print("Connecting to ");
   Serial.println(myDevice->getAddress().toString().c_str());
 
   BLEClient *pClient = BLEDevice::createClient();
@@ -205,6 +209,14 @@ void loop()
   }
   if (myDevice && !is_scanning && !is_connected)
     connectToServer();
+
+#ifdef SELF_RESET_AFTER_CONNECTED
+  if (is_connected && millis() - connected_ts > SELF_RESET_AFTER_CONNECTED) {
+    Serial.println("reset itself for testing");
+    delay(100);
+    reset_self();
+  }
+#endif
 
   esp_task_wdt_reset();
 }

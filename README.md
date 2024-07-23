@@ -6,10 +6,16 @@ The ble_receiver / ble_transmitter are examples of creating one way communicatio
 
 The ble_uart_tx example adds receiving data for transmission from the (USB virtual) serial port, increasing the MTU and the ability to add a hexadecimal suffix to the device name so that it can be distinguished in case there are several devices around with the same firmware.
 
-The ble_uart_tx example adds sending received data to hardware serial port, increasing the MTU and using hardware reset on watchdog timeout for better reliability.
+The ble_uart_rx example adds sending received data to hardware serial port, increasing the MTU and using hardware reset on watchdog timeout for better reliability.
 
 ## Using watchdog for better reliability
-The BT stack is complex and not well tested bunch of software. Using it one can easily be trapped onto the state where there is no way out. The biggest problem is that connect routine may hung forever. Although the connect call has timeout parameter, it does not help. The call may complete on timeout without errors, but the connection will not actually be established. That's why we are using watchdog to detect connection timeout. Unfortunately its not 100% reliable solution either. The watchdog does 'soft reset' which has somewhat limited effect in comparison to power cycling. In particular the radio may be left in the state where it can't connect anymore. This way the receiver can be reset by the watchdog in an infinite loop. The only way to prevent that is to implement hard reset by connecting some output pin to EN input of the chip. See ble_uart_tx as an example of such approach implementation.
+The BT stack is complex and not well tested bunch of software. Using it one can easily be trapped onto the state
+where there is no way out. The biggest problem is that connect routine may hung forever. Although the connect call
+has timeout parameter, it does not help. The call may complete on timeout without errors, but the connection will
+not actually be established. That's why we are using watchdog to detect connection timeout. Its unclear if soft
+reset by watchdog is equivalent to the power cycle or reset by pulling low EN pin. That's why there is an option
+to implement hard reset on connect timeout by hard wiring some output pin to EN input of the chip.
+See ble_uart_rx as an example of such approach implementation.
 
 ## Building and flashing
 To be able to build this code examples add the following to Arduino Additional board manager URLs:
