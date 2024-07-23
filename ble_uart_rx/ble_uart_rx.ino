@@ -18,6 +18,7 @@
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 #include <esp_task_wdt.h>
+#include <driver/uart.h>
 
 #undef  LED_BUILTIN
 #define LED_BUILTIN 8
@@ -31,13 +32,12 @@
 
 #define UART_BAUD_RATE 115200
 #define UART_MODE SERIAL_8N1
-#define UART_RX_PIN 6
-#define UART_TX_PIN 7
+#define UART_RX_PIN  6
+#define UART_TX_PIN  7
+#define UART_CTS_PIN 5
 
 #define UART_BEGIN '\1'
 #define UART_END   '\0'
-
-#define UART_PORT Serial1
 
 /*
  The BT stack is complex and not well tested bunch of software. Using it one can easily be trapped onto the state
@@ -102,9 +102,15 @@ static inline void watchdog_init()
 void setup()
 {
   Serial.begin(115200);
-  UART_PORT.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
+
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
+
+  Serial1.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
+#ifdef UART_CTS_PIN
+  uart_set_pin(UART_NUM_1, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_CTS_PIN);  
+  uart_set_hw_flow_ctrl(UART_NUM_1, UART_HW_FLOWCTRL_CTS, 0);
+#endif
 
   watchdog_init();
   BLEDevice::init("");
@@ -138,11 +144,11 @@ class MyClientCallback : public BLEClientCallbacks {
 static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
 #ifdef UART_BEGIN
-  UART_PORT.print(UART_BEGIN);
+  Serial1.print(UART_BEGIN);
 #endif
-  UART_PORT.write(pData, length);
+  Serial1.write(pData, length);
 #ifdef UART_END
-  UART_PORT.print(UART_END);
+  Serial1.print(UART_END);
 #endif
 }
 
