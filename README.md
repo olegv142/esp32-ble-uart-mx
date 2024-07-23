@@ -15,7 +15,8 @@ has timeout parameter, it does not help. The call may complete on timeout withou
 not actually be established. That's why we are using watchdog to detect connection timeout. Its unclear if soft
 reset by watchdog is equivalent to the power cycle or reset by pulling low EN pin. That's why there is an option
 to implement hard reset on connect timeout by hard wiring some output pin to EN input of the chip.
-See ble_uart_rx as an example of such approach implementation.
+See ble_uart_rx as an example of such approach implementation. There is an option to self reset receiver after
+connection for testing, see SELF_RESET_AFTER_CONNECTED macro.
 
 ## Building and flashing
 To be able to build this code examples add the following to Arduino Additional board manager URLs:
@@ -29,6 +30,9 @@ In case you are failed to flash ESP32 board from Arduino do the following:
 * short press RST button
 * release BOOT button
 * proceed with flashing in Arduino
+
+## Testing
+There are two python scripts for testing transmitter / receiver pair. The **test/transmit.py** opens serial port passed as parameter to the script and sends messages to it periodically. Each message has sequence number followed by the random data repeated twice so the receiver can verify message integrity and detect lost messages. The **test/receive.py** opens serial port passed as parameter to the script and parse messages at the receiver side of the connection validating them. It also prints various statistic when terminated by pressing Ctrl-C.
 
 ## Power consumption
 The following values were measured with SDK v.3.0.3
