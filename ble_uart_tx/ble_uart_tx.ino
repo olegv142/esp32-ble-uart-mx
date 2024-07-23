@@ -42,8 +42,10 @@ uint32_t serial_ts;
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
 
+#define CDC_BUFFER_SZ 4096
+
 // If defined send uptime every second instead of data from UART
-#define TEST
+// #define TEST
 
 #ifdef TEST
 uint32_t last_uptime;
@@ -104,6 +106,9 @@ void setup()
 {
   Serial.begin(115200);
   Serial.setTimeout(10);
+#ifdef CDC_BUFFER_SZ
+  Serial.setRxBufferSize(CDC_BUFFER_SZ);
+#endif
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
 
