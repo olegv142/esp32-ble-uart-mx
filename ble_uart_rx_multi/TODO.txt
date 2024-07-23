@@ -1,20 +1,13 @@
-1. Start every out message with \1 end with \0. Second symbol is ':' for status messages
-  or '0', '1' .., 'A', 'B', ..  for conn[0], conn[1] .. data (max 32)
-2. Implement commands / status messages as follows:
+1. Implement commands / status messages as follows:
 Commands (ends with \r or \n):
-  '#S Dev0 Dev1 ..' - scan for devices given their names
-  '#C'              - connect to detected devices
-  '#C Adr0 Adr1 ..' - connect to the given device addresses
-  '#R'              - reset
+  '#Cn addr'   - connect n-th stream to addr
+  '#R'         - reset to idle state
 Optionally, commands may begin with an 8-bit checksum, expressed in hexadecimal,
 starting with the prefix ~. So the command starts with ~hh#
 Status messages:
-  ':I'               - idle, just initialized
-  ':E'               - error state (no device detected in scan or no device connected)
-  ':S'               - scanning
-  ':R[!failed_mask]' - scan done, ready to connect
-  ':C#<n>'           - connecting to the n-th peer
-  ':D[!failed_mask]' - data receiving from peers
-  If failed_mask is present its the bitmask of the peer devices
-  specified in scan start command or connect addresses that was
-  not detected in scan or failed to connect to.
+  ':D0'        - not connected
+  ':Cn'        - connecting to the n-th peer
+  ':Dbitmask'  - data receiving from connected peers, bitmask has bits set for peers currently connected
+
+2. Start every out message with \1 end with \0. Second symbol is ':' for status messages
+  or '0', '1' .., 'A', 'B', ..  for data stream 0, 1, .. (max 32)
