@@ -7,8 +7,10 @@
  *     and the end marker '\0'. So the receiving application will
  *     be able to split data stream onto packets provided that the data is textual.
  *     Undefine UART_BEGIN and UART_END to disable this feature.
- *  3. Optional hard reset on watchdog timeout for better reliability.
- *  4. Increased MTU
+ *  3. Option to connect without scanning in case the target address is known.
+ *     It should be defined as DEV_ADDR to enable such mode.
+ *  4. Optional hard reset on watchdog timeout for better reliability.
+ *  5. Increased MTU
  *
  * Use ../ble_transmitter or ../ble_uart_tx for other side of the connection.
  */
@@ -24,6 +26,11 @@
 #define LED_BUILTIN 8
 
 #define DEV_NAME               "TestC3"
+
+// If DEV_ADDR is defined the connection will be established without scan
+// In such scenario the DEV_NAME is not used
+// #define DEV_ADDR               "EC:DA:3B:BB:CE:02"
+
 #define SERVICE_UUID           "0000ffe0-0000-1000-8000-00805f9b34fb"
 #define CHARACTERISTIC_UUID_TX "0000ffe1-0000-1000-8000-00805f9b34fb"
 #define SCAN_TIME              5     // sec
@@ -54,7 +61,7 @@
 #define TX_PW_BOOST ESP_PWR_LVL_P21
 
 // If defined the receiver will reset itself after being in connected state for the specified time (for testing)
-//#define SELF_RESET_AFTER_CONNECTED 60000 // msec
+// #define SELF_RESET_AFTER_CONNECTED 60000 // msec
 
 // The remote service we wish to connect to.
 static BLEUUID serviceUUID(SERVICE_UUID);
@@ -140,6 +147,7 @@ class MyClientCallback : public BLEClientCallbacks {
   }
   void onDisconnect(BLEClient *pclient) {
     is_connected = false;
+    connected_ts = millis();
     Serial.println("disconnected");
     digitalWrite(LED_BUILTIN, HIGH);
   }
@@ -156,16 +164,15 @@ static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, ui
 #endif
 }
 
-void connectToServer()
+void connectToServer(String const& addr)
 {
   Serial.print("Connecting to ");
-  Serial.println(myDevice->getAddress().toString().c_str());
+  Serial.println(addr);
 
   BLEClient *pClient = BLEDevice::createClient();
   pClient->setClientCallbacks(new MyClientCallback());
 
-  // Connect to the remove BLE Server.
-  pClient->connect(myDevice);
+  pClient->connect(addr);
   pClient->setMTU(247);  // set client to request maximum MTU from server (default is 23 otherwise)
 
   // Obtain a reference to the service we are after in the remote BLE server.
@@ -201,6 +208,7 @@ void scan_complete_cb(BLEScanResults res)
 
 void loop()
 {
+#ifndef DEV_ADDR
   if (!myDevice && !is_scanning) {
     pBLEScan->clearResults();  // delete results fromBLEScan buffer to release memory
     Serial.println("Scanning...");
@@ -208,7 +216,11 @@ void loop()
     is_scanning = true;
   }
   if (myDevice && !is_scanning && !is_connected)
-    connectToServer();
+    connectToServer(myDevice->getAddress().toString());
+#else
+  if (!is_connected && millis() - connected_ts > 500)
+    connectToServer(DEV_ADDR);
+#endif
 
 #ifdef SELF_RESET_AFTER_CONNECTED
   if (is_connected && millis() - connected_ts > SELF_RESET_AFTER_CONNECTED) {
