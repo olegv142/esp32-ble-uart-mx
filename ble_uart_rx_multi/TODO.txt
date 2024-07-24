@@ -10,7 +10,7 @@ Status messages:
   ':D'   - data receiving from connected peers
 
 2. Start every out message with \1 end with \0. Second symbol is ':' for status messages
-  or '0', '1' .., 'A', 'B', ..  for data stream 0, 1, .. (max 32)
+  or '0', '1' .., 'A', 'B', ..  for data stream 0, 1, .. (up to 31)
 
 3. The first data message after connection / re-connection has no data payload.
    This is the stream start token.
