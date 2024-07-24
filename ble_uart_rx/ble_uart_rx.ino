@@ -39,7 +39,6 @@
 
 #define UART_BAUD_RATE 115200
 #define UART_MODE SERIAL_8N1
-#define UART_RX_PIN  6
 #define UART_TX_PIN  7
 // If defined the flow control on UART will be configured
 // #define UART_CTS_PIN 5
@@ -117,7 +116,7 @@ void setup()
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
 
-  Serial1.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
+  Serial1.begin(UART_BAUD_RATE, UART_MODE, UART_PIN_NO_CHANGE, UART_TX_PIN);
 #ifdef UART_CTS_PIN
   uart_set_pin(UART_NUM_1, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_CTS_PIN);  
   uart_set_hw_flow_ctrl(UART_NUM_1, UART_HW_FLOWCTRL_CTS, 0);
