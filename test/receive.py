@@ -118,6 +118,8 @@ def show_stat(elapsed):
 
 with Serial(sys.argv[1], baudrate=baud_rate, dsrdtr=True, timeout=1) as com:
 	start = time.time()
+	if wait_start:
+		print ('waiting for stream start tag')
 	try:
 		while True:
 			if rx_bytes := com.read(4096):
