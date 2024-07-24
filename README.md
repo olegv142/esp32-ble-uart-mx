@@ -46,7 +46,7 @@ In case you are failed to flash ESP32 board from Arduino do the following:
 * proceed with flashing in Arduino
 
 ## Testing
-There are two python scripts for testing transmitter / receiver pair. The **test/transmit.py** opens serial port passed as parameter to the script and sends messages to it periodically. Each message has sequence number followed by the random data repeated twice so the receiver can verify message integrity and detect lost messages. The **test/receive.py** opens serial port passed as parameter to the script and parse messages at the receiver side of the connection validating them. It also prints various statistic when terminated by pressing Ctrl-C.
+There are two python scripts for testing **ble_uart_tx** / **ble_uart_rx** pair. The **test/transmit.py** opens serial port passed as parameter to the script and sends messages to it periodically. Each message has sequence number followed by the random data repeated twice so the receiver can verify message integrity and detect lost messages. The **test/receive.py** opens serial port passed as parameter to the script and parse messages at the receiver side of the connection validating them. It also prints various statistic when terminated by pressing Ctrl-C. 
 
 ## Power consumption
 The following values were measured with SDK v.3.0.3
