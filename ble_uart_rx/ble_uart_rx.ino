@@ -41,7 +41,8 @@
 #define UART_MODE SERIAL_8N1
 #define UART_RX_PIN  6
 #define UART_TX_PIN  7
-#define UART_CTS_PIN 5
+// If defined the flow control on UART will be configured
+// #define UART_CTS_PIN 5
 
 #define UART_BEGIN '\1'
 #define UART_END   '\0'
