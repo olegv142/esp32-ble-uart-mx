@@ -10,6 +10,8 @@
  *
  * Tested on ESP32 C3 with SDK v.3.0
  * Use ../ble_receiver or ../ble_uart_rx for other side of the connection.
+ *
+ * Author: Oleg Volkov
  */
 
 #include <BLEDevice.h>

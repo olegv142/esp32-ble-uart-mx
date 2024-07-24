@@ -1,3 +1,10 @@
+"""
+The script generate data packets to be transmitted by ble_uart_tx
+Should be paired with ble_uart_rx + receive.py
+
+Author: Oleg Volkov
+"""
+
 import sys
 import time
 import random

@@ -7,12 +7,16 @@
  *     and the end marker '\0'. So the receiving application will
  *     be able to split data stream onto packets provided that the data is textual.
  *     Undefine UART_BEGIN and UART_END to disable this feature.
- *  3. Option to connect without scanning in case the target address is known.
+ *  3. Sending empty start/end marker pair on connect as start of the stream marker.
+ *  4. Option to connect without scanning in case the target address is known.
  *     It should be defined as DEV_ADDR to enable such mode.
- *  4. Optional hard reset on watchdog timeout for better reliability.
- *  5. Increased MTU
+ *  5. Optional hard reset on watchdog timeout for better reliability.
+ *  6. Increased MTU
  *
+ * Tested on ESP32 C3 with SDK v.3.0
  * Use ../ble_transmitter or ../ble_uart_tx for other side of the connection.
+ *
+ * Author: Oleg Volkov
  */
 
 #include <BLEDevice.h>
@@ -138,10 +142,19 @@ void setup()
   pBLEScan->setWindow(99);  // less or equal setInterval value
 }
 
+static void notifyConnected()
+{
+#if defined(UART_BEGIN) && defined(UART_END)
+  Serial1.print(UART_BEGIN);
+  Serial1.print(UART_END);
+#endif
+}
+
 class MyClientCallback : public BLEClientCallbacks {
   void onConnect(BLEClient *pclient) {
     is_connected = true;
     connected_ts = millis();
+    notifyConnected();
     Serial.println("connected");
     digitalWrite(LED_BUILTIN, LOW);
   }
@@ -164,14 +177,14 @@ static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, ui
 #endif
 }
 
-void do_reset(const char* what)
+static void do_reset(const char* what)
 {
   Serial.println(what);
   delay(100); // give host a chance to read message
   reset_self();
 }
 
-void connectToServer(String const& addr)
+static void connectToServer(String const& addr)
 {
   Serial.print("Connecting to ");
   Serial.println(addr);
@@ -203,13 +216,15 @@ void connectToServer(String const& addr)
   }
 }
 
-void scan_complete_cb(BLEScanResults res)
+#ifndef DEV_ADDR
+static void scan_complete_cb(BLEScanResults res)
 {
   Serial.print("Devices found: ");
   Serial.println(res.getCount());
   Serial.println("Scan done!");
   is_scanning = false;
 }
+#endif
 
 void loop()
 {

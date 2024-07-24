@@ -1,3 +1,15 @@
+"""
+The script reads and validate data stream received by ble_uart_rx
+Should be paired with ble_uart_tx + transmit.py
+
+Note that UART flow control must be enabled in ble_uart_rx
+for this test to be run without a lot of errors. To do it one should
+define UART_CTS_PIN in ble_uart_rx code and connect it to serial
+adapter RTS or DTR input.
+
+Author: Oleg Volkov
+"""
+
 import sys
 import time
 import random
@@ -8,6 +20,7 @@ start_byte = b'\1'
 end_byte   = b'\0'
 rx_buff    = b''
 msg_buff   = b''
+wait_start = True
 
 total_bytes = 0
 chunk_total = 0
@@ -47,9 +60,9 @@ def process_msg(msg):
 	return True
 
 def process_chunk(chunk):
-	global chunk_total, msg_buff
-	chunk_total += 1
+	global msg_buff, chunk_total
 	msg_buff += chunk
+	chunk_total += 1
 	first = 0
 	while True:
 		begin = msg_buff.find(b'(', first)
@@ -65,12 +78,37 @@ def process_chunk(chunk):
 		first = end + 1
 	msg_buff = msg_buff[first:]
 
+def on_stream_start():
+	global msg_buff, wait_start
+	msg_buff = b''
+	wait_start = False
+	print ('.', end='', flush=True)
+
+def process_buffer(rx_bytes):
+	global rx_buff, total_bytes
+	rx_buff += rx_bytes
+	total_bytes += len(rx_bytes)
+	first = 0
+	while True:
+		begin = rx_buff.find(start_byte, first)
+		if begin < 0:
+			break
+		end = rx_buff.find(end_byte, begin + 1)
+		if end < 0:
+			break
+		if rx_buff[end-1:end] == start_byte:
+			on_stream_start()
+		elif not wait_start:
+			process_chunk(rx_buff[begin+1:end])
+		first = end + 1
+	rx_buff = rx_buff[first:]
+
 def show_stat(elapsed):
 	print('\n%u bytes received in %u sec (%u bytes/sec)' % (total_bytes, elapsed, total_bytes/elapsed))
 	if chunk_total:
-		print ('%u chunks (%u bytes in aver)' % (chunk_total, total_bytes // chunk_total))
+		print ('%u chunks (%u bytes on aver)' % (chunk_total, total_bytes // chunk_total))
 	if msg_total:
-		print ('%u messages (%u bytes in aver)' % (msg_total, total_bytes // msg_total))
+		print ('%u messages (%u bytes on aver)' % (msg_total, total_bytes // msg_total))
 	if msg_bad:
 		print ('%u messages were corrupt' % msg_bad)
 	if missed_sn:
@@ -82,22 +120,8 @@ with Serial(sys.argv[1], baudrate=baud_rate, dsrdtr=True, timeout=1) as com:
 	start = time.time()
 	try:
 		while True:
-			rx_bytes = com.read(4096)
-			if not rx_bytes:
-				continue
-			total_bytes += len(rx_bytes)
-			rx_buff += rx_bytes
-			first = 0
-			while True:
-				begin = rx_buff.find(start_byte, first)
-				if begin < 0:
-					break
-				end = rx_buff.find(end_byte, begin + 1)
-				if end < 0:
-					break
-				process_chunk(rx_buff[begin+1:end])
-				first = end + 1
-			rx_buff = rx_buff[first:]
+			if rx_bytes := com.read(4096):
+				process_buffer(rx_bytes)
 	except KeyboardInterrupt:
 		show_stat(time.time() - start)
 		pass
