@@ -164,6 +164,13 @@ static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, ui
 #endif
 }
 
+void do_reset(const char* what)
+{
+  Serial.println(what);
+  delay(100); // give host a chance to read message
+  reset_self();
+}
+
 void connectToServer(String const& addr)
 {
   Serial.print("Connecting to ");
@@ -173,28 +180,26 @@ void connectToServer(String const& addr)
   pClient->setClientCallbacks(new MyClientCallback());
 
   pClient->connect(addr);
-  pClient->setMTU(247);  // set client to request maximum MTU from server (default is 23 otherwise)
+  pClient->setMTU(247);  // Request increased MTU from server (default is 23 otherwise)
 
   // Obtain a reference to the service we are after in the remote BLE server.
   BLERemoteService *pRemoteService = pClient->getService(serviceUUID);
+  // Reset itself on error to avoid dealing with de-initialization
   if (!pRemoteService) {
-    Serial.print("Failed to find our service UUID");
-    pClient->disconnect();
+    do_reset("Failed to find our service UUID");
     return;
   }
   // Obtain a reference to the characteristic in the service of the remote BLE server.
   BLERemoteCharacteristic *pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
   if (!pRemoteCharacteristic) {
-    Serial.print("Failed to find our characteristic UUID");
-    pClient->disconnect();
+    do_reset("Failed to find our characteristic UUID");
     return;
   }
   // Subscribe to updates
   if (pRemoteCharacteristic->canNotify()) {
     pRemoteCharacteristic->registerForNotify(notifyCallback);
   } else {
-    Serial.print("Notification not supported by the server");
-    pClient->disconnect();
+    do_reset("Notification not supported by the server");
   }
 }
 
@@ -223,11 +228,8 @@ void loop()
 #endif
 
 #ifdef SELF_RESET_AFTER_CONNECTED
-  if (is_connected && millis() - connected_ts > SELF_RESET_AFTER_CONNECTED) {
-    Serial.println("reset itself for testing");
-    delay(100);
-    reset_self();
-  }
+  if (is_connected && millis() - connected_ts > SELF_RESET_AFTER_CONNECTED)
+    do_reset("reset itself for testing");
 #endif
 
   esp_task_wdt_reset();
