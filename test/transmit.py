@@ -2,6 +2,10 @@
 The script generate data packets to be transmitted by ble_uart_tx
 Should be paired with ble_uart_rx + receive.py
 
+Every message is enclosed between begin / end markers. The message consists of the
+sequence number followed by random data repeated twice. So the receiver may validate
+data integrity and detect missed messages.
+
 Author: Oleg Volkov
 """
 
