@@ -26,9 +26,6 @@
 #include <esp_task_wdt.h>
 #include <driver/uart.h>
 
-#undef  LED_BUILTIN
-#define LED_BUILTIN 8
-
 #define DEV_NAME               "TestC3"
 
 // If DEV_ADDR is defined the connection will be established without scan
@@ -41,14 +38,24 @@
 #define CONNECT_TOUT           5000  // msec
 #define WDT_TIMEOUT            20000 // msec
 
+// If UART_TX_PIN is defined the data will be output to the hardware serial port
+// Otherwise the USB virtual serial port will be used for that purpose
+// #define UART_TX_PIN  7
 #define UART_BAUD_RATE 115200
 #define UART_MODE SERIAL_8N1
-#define UART_TX_PIN  7
 // If defined the flow control on UART will be configured
-// #define UART_CTS_PIN 5
+#define UART_CTS_PIN 5
 
+#ifdef UART_TX_PIN
+#define DataSerial Serial1
+#define DATA_UART_NUM UART_NUM_1
 #define UART_BEGIN '\1'
 #define UART_END   '\0'
+#else
+#define DataSerial Serial
+#define UART_BEGIN "data: "
+#define UART_END   "\n"
+#endif
 
 /*
  The BT stack is complex and not well tested bunch of software. Using it one can easily be trapped onto the state
@@ -63,6 +70,8 @@
 
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
+
+#define CONNECTED_LED 8
 
 // If defined the receiver will reset itself after being in connected state for the specified time (for testing)
 // #define SELF_RESET_AFTER_CONNECTED 60000 // msec
@@ -117,13 +126,15 @@ void setup()
 {
   Serial.begin(115200);
 
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH);
+  pinMode(CONNECTED_LED, OUTPUT);
+  digitalWrite(CONNECTED_LED, HIGH);
 
-  Serial1.begin(UART_BAUD_RATE, UART_MODE, UART_PIN_NO_CHANGE, UART_TX_PIN);
+#ifdef UART_TX_PIN
+  DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_PIN_NO_CHANGE, UART_TX_PIN);
 #ifdef UART_CTS_PIN
-  uart_set_pin(UART_NUM_1, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_CTS_PIN);  
-  uart_set_hw_flow_ctrl(UART_NUM_1, UART_HW_FLOWCTRL_CTS, 0);
+  uart_set_pin(DATA_UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_CTS_PIN);  
+  uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_CTS, 0);
+#endif
 #endif
 
   watchdog_init();
@@ -147,35 +158,35 @@ void setup()
 static void notifyConnected()
 {
 #if defined(UART_BEGIN) && defined(UART_END)
-  Serial1.print(UART_BEGIN);
-  Serial1.print(UART_END);
+  DataSerial.print(UART_BEGIN);
+  DataSerial.print(UART_END);
 #endif
 }
 
 class MyClientCallback : public BLEClientCallbacks {
   void onConnect(BLEClient *pclient) {
+    Serial.println("connected");
     is_connected = true;
     connected_ts = millis();
     notifyConnected();
-    Serial.println("connected");
-    digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(CONNECTED_LED, LOW);
   }
   void onDisconnect(BLEClient *pclient) {
+    Serial.println("disconnected");
     is_connected = false;
     connected_ts = millis();
-    Serial.println("disconnected");
-    digitalWrite(LED_BUILTIN, HIGH);
+    digitalWrite(CONNECTED_LED, HIGH);
   }
 };
 
 static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
 #ifdef UART_BEGIN
-  Serial1.print(UART_BEGIN);
+  DataSerial.print(UART_BEGIN);
 #endif
-  Serial1.write(pData, length);
+  DataSerial.write(pData, length);
 #ifdef UART_END
-  Serial1.print(UART_END);
+  DataSerial.print(UART_END);
 #endif
 }
 

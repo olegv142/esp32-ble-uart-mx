@@ -30,9 +30,6 @@ uint32_t connectedTs;
 String serial_buff;
 uint32_t serial_ts;
 
-#undef  LED_BUILTIN
-#define LED_BUILTIN 8
-
 #define WDT_TIMEOUT 20000 // msec
 
 #define SERVICE_UUID           "FFE0"
@@ -44,10 +41,14 @@ uint32_t serial_ts;
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
 
+// There is no flow control in USB serial port.
+// The default buffer size is 256 bytes which may be not enough.
 #define CDC_BUFFER_SZ 4096
 
+#define CONNECTED_LED 8
+
 // If defined send uptime every second instead of data from UART
-// #define TEST
+#define TEST
 
 #ifdef TEST
 uint32_t last_uptime;
@@ -60,14 +61,14 @@ class MyServerCallbacks: public BLEServerCallbacks {
       deviceConnected = true;
       connectedTs = millis();
       advertising = false;
-      digitalWrite(LED_BUILTIN, LOW);
+      digitalWrite(CONNECTED_LED, LOW);
     };
 
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
       connectedTs = millis();
       serial_buff = "";
-      digitalWrite(LED_BUILTIN, HIGH);
+      digitalWrite(CONNECTED_LED, HIGH);
     }
 };
 
@@ -111,8 +112,8 @@ void setup()
 #ifdef CDC_BUFFER_SZ
   Serial.setRxBufferSize(CDC_BUFFER_SZ);
 #endif
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH);
+  pinMode(CONNECTED_LED, OUTPUT);
+  digitalWrite(CONNECTED_LED, HIGH);
 
   watchdog_init();
   // Create the BLE Device
