@@ -2,16 +2,18 @@
  * The BLE receiver connecting to the device with particular name and subscribing
  * to the characteristic updates. Outputs received data to the hardware serial port.
  * Its based on ../ble_receiver example with the following additions:
- *  1. Output received data to hardware UART port. 
+ *  1. Option to output received data to hardware UART port. If UART_TX_PIN is
+ *     not defined data will be printed to USB serial port as other debug messages.
  *  2. Enclose data between the start marker '\1'
  *     and the end marker '\0'. So the receiving application will
  *     be able to split data stream onto packets provided that the data is textual.
  *     Undefine UART_BEGIN and UART_END to disable this feature.
  *  3. Sending empty start/end marker pair on connect as start of the stream marker.
- *  4. Option to connect without scanning in case the target address is known.
+ *  4. RSSI reporting
+ *  5. Option to connect without scanning in case the target address is known.
  *     It should be defined as DEV_ADDR to enable such mode.
- *  5. Optional hard reset on watchdog timeout for better reliability.
- *  6. Increased MTU
+ *  6. Optional hard reset on watchdog timeout for better reliability.
+ *  7. Increased MTU
  *
  * Tested on ESP32 C3 with SDK v.3.0
  * Use ../ble_transmitter or ../ble_uart_tx for other side of the connection.
