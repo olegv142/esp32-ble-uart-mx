@@ -76,6 +76,8 @@
 // If defined the receiver will reset itself after being in connected state for the specified time (for testing)
 // #define SELF_RESET_AFTER_CONNECTED 60000 // msec
 
+#define RSSI_REPORT_INTERVAL 5000
+
 // The remote service we wish to connect to.
 static BLEUUID serviceUUID(SERVICE_UUID);
 // The characteristic of the remote service we are interested in.
@@ -83,9 +85,12 @@ static BLEUUID charUUID(CHARACTERISTIC_UUID_TX);
 
 BLEScan *pBLEScan;
 BLEAdvertisedDevice *myDevice;
+BLEClient *pClient;
+
 bool is_scanning;
 bool is_connected;
 uint32_t connected_ts;
+uint32_t rssi_reported_ts;
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   // Called for each advertising BLE server.
@@ -179,6 +184,12 @@ class MyClientCallback : public BLEClientCallbacks {
   }
 };
 
+static inline void report_rssi()
+{
+  Serial.print("rssi: ");
+  Serial.println(pClient->getRssi());
+}
+
 static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
 #ifdef UART_BEGIN
@@ -202,7 +213,7 @@ static void connectToServer(String const& addr)
   Serial.print("Connecting to ");
   Serial.println(addr);
 
-  BLEClient *pClient = BLEDevice::createClient();
+  pClient = BLEDevice::createClient();
   pClient->setClientCallbacks(new MyClientCallback());
 
   pClient->connect(addr);
@@ -241,6 +252,7 @@ static void scan_complete_cb(BLEScanResults res)
 
 void loop()
 {
+  uint32_t const now = millis();
 #ifndef DEV_ADDR
   if (!myDevice && !is_scanning) {
     pBLEScan->clearResults();  // delete results fromBLEScan buffer to release memory
@@ -248,17 +260,26 @@ void loop()
     pBLEScan->start(SCAN_TIME, scan_complete_cb, true);
     is_scanning = true;
   }
-  if (myDevice && !is_scanning && !is_connected)
+  if (myDevice && !is_scanning && !is_connected) {
     connectToServer(myDevice->getAddress().toString());
+    return;
+  }
 #else
-  if (!is_connected && millis() - connected_ts > 500)
+  if (!is_connected && now - connected_ts > 500) {
     connectToServer(DEV_ADDR);
+    return;
+  }
 #endif
 
 #ifdef SELF_RESET_AFTER_CONNECTED
-  if (is_connected && millis() - connected_ts > SELF_RESET_AFTER_CONNECTED)
+  if (is_connected && now - connected_ts > SELF_RESET_AFTER_CONNECTED)
     do_reset("reset itself for testing");
 #endif
+
+  if (is_connected && now - rssi_reported_ts > RSSI_REPORT_INTERVAL) {
+    rssi_reported_ts = now;
+    report_rssi();
+  }
 
   esp_task_wdt_reset();
 }
