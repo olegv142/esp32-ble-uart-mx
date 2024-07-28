@@ -7,6 +7,8 @@
  *  2. Using watchdog for better reliability
  *  3. Increased MTU
  *  4. Optionally adding suffix based on MAC to device name to make it distinguishable
+ *  5. Optionally starting every data chunk with sequence tag selected from 16 characters sequence 
+ *     'a', 'b', .. 'p' round robin. So the receiver may use it to detect missed / reordered updates.
  *
  * Tested on ESP32 C3 with SDK v.3.0
  * Use ../ble_receiver or ../ble_uart_rx for other side of the connection.
