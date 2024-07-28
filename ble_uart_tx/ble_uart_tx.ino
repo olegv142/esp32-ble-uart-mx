@@ -48,26 +48,51 @@ uint32_t serial_ts;
 #define CONNECTED_LED 8
 
 // If defined send uptime every second instead of data from UART
-#define TEST
+//#define TEST
+
+#ifndef TEST
+// If USE_SEQ_TAG is defined every chunk of data transmitted (characteristic update) will carry sequence tag as the first symbol.
+// It will get its value from 16 characters sequence 'a', 'b', .. 'p'. Next update will use next symbol. After 'p' the 'a' will
+// be used again. The receiver may use sequence tag to control the order of delivery of updates detecting missed or reordered
+// updates.
+#define USE_SEQ_TAG
+#endif
+
+#ifdef USE_SEQ_TAG
+#define NTAGS 16
+#define FIRST_TAG 'a'
+char next_tag = FIRST_TAG;
+#else
+#endif
 
 #ifdef TEST
 uint32_t last_uptime;
 #endif
 
+
 String dev_name(DEV_NAME);
+
+static inline void serial_buff_reset()
+{
+#ifdef USE_SEQ_TAG
+      serial_buff = ' ';
+#else
+      serial_buff = "";
+#endif
+}
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
       connectedTs = millis();
       advertising = false;
+      serial_buff_reset();
       digitalWrite(CONNECTED_LED, LOW);
     };
 
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
       connectedTs = millis();
-      serial_buff = "";
       digitalWrite(CONNECTED_LED, HIGH);
     }
 };
@@ -160,9 +185,21 @@ static void do_transmit(uint16_t max_chunk, bool all)
 {
   uint8_t* pdata = (uint8_t*)serial_buff.c_str();
   unsigned data_len = serial_buff.length(), sent = 0;
+#ifdef USE_SEQ_TAG
+  max_chunk -= 1;
+  data_len -= 1;
+  pdata += 1;
+#endif
   while (data_len) {
     unsigned const chunk = data_len > max_chunk ? max_chunk : data_len;
+#ifdef USE_SEQ_TAG
+    pdata[-1] = next_tag;
+    if (++next_tag >= FIRST_TAG + NTAGS)
+      next_tag = FIRST_TAG;
+    pTxCharacteristic->setValue(pdata - 1, chunk + 1);
+#else
     pTxCharacteristic->setValue(pdata, chunk);
+#endif
     pTxCharacteristic->notify();
     sent     += chunk;
     pdata    += chunk;

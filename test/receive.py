@@ -18,18 +18,41 @@ from serial import Serial
 baud_rate  = 115200
 start_byte = b'\1'
 end_byte   = b'\0'
+first_tag  = ord('a')
+ntags      = 16
 rx_buff    = b''
 msg_buff   = b''
 wait_start = True
+stream_started = False
 
 total_bytes = 0
 chunk_total = 0
-msg_total = 0
-msg_bad   = 0
-last_sn = None
-bad_sn = 0
-missed_sn = 0
-max_sn_gap = 0
+msg_total   = 0
+msg_bad     = 0
+last_tag    = None
+chunk_lost  = 0
+last_sn     = None
+bad_sn      = 0
+missed_sn   = 0
+max_sn_gap  = 0
+
+def chk_seq_tag(t):
+	global last_tag, chunk_lost, stream_started
+	if stream_started or last_tag is None:
+		stream_started = False
+		last_tag = t
+		return True
+	last_tag += 1
+	if last_tag >= first_tag + ntags:
+		last_tag = first_tag
+	if t != last_tag:
+		lost = t - last_tag
+		if lost < 0:
+			lost += ntags
+		last_tag = t
+		chunk_lost += lost
+		return False
+	return True
 
 def check_sn(sn):
 	global last_sn, bad_sn, missed_sn, max_sn_gap
@@ -61,7 +84,9 @@ def process_msg(msg):
 
 def process_chunk(chunk):
 	global msg_buff, chunk_total
-	msg_buff += chunk
+	if not chk_seq_tag(chunk[0]):
+		print ('-', end='', flush=True)
+	msg_buff += chunk[1:]
 	chunk_total += 1
 	first = 0
 	while True:
@@ -79,9 +104,10 @@ def process_chunk(chunk):
 	msg_buff = msg_buff[first:]
 
 def on_stream_start():
-	global msg_buff, wait_start
+	global msg_buff, wait_start, stream_started
 	msg_buff = b''
 	wait_start = False
+	stream_started = True
 	print ('.', end='', flush=True)
 
 def process_buffer(rx_bytes):
@@ -107,6 +133,8 @@ def show_stat(elapsed):
 	print('\n%u bytes received in %u sec (%u bytes/sec)' % (total_bytes, elapsed, total_bytes/elapsed))
 	if chunk_total:
 		print ('%u chunks (%u bytes on aver)' % (chunk_total, total_bytes // chunk_total))
+	if chunk_lost:
+		print ('%u chunks were lost' % chunk_lost)
 	if msg_total:
 		print ('%u messages (%u bytes on aver)' % (msg_total, total_bytes // msg_total))
 	if msg_bad:
