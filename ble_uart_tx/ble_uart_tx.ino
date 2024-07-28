@@ -48,7 +48,7 @@ uint32_t serial_ts;
 #define CONNECTED_LED 8
 
 // If defined send uptime every second instead of data from UART
-//#define TEST
+#define TEST
 
 #ifndef TEST
 // If USE_SEQ_TAG is defined every chunk of data transmitted (characteristic update) will carry sequence tag as the first symbol.
@@ -68,7 +68,6 @@ char next_tag = FIRST_TAG;
 #ifdef TEST
 uint32_t last_uptime;
 #endif
-
 
 String dev_name(DEV_NAME);
 
