@@ -84,9 +84,8 @@ static void init_dev_name()
 {
 #ifdef DEV_NAME_SUFF_LEN
   uint8_t mac[8] = {0};
-  int const bt_addr_len = 6;
   if (ESP_OK == esp_efuse_mac_get_default(mac)) {
-    for (int i = 0; i < DEV_NAME_SUFF_LEN && i < bt_addr_len; ++i)
+    for (int i = 0; i < DEV_NAME_SUFF_LEN && i < BLE_DEV_ADDR_LEN; ++i)
       dev_name += byte_signature(mac[i]);
   }
 #endif
