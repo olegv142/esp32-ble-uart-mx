@@ -113,7 +113,6 @@ def on_stream_start():
 def process_buffer(rx_bytes):
 	global rx_buff, total_bytes
 	rx_buff += rx_bytes
-	total_bytes += len(rx_bytes)
 	first = 0
 	while True:
 		begin = rx_buff.find(start_byte, first)
@@ -126,6 +125,7 @@ def process_buffer(rx_bytes):
 			on_stream_start()
 		elif not wait_start:
 			process_chunk(rx_buff[begin+1:end])
+			total_bytes += end - begin
 		first = end + 1
 	rx_buff = rx_buff[first:]
 
