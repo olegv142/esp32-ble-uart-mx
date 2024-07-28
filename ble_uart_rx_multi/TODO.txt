@@ -5,7 +5,7 @@ Commands (ends with \r or \n):
 Optionally, commands may begin with an 8-bit checksum, expressed in hexadecimal,
 starting with the prefix ~. So the command starts with ~hh#
 Status messages:
-  ':I vmaj.vmin' - idle, not connected
+  ':I rev.vmaj.vmin' - idle, not connected
   ':Cn'     - connecting to the n-th peer
   ':D'      - data receiving from connected peers
   ':Sn rssi - RSSI report for n-th peer
