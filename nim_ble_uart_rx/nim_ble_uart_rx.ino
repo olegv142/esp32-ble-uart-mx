@@ -219,7 +219,10 @@ static void connectToServer(std::string const& addr)
   pClient = NimBLEDevice::createClient();
   pClient->setClientCallbacks(new MyClientCallback());
 
-  pClient->connect(addr);
+  if (!pClient->connect(addr)) {
+    do_reset("Failed to connect");
+    return;
+  }
 
   // Obtain a reference to the service we are after in the remote BLE server.
   NimBLERemoteService *pRemoteService = pClient->getService(serviceUUID);
