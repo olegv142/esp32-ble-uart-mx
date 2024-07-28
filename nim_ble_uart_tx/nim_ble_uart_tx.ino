@@ -34,7 +34,7 @@ uint32_t serial_ts;
 #define CHARACTERISTIC_UUID_TX "FFE1"
 #define DEV_NAME               "TestC3"
 // Uncomment to add suffix based on MAC to device name to make it distinguishable
-//#define DEV_NAME_SUFF_LEN      6
+// #define DEV_NAME_SUFF_LEN      6
 
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
@@ -143,9 +143,6 @@ void setup()
 
   // Start advertising
   NimBLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  NimBLEAdvertisementData data;
-  data.setName(dev_name);
-  pAdvertising->setAdvertisementData(data);
   pAdvertising->setScanResponse(true);
   pAdvertising->addServiceUUID(SERVICE_UUID);
   NimBLEDevice::startAdvertising();
