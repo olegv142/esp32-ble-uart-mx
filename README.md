@@ -65,6 +65,13 @@ The maximum distance over which we can safely transmit data is an important issu
 
 One can further increase operating range by setting maximum transmission power programmatically. I have tested two modules with external antennas like shown on the figure above with elevated TX power. This combination has demonstrated quite impressive results. Inside the building I've got stable transmission between basement and second floor through two layers of reinforced concrete slabs. Outdoors, it showed stable transmission at a distance of 100m with line of sight.
 
+## Notes about NimBLE
+The **nim_ble_uart_rx** / **nim_ble_uart_tx** are two examples adopted for using NimBLE stack instead of Bluedroid used by default. The NimBLE stack has 2 times smaller amount of code, much less RAM usage and better written in general. For example there are no such stupid things in API as passing class instances with a lot of data by value. But testing revealed severe problems related to using NimBLE stack:
+1. The automatic gain control does not work. Placing transmitter close to receiver severe disrupts communications.
+2. There is no guarantee of the characteristic update delivery. Typically if the communication channel is connected that means that updates from one side of the channel are guaranteed to be delivered to other side in the original order. So we can assume that the update is either delivered or channel is switched to the disconnected state. At least this is the case for Bluedroid stack. Note that this does mean we should not care about data integrity. Bugs breaking the assertion just mentioned are always possible. For the case of NimBLE stack we can't assume anything about updates delivery at all. Updates may be lost anytime but channel is still kept in connected state.
+3. In case of bad reception the communication channel may becomes permanently broken. It can fall to some pathological state where even re-connection does not repair communication. Only transmitter reset is able to repair it so the data may be transmitted again.
+So for now considering all issues mentioned above I strongly not recommend using NimBLE stack.
+
 ## Useful links
 
 The BLE receiver web page example: https://github.com/enspectr/ble-term
