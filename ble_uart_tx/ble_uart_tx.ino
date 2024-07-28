@@ -36,7 +36,7 @@ uint32_t serial_ts;
 #define CHARACTERISTIC_UUID_TX "FFE1"
 #define DEV_NAME               "TestC3"
 // Uncomment to add suffix based on MAC to device name to make it distinguishable
-//#define DEV_NAME_SUFF_LEN      6
+// #define DEV_NAME_SUFF_LEN      6
 
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
@@ -160,9 +160,9 @@ void setup()
 
   // Create a BLE Characteristic
   pTxCharacteristic = pService->createCharacteristic(
-										CHARACTERISTIC_UUID_TX,
-										BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ
-									);
+    CHARACTERISTIC_UUID_TX,
+    BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ
+  );
 
   pTxCharacteristic->addDescriptor(new BLE2902());
 
