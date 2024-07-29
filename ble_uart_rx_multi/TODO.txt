@@ -11,7 +11,7 @@ Status messages:
   ':Sn rssi - RSSI report for n-th peer
 
 2. Start every out message with \1 end with \0. Second symbol is ':' for status messages
-  or '0', '1' .., 'A', 'B', ..  for data stream 0, 1, .. (up to 31)
+  or '0', '1' .. '7'  for data stream 0, 1, .. 7
 
 3. The first data message after connection / re-connection has no data payload.
    This is the stream start token.
