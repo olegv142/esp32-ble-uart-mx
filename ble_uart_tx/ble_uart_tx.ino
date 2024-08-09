@@ -255,12 +255,14 @@ void loop()
     }
   }
 #else
-  uint32_t const uptime = millis() / 1000;
-  if (uptime != last_uptime) {
-    last_uptime = uptime;
-    serial_buff = String(uptime);
-    do_transmit(max_tx_chunk(), true);
-    Serial.println(uptime);
+  if (deviceConnected) {
+    uint32_t const uptime = millis() / 1000;
+    if (uptime != last_uptime) {
+      last_uptime = uptime;
+      serial_buff = String(uptime);
+      do_transmit(max_tx_chunk(), true);
+      Serial.println(uptime);
+    }
   }
 #endif
   if (!deviceConnected && !advertising && millis() - connectedTs > 500) {
