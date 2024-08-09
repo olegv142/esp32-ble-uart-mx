@@ -65,38 +65,52 @@
 // If defined use hard reset on connect timeout
 #define RST_OUT_PIN 3
 
-// Uncomment to add suffix based on MAC to device name to make it distinguishable
-// #define DEV_NAME_SUFF_LEN      6
+// Connected LED pin, active low
+#define CONNECTED_LED 8
 
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
-
-#define CONNECTED_LED 8
 
 // If defined the receiver will reset itself after being in connected state for the specified time (for testing)
 // #define SELF_RESET_AFTER_CONNECTED 60000 // msec
 
 #define RSSI_REPORT_INTERVAL 5000
 
+// If defined echo back all data received from central
+// #define ECHO
+
+// If USE_SEQ_TAG is defined every chunk of data transmitted (characteristic update) will carry sequence tag as the first symbol.
+// It will get its value from 16 characters sequence 'a', 'b', .. 'p'. Next update will use next symbol. After 'p' the 'a' will
+// be used again. The receiver may use sequence tag to control the order of delivery of updates detecting missed or reordered
+// updates.
+// #define USE_SEQ_TAG
+
+#ifdef USE_SEQ_TAG
+#define NTAGS 16
+#define FIRST_TAG 'a'
+char next_tag = FIRST_TAG;
+#endif
+
 BLEScan *pBLEScan;
 BLEAdvertisedDevice *peerDevice;
-BLEClient *pClient;
+BLEClient *pPeer;
+BLECharacteristic * pCharacteristic;
 
 bool is_scanning;
 bool peer_connected;
 uint32_t peer_connected_ts;
 uint32_t rssi_reported_ts;
 
-BLECharacteristic * pTxCharacteristic;
-
 bool is_advertising = false;
 bool centr_connected = false;
 uint32_t centr_connected_ts;
 
+String dev_name(DEV_NAME);
+
 uint32_t last_uptime;
 String tx_buff;
 
-String dev_name(DEV_NAME);
+static void do_transmit(bool all);
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   // Called for each advertising BLE server.
@@ -111,12 +125,22 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   }
 };
 
+static inline void tx_buff_reset()
+{
+#ifdef USE_SEQ_TAG
+      tx_buff = ' ';
+#else
+      tx_buff = "";
+#endif
+}
+
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       Serial.println("Central connected");
       centr_connected = true;
       centr_connected_ts = millis();
       is_advertising = false;
+      tx_buff_reset();
     };
 
     void onDisconnect(BLEServer* pServer) {
@@ -147,6 +171,18 @@ class MyClientCallback : public BLEClientCallbacks {
     peer_connected = false;
     peer_connected_ts = millis();
     digitalWrite(CONNECTED_LED, HIGH);
+  }
+};
+
+class MyCharCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    String rxValue = pCharacteristic->getValue();
+    Serial.print("rx: ");
+    Serial.println(rxValue);
+#ifdef ECHO
+    tx_buff = rxValue;
+    do_transmit(true);
+#endif
   }
 };
 
@@ -236,12 +272,13 @@ static void bt_device_start()
   BLEService *pService = pServer->createService(SERVICE_UUID);
 
   // Create a BLE Characteristic
-  pTxCharacteristic = pService->createCharacteristic(
+  pCharacteristic = pService->createCharacteristic(
     CHARACTERISTIC_UUID_TX,
-    BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ
+    BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE
   );
 
-  pTxCharacteristic->addDescriptor(new BLE2902());
+  pCharacteristic->addDescriptor(new BLE2902());
+  pCharacteristic->setCallbacks(new MyCharCallbacks());
 
   // Start the service
   pService->start();
@@ -284,7 +321,7 @@ void setup()
 static inline void report_rssi()
 {
   Serial.print("rssi: ");
-  Serial.println(pClient->getRssi());
+  Serial.println(pPeer->getRssi());
 }
 
 static void peerNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
@@ -303,14 +340,14 @@ static void connectToPeer(String const& addr)
   Serial.print("Connecting to ");
   Serial.println(addr);
 
-  pClient = BLEDevice::createClient();
-  pClient->setClientCallbacks(new MyClientCallback());
+  pPeer = BLEDevice::createClient();
+  pPeer->setClientCallbacks(new MyClientCallback());
 
-  pClient->connect(addr);
-  pClient->setMTU(247);  // Request increased MTU from server (default is 23 otherwise)
+  pPeer->connect(addr);
+  pPeer->setMTU(247);  // Request increased MTU from server (default is 23 otherwise)
 
   // Obtain a reference to the service we are after in the remote BLE server.
-  BLERemoteService *pRemoteService = pClient->getService(SERVICE_UUID);
+  BLERemoteService *pRemoteService = pPeer->getService(SERVICE_UUID);
   // Reset itself on error to avoid dealing with de-initialization
   if (!pRemoteService) {
     do_reset("Failed to find our service UUID");
@@ -345,8 +382,9 @@ static inline uint16_t max_tx_chunk()
   return BLEDevice::getMTU() - 3;
 }
 
-static void do_transmit(uint16_t max_chunk, bool all)
+static void do_transmit(bool all)
 {
+  uint16_t max_chunk = max_tx_chunk();
   uint8_t* pdata = (uint8_t*)tx_buff.c_str();
   unsigned data_len = tx_buff.length(), sent = 0;
 #ifdef USE_SEQ_TAG
@@ -360,11 +398,11 @@ static void do_transmit(uint16_t max_chunk, bool all)
     pdata[-1] = next_tag;
     if (++next_tag >= FIRST_TAG + NTAGS)
       next_tag = FIRST_TAG;
-    pTxCharacteristic->setValue(pdata - 1, chunk + 1);
+    pCharacteristic->setValue(pdata - 1, chunk + 1);
 #else
-    pTxCharacteristic->setValue(pdata, chunk);
+    pCharacteristic->setValue(pdata, chunk);
 #endif
-    pTxCharacteristic->notify();
+    pCharacteristic->notify();
     sent     += chunk;
     pdata    += chunk;
     data_len -= chunk;
@@ -405,14 +443,17 @@ void loop()
     report_rssi();
   }
 
+#ifndef ECHO
   if (centr_connected) {
     uint32_t const uptime = millis() / 1000;
     if (uptime != last_uptime) {
       last_uptime = uptime;
-      tx_buff = String(uptime);
-      do_transmit(max_tx_chunk(), true);
+      tx_buff += String(uptime);
+      do_transmit(true);
     }
   }
+#endif
+
   if (!centr_connected && !is_advertising && millis() - centr_connected_ts > 500) {
     BLEDevice::startAdvertising(); // restart advertising
     is_advertising = true;
