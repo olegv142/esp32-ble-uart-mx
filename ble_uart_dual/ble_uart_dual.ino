@@ -92,23 +92,25 @@ char next_tag = FIRST_TAG;
 #endif
 
 BLEServer*           pServer;
+BLECharacteristic*   pCharacteristic;
 BLEScan*             pScan;
 BLEAdvertisedDevice* peerDevice;
-BLEClient*           pPeer;
-BLECharacteristic*   pCharacteristic;
+BLEClient*           peerClient;
 
-bool is_scanning;
-bool peer_connected;
+bool     is_scanning;
+bool     peer_connected;
 uint32_t peer_disconn_ts;
 uint32_t rssi_reported_ts;
 
-bool start_advertising = true;
+bool     start_advertising = true;
 uint32_t centr_disconn_ts;
 
 String dev_name(DEV_NAME);
-
-uint32_t last_uptime;
 String tx_buff;
+
+#ifndef ECHO
+uint32_t last_uptime;
+#endif
 
 static void do_transmit(bool all);
 
@@ -176,7 +178,7 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
     Serial.print("rx: ");
     Serial.println(rxValue);
 #ifdef ECHO
-    tx_buff = rxValue;
+    tx_buff += rxValue;
     do_transmit(true);
 #endif
   }
@@ -317,7 +319,7 @@ void setup()
 static inline void report_rssi()
 {
   Serial.print("rssi: ");
-  Serial.println(pPeer->getRssi());
+  Serial.println(peerClient->getRssi());
 }
 
 static void peerNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
@@ -336,14 +338,14 @@ static void connectToPeer(String const& addr)
   Serial.print("Connecting to ");
   Serial.println(addr);
 
-  pPeer = BLEDevice::createClient();
-  pPeer->setClientCallbacks(new MyClientCallback());
+  peerClient = BLEDevice::createClient();
+  peerClient->setClientCallbacks(new MyClientCallback());
 
-  pPeer->connect(addr);
-  pPeer->setMTU(247);  // Request increased MTU from server (default is 23 otherwise)
+  peerClient->connect(addr);
+  peerClient->setMTU(247);  // Request increased MTU from server (default is 23 otherwise)
 
   // Obtain a reference to the service we are after in the remote BLE server.
-  BLERemoteService *pRemoteService = pPeer->getService(SERVICE_UUID);
+  BLERemoteService *pRemoteService = peerClient->getService(SERVICE_UUID);
   // Reset itself on error to avoid dealing with de-initialization
   if (!pRemoteService) {
     do_reset("Failed to find our service UUID");
