@@ -17,14 +17,13 @@
 #include <esp_task_wdt.h>
 #include <driver/uart.h>
 
-#define DEV_NAME               "TestC3"
+#define DEV_NAME               "TestC3-"
 
 // Uncomment to add suffix based on MAC to device name to make it distinguishable
 #define DEV_NAME_SUFF_LEN      6
 
-// If DEV_ADDR is defined the connection will be established without scan
-// In such scenario the DEV_NAME is not used
-// #define DEV_ADDR               "EC:DA:3B:BB:CE:02"
+// Peer device address to connect to
+#define DEV_ADDR               "EC:DA:3B:BB:CE:02"
 
 #define SERVICE_UUID           "FFE0"
 #define CHARACTERISTIC_UUID_TX "FFE1"
@@ -93,11 +92,9 @@ char next_tag = FIRST_TAG;
 
 BLEServer*           pServer;
 BLECharacteristic*   pCharacteristic;
-BLEScan*             pScan;
 BLEAdvertisedDevice* peerDevice;
 BLEClient*           peerClient;
 
-bool     is_scanning;
 bool     peer_connected;
 uint32_t peer_disconn_ts;
 uint32_t rssi_reported_ts;
@@ -250,14 +247,6 @@ static void bt_device_init()
   BLEDevice::init(dev_name);
   BLEDevice::setMTU(247);
   setup_tx_power();
-
-#ifndef DEV_ADDR
-  pScan = BLEDevice::getScan(); // create new scan
-  pScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
-  pScan->setActiveScan(true);   // active scan uses more power, but get results faster
-  pScan->setInterval(100);
-  pScan->setWindow(100);  // less or equal setInterval value
-#endif
 }
 
 static void bt_device_start()
@@ -365,16 +354,6 @@ static void connectToPeer(String const& addr)
   }
 }
 
-#ifndef DEV_ADDR
-static void scan_complete_cb(BLEScanResults res)
-{
-  Serial.print("Devices found: ");
-  Serial.println(res.getCount());
-  Serial.println("Scan done!");
-  is_scanning = false;
-}
-#endif
-
 static inline uint16_t max_tx_chunk()
 {
   return BLEDevice::getMTU() - 3;
@@ -413,23 +392,10 @@ static void do_transmit(bool all)
 void loop()
 {
   uint32_t const now = millis();
-#ifndef DEV_ADDR
-  if (!peerDevice && !is_scanning) {
-    pScan->clearResults();  // delete results fromBLEScan buffer to release memory
-    Serial.println("Scanning...");
-    pScan->start(SCAN_TIME, scan_complete_cb, true);
-    is_scanning = true;
-  }
-  if (peerDevice && !is_scanning && !peer_connected) {
-    connectToPeer(peerDevice->getAddress().toString());
-    return;
-  }
-#else
   if (!peer_connected && now - peer_disconn_ts > 500) {
     connectToPeer(DEV_ADDR);
     return;
   }
-#endif
 
   if (peer_connected && now - rssi_reported_ts > RSSI_REPORT_INTERVAL) {
     rssi_reported_ts = now;
