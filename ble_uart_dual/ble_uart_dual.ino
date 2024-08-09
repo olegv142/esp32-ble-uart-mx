@@ -287,7 +287,7 @@ static inline void report_rssi()
   Serial.println(pClient->getRssi());
 }
 
-static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
+static void peerNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
 #ifdef UART_BEGIN
   DataSerial.print(UART_BEGIN);
@@ -298,7 +298,7 @@ static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, ui
 #endif
 }
 
-static void connectToServer(String const& addr)
+static void connectToPeer(String const& addr)
 {
   Serial.print("Connecting to ");
   Serial.println(addr);
@@ -324,7 +324,7 @@ static void connectToServer(String const& addr)
   }
   // Subscribe to updates
   if (pRemoteCharacteristic->canNotify()) {
-    pRemoteCharacteristic->registerForNotify(notifyCallback);
+    pRemoteCharacteristic->registerForNotify(peerNotifyCallback);
   } else {
     do_reset("Notification not supported by the server");
   }
@@ -385,12 +385,12 @@ void loop()
     is_scanning = true;
   }
   if (peerDevice && !is_scanning && !peer_connected) {
-    connectToServer(peerDevice->getAddress().toString());
+    connectToPeer(peerDevice->getAddress().toString());
     return;
   }
 #else
   if (!peer_connected && now - peer_connected_ts > 500) {
-    connectToServer(DEV_ADDR);
+    connectToPeer(DEV_ADDR);
     return;
   }
 #endif
