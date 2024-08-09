@@ -91,19 +91,19 @@
 char next_tag = FIRST_TAG;
 #endif
 
-BLEScan *pBLEScan;
-BLEAdvertisedDevice *peerDevice;
-BLEClient *pPeer;
-BLECharacteristic * pCharacteristic;
+BLEServer*           pServer;
+BLEScan*             pScan;
+BLEAdvertisedDevice* peerDevice;
+BLEClient*           pPeer;
+BLECharacteristic*   pCharacteristic;
 
 bool is_scanning;
 bool peer_connected;
 uint32_t peer_connected_ts;
 uint32_t rssi_reported_ts;
 
-bool is_advertising = false;
-bool centr_connected = false;
-uint32_t centr_connected_ts;
+bool start_advertising = true;
+uint32_t centr_disconn_ts;
 
 String dev_name(DEV_NAME);
 
@@ -136,17 +136,14 @@ static inline void tx_buff_reset()
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
-      Serial.println("Central connected");
-      centr_connected = true;
-      centr_connected_ts = millis();
-      is_advertising = false;
+      Serial.println("central connected");
       tx_buff_reset();
     };
 
     void onDisconnect(BLEServer* pServer) {
-      Serial.println("Central disconnected");
-      centr_connected = false;
-      centr_connected_ts = millis();
+      Serial.println("central disconnected");
+      centr_disconn_ts = millis();
+      start_advertising = true;
     }
 };
 
@@ -160,14 +157,14 @@ static void notifyConnected()
 
 class MyClientCallback : public BLEClientCallbacks {
   void onConnect(BLEClient *pclient) {
-    Serial.println("connected");
+    Serial.println("peer connected");
     peer_connected = true;
     peer_connected_ts = millis();
     notifyConnected();
     digitalWrite(CONNECTED_LED, LOW);
   }
   void onDisconnect(BLEClient *pclient) {
-    Serial.println("disconnected");
+    Serial.println("peer disconnected");
     peer_connected = false;
     peer_connected_ts = millis();
     digitalWrite(CONNECTED_LED, HIGH);
@@ -254,19 +251,18 @@ static void bt_device_init()
   setup_tx_power();
 
 #ifndef DEV_ADDR
-  pBLEScan = BLEDevice::getScan(); // create new scan
-  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
-  pBLEScan->setActiveScan(true);   // active scan uses more power, but get results faster
-  pBLEScan->setInterval(100);
-  pBLEScan->setWindow(100);  // less or equal setInterval value
+  pScan = BLEDevice::getScan(); // create new scan
+  pScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  pScan->setActiveScan(true);   // active scan uses more power, but get results faster
+  pScan->setInterval(100);
+  pScan->setWindow(100);  // less or equal setInterval value
 #endif
 }
 
 static void bt_device_start()
 {
   // Create the BLE Server
-  BLEServer *pServer = BLEDevice::createServer();
-  pServer->setCallbacks(new MyServerCallbacks());
+  pServer = BLEDevice::createServer();
 
   // Create the BLE Service
   BLEService *pService = pServer->createService(SERVICE_UUID);
@@ -280,6 +276,8 @@ static void bt_device_start()
   pCharacteristic->addDescriptor(new BLE2902());
   pCharacteristic->setCallbacks(new MyCharCallbacks());
 
+  pServer->setCallbacks(new MyServerCallbacks());
+
   // Start the service
   pService->start();
 
@@ -290,8 +288,6 @@ static void bt_device_start()
   pAdvertising->setAdvertisementData(data);
   pAdvertising->setScanResponse(true);
   pAdvertising->addServiceUUID(SERVICE_UUID);
-  BLEDevice::startAdvertising();
-  is_advertising = true;
 }
 
 static void hw_init()
@@ -308,6 +304,7 @@ static void hw_init()
   uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_CTS, 0);
 #endif
 #endif
+  tx_buff_reset();
 }
 
 void setup()
@@ -417,9 +414,9 @@ void loop()
   uint32_t const now = millis();
 #ifndef DEV_ADDR
   if (!peerDevice && !is_scanning) {
-    pBLEScan->clearResults();  // delete results fromBLEScan buffer to release memory
+    pScan->clearResults();  // delete results fromBLEScan buffer to release memory
     Serial.println("Scanning...");
-    pBLEScan->start(SCAN_TIME, scan_complete_cb, true);
+    pScan->start(SCAN_TIME, scan_complete_cb, true);
     is_scanning = true;
   }
   if (peerDevice && !is_scanning && !peer_connected) {
@@ -444,19 +441,18 @@ void loop()
   }
 
 #ifndef ECHO
-  if (centr_connected) {
-    uint32_t const uptime = millis() / 1000;
-    if (uptime != last_uptime) {
-      last_uptime = uptime;
-      tx_buff += String(uptime);
-      do_transmit(true);
-    }
+  uint32_t const uptime = millis() / 1000;
+  if (uptime != last_uptime) {
+    last_uptime = uptime;
+    tx_buff += String(uptime);
+    do_transmit(true);
   }
 #endif
 
-  if (!centr_connected && !is_advertising && millis() - centr_connected_ts > 500) {
+  if (start_advertising && millis() - centr_disconn_ts > 500) {
+    Serial.println("start advertising");
     BLEDevice::startAdvertising(); // restart advertising
-    is_advertising = true;
+    start_advertising = false;
   }
 
   esp_task_wdt_reset();
