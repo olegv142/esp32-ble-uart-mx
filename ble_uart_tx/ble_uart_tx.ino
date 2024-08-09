@@ -23,7 +23,6 @@
 #include <esp_mac.h>
 #include <esp_task_wdt.h>
 
-BLEServer *pServer = NULL;
 BLECharacteristic * pTxCharacteristic;
 bool deviceConnected = false;
 bool advertising = false;
@@ -131,30 +130,28 @@ static inline void watchdog_init()
   esp_task_wdt_add(NULL);             // add current thread to WDT watch
 }
 
-void setup()
+static void setup_tx_power()
 {
-  Serial.begin(115200);
-  Serial.setTimeout(10);
-#ifdef CDC_BUFFER_SZ
-  Serial.setRxBufferSize(CDC_BUFFER_SZ);
-#endif
-  pinMode(CONNECTED_LED, OUTPUT);
-  digitalWrite(CONNECTED_LED, HIGH);
-
-  watchdog_init();
-  // Create the BLE Device
-  init_dev_name();
-  BLEDevice::init(dev_name);
-  BLEDevice::setMTU(247);
-
 #ifdef TX_PW_BOOST
   esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, TX_PW_BOOST); 
   esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,     TX_PW_BOOST);
   esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN,    TX_PW_BOOST);
 #endif
+}
 
+static void bt_device_init()
+{
+  // Create the BLE Device
+  init_dev_name();
+  BLEDevice::init(dev_name);
+  BLEDevice::setMTU(247);
+  setup_tx_power();
+}
+
+static void bt_device_start()
+{
   // Create the BLE Server
-  pServer = BLEDevice::createServer();
+  BLEServer *pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
 
   // Create the BLE Service
@@ -180,6 +177,25 @@ void setup()
   pAdvertising->addServiceUUID(SERVICE_UUID);
   BLEDevice::startAdvertising();
   advertising = true;
+}
+
+static void hw_init()
+{
+  Serial.begin(115200);
+  Serial.setTimeout(10);
+#ifdef CDC_BUFFER_SZ
+  Serial.setRxBufferSize(CDC_BUFFER_SZ);
+#endif
+  pinMode(CONNECTED_LED, OUTPUT);
+  digitalWrite(CONNECTED_LED, HIGH);
+}
+
+void setup()
+{
+  hw_init();
+  watchdog_init();
+  bt_device_init();
+  bt_device_start();
 }
 
 static void do_transmit(uint16_t max_chunk, bool all)
