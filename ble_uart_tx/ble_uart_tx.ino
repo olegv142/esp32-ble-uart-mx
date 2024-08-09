@@ -43,6 +43,11 @@
 // If defined send uptime every second instead of data from UART
 #define TEST
 
+#ifdef TEST
+// If defined the receiver will reset itself after being in connected state for the specified time (for testing)
+#define SELF_RESET_AFTER_CONNECTED 60000 // msec
+#endif
+
 #ifndef TEST
 // If USE_SEQ_TAG is defined every chunk of data transmitted (characteristic update) will carry sequence tag as the first symbol.
 // It will get its value from 16 characters sequence 'a', 'b', .. 'p'. Next update will use next symbol. After 'p' the 'a' will
@@ -267,6 +272,9 @@ void loop()
   if (!deviceConnected && !advertising && millis() - connectedTs > 500) {
     BLEDevice::startAdvertising(); // restart advertising
     advertising = true;
+  }
+  if (deviceConnected && millis() - connectedTs > SELF_RESET_AFTER_CONNECTED) {
+    esp_restart();
   }
   esp_task_wdt_reset();
 }
