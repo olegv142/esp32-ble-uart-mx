@@ -55,7 +55,6 @@
 #define NTAGS 16
 #define FIRST_TAG 'a'
 char next_tag = FIRST_TAG;
-#else
 #endif
 
 #ifdef TEST
