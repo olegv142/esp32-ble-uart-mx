@@ -71,8 +71,8 @@
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
 
-// If defined the receiver will reset itself after being in connected state for the specified time (for testing)
-// #define SELF_RESET_AFTER_CONNECTED 60000 // msec
+// If defined self reset after the specified time since start (for testing)
+// #define SELF_RESET_AFTER 150000 // msec
 
 #define RSSI_REPORT_INTERVAL 5000
 
@@ -99,7 +99,7 @@ BLECharacteristic*   pCharacteristic;
 
 bool is_scanning;
 bool peer_connected;
-uint32_t peer_connected_ts;
+uint32_t peer_disconn_ts;
 uint32_t rssi_reported_ts;
 
 bool start_advertising = true;
@@ -159,14 +159,13 @@ class MyClientCallback : public BLEClientCallbacks {
   void onConnect(BLEClient *pclient) {
     Serial.println("peer connected");
     peer_connected = true;
-    peer_connected_ts = millis();
     notifyConnected();
     digitalWrite(CONNECTED_LED, LOW);
   }
   void onDisconnect(BLEClient *pclient) {
     Serial.println("peer disconnected");
     peer_connected = false;
-    peer_connected_ts = millis();
+    peer_disconn_ts = millis();
     digitalWrite(CONNECTED_LED, HIGH);
   }
 };
@@ -424,15 +423,10 @@ void loop()
     return;
   }
 #else
-  if (!peer_connected && now - peer_connected_ts > 500) {
+  if (!peer_connected && now - peer_disconn_ts > 500) {
     connectToPeer(DEV_ADDR);
     return;
   }
-#endif
-
-#ifdef SELF_RESET_AFTER_CONNECTED
-  if (peer_connected && now - peer_connected_ts > SELF_RESET_AFTER_CONNECTED)
-    do_reset("reset itself for testing");
 #endif
 
   if (peer_connected && now - rssi_reported_ts > RSSI_REPORT_INTERVAL) {
@@ -454,6 +448,11 @@ void loop()
     BLEDevice::startAdvertising(); // restart advertising
     start_advertising = false;
   }
+
+#ifdef SELF_RESET_AFTER
+  if (now > SELF_RESET_AFTER)
+    do_reset("reset itself for testing");
+#endif
 
   esp_task_wdt_reset();
 }
