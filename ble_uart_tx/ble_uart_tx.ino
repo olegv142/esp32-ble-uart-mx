@@ -29,7 +29,7 @@
 #define CHARACTERISTIC_UUID_TX "FFE1"
 #define DEV_NAME               "TestC3"
 // Uncomment to add suffix based on MAC to device name to make it distinguishable
-// #define DEV_NAME_SUFF_LEN      6
+#define DEV_NAME_SUFF_LEN      6
 
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
@@ -45,7 +45,7 @@
 
 #ifdef TEST
 // If defined the receiver will reset itself after being in connected state for the specified time (for testing)
-#define SELF_RESET_AFTER_CONNECTED 60000 // msec
+// #define SELF_RESET_AFTER_CONNECTED 60000 // msec
 #endif
 
 #ifndef TEST
@@ -273,8 +273,10 @@ void loop()
     BLEDevice::startAdvertising(); // restart advertising
     advertising = true;
   }
+#ifdef SELF_RESET_AFTER_CONNECTED
   if (deviceConnected && millis() - connectedTs > SELF_RESET_AFTER_CONNECTED) {
     esp_restart();
   }
+#endif
   esp_task_wdt_reset();
 }
