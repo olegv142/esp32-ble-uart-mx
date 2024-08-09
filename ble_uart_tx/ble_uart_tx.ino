@@ -23,14 +23,6 @@
 #include <esp_mac.h>
 #include <esp_task_wdt.h>
 
-BLECharacteristic * pTxCharacteristic;
-bool deviceConnected = false;
-bool advertising = false;
-uint32_t connectedTs;
-
-String serial_buff;
-uint32_t serial_ts;
-
 #define WDT_TIMEOUT 20000 // msec
 
 #define SERVICE_UUID           "FFE0"
@@ -71,6 +63,14 @@ uint32_t last_uptime;
 #endif
 
 String dev_name(DEV_NAME);
+
+BLECharacteristic * pTxCharacteristic;
+bool deviceConnected = false;
+bool advertising = false;
+uint32_t connectedTs;
+
+String serial_buff;
+uint32_t serial_ts;
 
 static inline void serial_buff_reset()
 {
