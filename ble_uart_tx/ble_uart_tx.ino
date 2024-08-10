@@ -29,7 +29,7 @@
 #define CHARACTERISTIC_UUID_TX "FFE1"
 #define DEV_NAME               "TestC3"
 // Uncomment to add suffix based on MAC to device name to make it distinguishable
-#define DEV_NAME_SUFF_LEN      6
+// #define DEV_NAME_SUFF_LEN      6
 
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
@@ -59,22 +59,22 @@
 #ifdef USE_SEQ_TAG
 #define NTAGS 16
 #define FIRST_TAG 'a'
-char next_tag = FIRST_TAG;
+static char next_tag = FIRST_TAG;
 #endif
 
 #ifdef TEST
-uint32_t last_uptime;
+static uint32_t last_uptime;
 #endif
 
-String dev_name(DEV_NAME);
+static String dev_name(DEV_NAME);
 
-BLECharacteristic * pTxCharacteristic;
-bool deviceConnected = false;
-bool advertising = false;
-uint32_t connectedTs;
+static BLECharacteristic * pTxCharacteristic;
+static bool deviceConnected = false;
+static bool advertising = false;
+static uint32_t connectedTs;
 
-String serial_buff;
-uint32_t serial_ts;
+static String serial_buff;
+static uint32_t serial_ts;
 
 static inline void serial_buff_reset()
 {
