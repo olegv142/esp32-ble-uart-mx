@@ -15,6 +15,7 @@
 #include <BLE2902.h>
 #include <esp_mac.h>
 #include <esp_task_wdt.h>
+#include <esp_system.h>
 #include <driver/uart.h>
 
 #define DEV_NAME               "TestC3"
@@ -139,6 +140,8 @@ static inline void tx_buff_reset()
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       Serial.println("central connected");
+      Serial.print(esp_get_free_heap_size());
+      Serial.println(" heap bytes avail");
       tx_buff_reset();
     };
 
@@ -338,8 +341,10 @@ static void connectToPeer(String const& addr)
   Serial.print("Connecting to ");
   Serial.println(addr);
 
-  peerClient = BLEDevice::createClient();
-  peerClient->setClientCallbacks(new MyClientCallback());
+  if (!peerClient) {
+    peerClient = BLEDevice::createClient();
+    peerClient->setClientCallbacks(new MyClientCallback());
+  }
 
   peerClient->connect(addr);
   peerClient->setMTU(247);  // Request increased MTU from server (default is 23 otherwise)

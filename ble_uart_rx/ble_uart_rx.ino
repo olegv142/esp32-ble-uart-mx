@@ -85,14 +85,14 @@ static BLEUUID serviceUUID(SERVICE_UUID);
 // The characteristic of the remote service we are interested in.
 static BLEUUID charUUID(CHARACTERISTIC_UUID_TX);
 
-BLEScan *pBLEScan;
-BLEAdvertisedDevice *myDevice;
-BLEClient *pClient;
+static BLEScan *pBLEScan;
+static BLEAdvertisedDevice *myDevice;
+static BLEClient *pClient;
 
-bool is_scanning;
-bool is_connected;
-uint32_t connected_ts;
-uint32_t rssi_reported_ts;
+static bool is_scanning;
+static bool is_connected;
+static uint32_t connected_ts;
+static uint32_t rssi_reported_ts;
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   // Called for each advertising BLE server.
@@ -215,8 +215,10 @@ static void connectToServer(String const& addr)
   Serial.print("Connecting to ");
   Serial.println(addr);
 
-  pClient = BLEDevice::createClient();
-  pClient->setClientCallbacks(new MyClientCallback());
+  if (!pClient) {
+    pClient = BLEDevice::createClient();
+    pClient->setClientCallbacks(new MyClientCallback());
+  }
 
   pClient->connect(addr);
   pClient->setMTU(247);  // Request increased MTU from server (default is 23 otherwise)

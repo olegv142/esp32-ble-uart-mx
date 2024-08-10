@@ -36,10 +36,11 @@ static BLEUUID serviceUUID(SERVICE_UUID);
 // The characteristic of the remote service we are interested in.
 static BLEUUID charUUID(CHARACTERISTIC_UUID_TX);
 
-BLEScan *pBLEScan;
-BLEAdvertisedDevice *myDevice;
-bool is_scanning;
-bool is_connected;
+static BLEScan *pBLEScan;
+static BLEAdvertisedDevice *myDevice;
+static BLEClient *pClient;
+static bool is_scanning;
+static bool is_connected;
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   // Called for each advertising BLE server.
@@ -115,8 +116,10 @@ void connectToServer()
   Serial.print("Connecting to ");
   Serial.println(myDevice->getAddress().toString().c_str());
 
-  BLEClient *pClient = BLEDevice::createClient();
-  pClient->setClientCallbacks(new MyClientCallback());
+  if (!pClient) {
+    pClient = BLEDevice::createClient();
+    pClient->setClientCallbacks(new MyClientCallback());
+  }
 
   // Connect to the remove BLE Server.
   pClient->connect(myDevice);
