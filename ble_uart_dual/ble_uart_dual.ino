@@ -341,8 +341,7 @@ static void connectToPeer(String const& addr)
   if (!peerClient) {
     peerClient = BLEDevice::createClient();
     peerClient->setClientCallbacks(new MyClientCallback());
-  } else
-    peerClient->disconnect();
+  }
 
   peerClient->connect(addr);
   peerClient->setMTU(247);  // Request increased MTU from server (default is 23 otherwise)

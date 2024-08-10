@@ -217,8 +217,7 @@ static void connectToServer(String const& addr)
   if (!pClient) {
     pClient = BLEDevice::createClient();
     pClient->setClientCallbacks(new MyClientCallback());
-  } else
-    pClient->disconnect();
+  }
 
   pClient->connect(addr);
   pClient->setMTU(247);  // Request increased MTU from server (default is 23 otherwise)
