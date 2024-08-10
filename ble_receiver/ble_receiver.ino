@@ -119,7 +119,8 @@ void connectToServer()
   if (!pClient) {
     pClient = BLEDevice::createClient();
     pClient->setClientCallbacks(new MyClientCallback());
-  }
+  } else
+    pClient->disconnect();
 
   // Connect to the remove BLE Server.
   pClient->connect(myDevice);
