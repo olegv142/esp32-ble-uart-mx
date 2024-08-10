@@ -1,11 +1,36 @@
 /*
- * This is the dual mode BLE device example.
- * Its based on ble_uart_dual example.
- *
- * Tested on ESP32 C3 with SDK v.3.0
- * Use ../ble_transmitter or ../ble_uart_tx for other side of the connection.
- *
- * Author: Oleg Volkov
+ This is the dual mode BLE device capable of connecting to multiple peers.
+ Its based on the ble_uart_dual example.
+
+ Commands:
+  '#C addr0 addr1 ..' - connect to peers with given addresses (up to 8)
+  '#R'                - reset to idle state
+
+ Status messages:
+  ':I rev.vmaj.vmin' - idle, not connected
+  ':Cn'      - connecting to the n-th peer
+  ':D'       - all peers connected, data receiving
+
+ Debug messages:
+  '-message'
+
+ Every in/out message on physical UART is started with '\1' end with '\0'. 
+ In TEST mode USB VCP is used for communications. In such case there is no start symbol, end symbol is always '\n'
+
+ Second symbol of out message is
+  ':' for status messages
+  '-' for debug messages
+  '<' if message is received from connected central
+  '0', '1' .. '7'  for data stream 0, 1, .. 7
+ The first data stream message after connection / re-connection has no data payload. This is the stream start token.
+
+ The second symbol for input message is
+  '#' for commands
+  '>' for message to be sent to connected central
+
+ Tested on ESP32 C3 with SDK v.3.0
+ Use ../ble_transmitter or ../ble_uart_tx for other side of the connection.
+ Author: Oleg Volkov
  */
 
 #include <BLEDevice.h>
@@ -15,24 +40,23 @@
 #include <BLE2902.h>
 #include <esp_mac.h>
 #include <esp_task_wdt.h>
+#include <esp_system.h>
 #include <driver/uart.h>
 
-#define DEV_NAME               "TestC3-"
+#define REVISION  "1"
+#define VMAJOR    "0"
+#define VMINOR    "1"
+
+#define DEV_NAME  "TestC3-"
 
 // Uncomment to add suffix based on MAC to device name to make it distinguishable
-#define DEV_NAME_SUFF_LEN      6
-
-// Peer device address to connect to
-#define DEV_ADDR               "EC:DA:3B:BB:CE:02"
+#define DEV_NAME_SUFF_LEN  6
 
 #define SERVICE_UUID           "FFE0"
 #define CHARACTERISTIC_UUID_TX "FFE1"
 
-#define LONG_UUID(uuid) ("0000" uuid "-0000-1000-8000-00805f9b34fb")
-
-#define SCAN_TIME              5     // sec
-#define CONNECT_TOUT           5000  // msec
 #define WDT_TIMEOUT            20000 // msec
+#define STATUS_REPORT_INTERVAL 1000  // msec
 
 // If UART_TX_PIN is defined the data will be output to the hardware serial port
 // Otherwise the USB virtual serial port will be used for that purpose
@@ -40,7 +64,7 @@
 #define UART_BAUD_RATE 115200
 #define UART_MODE SERIAL_8N1
 // If defined the flow control on UART will be configured
-#define UART_CTS_PIN 5
+// #define UART_CTS_PIN 5
 
 #ifdef UART_TX_PIN
 #define DataSerial Serial1
@@ -48,24 +72,27 @@
 #define UART_BEGIN '\1'
 #define UART_END   '\0'
 #else
+#define TEST
 #define DataSerial Serial
-#define UART_BEGIN "data: "
-#define UART_END   "\n"
+#define UART_END   '\n'
 #endif
+
+// Connected LED pin, active low
+#define CONNECTED_LED 8
 
 /*
  The BT stack is complex and not well tested bunch of software. Using it one can easily be trapped onto the state
  where there is no way out. The biggest problem is that connect routine may hung forever. Although the connect call
  has timeout parameter, it does not help. The call may complete on timeout without errors, but the connection will
- not actually be established. That's why we are using watchdog to detect connection timeout. Its unclear if soft
- reset by watchdog is equivalent to the power cycle or reset by pulling low EN pin. That's why there is an option
- to implement hard reset on connect timeout by hard wiring some output pin to EN input of the chip.
+ not actually be established. That's why we are using watchdog to detect connection timeout. Moreover it seems that
+ soft reset by watchdog is not equivalent to the power cycle or reset by pulling low EN pin. That's why there is an
+ option to implement hard reset on connect timeout by hard wiring some output pin to EN input of the chip.
 */
 // If defined use hard reset on connect timeout
 #define RST_OUT_PIN 3
 
-// Connected LED pin, active low
-#define CONNECTED_LED 8
+// If defined reset itself on peer disconnection instead of reconnecting
+#define RESET_ON_DISCONNECT
 
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
@@ -73,10 +100,14 @@
 // If defined self reset after the specified time since start (for testing)
 // #define SELF_RESET_AFTER 150000 // msec
 
-#define RSSI_REPORT_INTERVAL 5000
-
+#ifdef TEST
 // If defined echo back all data received from central
 // #define ECHO
+
+// Peer device address to connect to
+#define PEER_ADDR    "EC:DA:3B:BB:CE:02"
+#define PEER_ADDR2   "34:B7:DA:F6:44:B2"
+#endif
 
 // If USE_SEQ_TAG is defined every chunk of data transmitted (characteristic update) will carry sequence tag as the first symbol.
 // It will get its value from 16 characters sequence 'a', 'b', .. 'p'. Next update will use next symbol. After 'p' the 'a' will
@@ -87,42 +118,138 @@
 #ifdef USE_SEQ_TAG
 #define NTAGS 16
 #define FIRST_TAG 'a'
-char next_tag = FIRST_TAG;
+static char next_tag = FIRST_TAG;
 #endif
 
-BLEServer*           pServer;
-BLECharacteristic*   pCharacteristic;
-BLEAdvertisedDevice* peerDevice;
-BLEClient*           peerClient;
+static BLEServer*         pServer;
+static BLECharacteristic* pCharacteristic;
 
-bool     peer_connected;
-uint32_t peer_disconn_ts;
-uint32_t rssi_reported_ts;
+#define MAX_PEERS 8
+class Peer;
+static Peer*    peers[MAX_PEERS];
+static unsigned npeers;
+static int      connected_peers;
 
-bool     start_advertising = true;
-uint32_t centr_disconn_ts;
+static bool     start_advertising = true;
+static uint32_t centr_disconn_ts;
+static uint32_t last_status_ts;
 
-String dev_name(DEV_NAME);
-String tx_buff;
+static String   dev_name(DEV_NAME);
+static String   tx_buff;
 
-#ifndef ECHO
-uint32_t last_uptime;
+#if defined(TEST) && !defined(ECHO)
+static uint32_t last_uptime;
 #endif
 
-static void do_transmit(bool all);
+static inline void uart_begin()
+{
+#ifdef UART_BEGIN
+  DataSerial.print(UART_BEGIN);
+#endif
+}
 
-class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
-  // Called for each advertising BLE server.
-  void onResult(BLEAdvertisedDevice advertisedDevice) {
-    Serial.print("BLE Device found: ");
-    Serial.println(advertisedDevice.toString().c_str());
-    if (advertisedDevice.getName() == DEV_NAME)
-    {
-      Serial.println("Peer device found");
-      peerDevice = new BLEAdvertisedDevice(advertisedDevice);
-    }
+static inline void uart_end()
+{
+  DataSerial.print(UART_END);
+}
+
+static inline uint32_t elapsed(uint32_t from, uint32_t to)
+{
+  return to < from ? 0 : to - from;
+}
+
+static void fatal(const char* what);
+
+class Peer : public BLEClientCallbacks
+{
+public:
+  Peer(unsigned idx, const char* addr)
+    : m_idx(idx)
+    , m_addr(addr)
+    , m_connected(false)
+    , m_disconn_ts(0)
+    , m_rssi_reported_ts(0)
+    , m_Client(nullptr)
+    , m_remoteCharacteristic(nullptr)
+  {}
+
+  void onConnect(BLEClient *pclient) {
+    uart_begin();
+    DataSerial.print("-peer [");
+    DataSerial.print(m_idx);
+    DataSerial.print("] ");
+    DataSerial.print(m_addr);
+    DataSerial.print(" connected");
+    uart_end();
+    m_connected = true;
+    notify_connected();
+    connected_peers++;
   }
+
+  void onDisconnect(BLEClient *pclient) {
+    uart_begin();
+    DataSerial.print("-peer [");
+    DataSerial.print(m_idx);
+    DataSerial.print("] ");
+    DataSerial.print(m_addr);
+    DataSerial.print(" disconnected");
+    uart_end();
+    m_connected = false;
+    m_disconn_ts = millis();
+    --connected_peers;
+#ifdef RESET_ON_DISCONNECT
+    fatal("peer disconnected");
+#endif
+  }
+
+  void report_connecting() {
+    uart_begin();
+    DataSerial.print(":C");
+    DataSerial.print(m_idx);
+    uart_end();
+  }
+
+  void notify_connected() {
+    uart_begin();
+    DataSerial.print(m_idx);
+    uart_end();
+  }
+
+  void connect();
+
+  bool notify_data(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length)
+  {
+    if (pBLERemoteCharacteristic != m_remoteCharacteristic)
+      return false;
+
+    uart_begin();
+    DataSerial.print(m_idx);
+    DataSerial.write(pData, length);
+    uart_end();
+    return true;
+  }
+
+  bool monitor()
+  {
+    uint32_t const now = millis();
+    if (!m_connected && elapsed(m_disconn_ts, now) > 500) {
+      connect();
+      return true;
+    }
+    return false;
+  }
+
+  unsigned    m_idx;
+  String      m_addr;
+  bool        m_connected;
+  uint32_t    m_disconn_ts;
+  uint32_t    m_rssi_reported_ts;
+
+  BLEClient*  m_Client;
+  BLERemoteCharacteristic* m_remoteCharacteristic;
 };
+
+static void tx_flush(bool all);
 
 static inline void tx_buff_reset()
 {
@@ -135,48 +262,33 @@ static inline void tx_buff_reset()
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
-      Serial.println("central connected");
+      uart_begin();
+      DataSerial.print("-central connected, ");
+      DataSerial.print(esp_get_free_heap_size());
+      DataSerial.print(" heap bytes avail");
+      uart_end();
       tx_buff_reset();
     };
 
     void onDisconnect(BLEServer* pServer) {
-      Serial.println("central disconnected");
+      uart_begin();
+      DataSerial.print("-central disconnected");
+      uart_end();
       centr_disconn_ts = millis();
       start_advertising = true;
     }
 };
 
-static void notifyConnected()
-{
-#if defined(UART_BEGIN) && defined(UART_END)
-  DataSerial.print(UART_BEGIN);
-  DataSerial.print(UART_END);
-#endif
-}
-
-class MyClientCallback : public BLEClientCallbacks {
-  void onConnect(BLEClient *pclient) {
-    Serial.println("peer connected");
-    peer_connected = true;
-    notifyConnected();
-    digitalWrite(CONNECTED_LED, LOW);
-  }
-  void onDisconnect(BLEClient *pclient) {
-    Serial.println("peer disconnected");
-    peer_connected = false;
-    peer_disconn_ts = millis();
-    digitalWrite(CONNECTED_LED, HIGH);
-  }
-};
-
 class MyCharCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     String rxValue = pCharacteristic->getValue();
-    Serial.print("rx: ");
-    Serial.println(rxValue);
+    uart_begin();
+    DataSerial.print('<');
+    DataSerial.print(rxValue);
+    uart_end();
 #ifdef ECHO
     tx_buff += rxValue;
-    do_transmit(true);
+    tx_flush(true);
 #endif
   }
 };
@@ -191,9 +303,12 @@ static void reset_self()
 #endif
 }
 
-static void do_reset(const char* what)
+static void fatal(const char* what)
 {
-  Serial.println(what);
+  uart_begin();
+  DataSerial.print("-fatal: ");
+  DataSerial.print(what);
+  uart_end();
   delay(100); // give host a chance to read message
   reset_self();
 }
@@ -208,6 +323,20 @@ static inline void watchdog_init()
   esp_task_wdt_config_t wdt_cfg = {.timeout_ms = WDT_TIMEOUT, .idle_core_mask = (1<<portNUM_PROCESSORS)-1, .trigger_panic = true};
   esp_task_wdt_reconfigure(&wdt_cfg); // enable panic so ESP32 restarts
   esp_task_wdt_add(NULL);             // add current thread to WDT watch
+}
+
+static void add_peer(unsigned idx, const char* addr)
+{
+  if (idx >= MAX_PEERS) {
+    fatal("Bad peer index");
+    return;
+  }
+  if (peers[idx]) {
+    fatal("Peer already exist");
+    return;
+  }
+  peers[idx] = new Peer(idx, addr);
+  ++npeers;
 }
 
 static inline char hex_digit(uint8_t v)
@@ -299,59 +428,71 @@ static void hw_init()
 
 void setup()
 {
+#ifdef PEER_ADDR
+  add_peer(0, PEER_ADDR);
+#endif
+#ifdef PEER_ADDR2
+  add_peer(2, PEER_ADDR2);
+#endif
+
   hw_init();
   watchdog_init();
   bt_device_init();
   bt_device_start();
 }
 
-static inline void report_rssi()
-{
-  Serial.print("rssi: ");
-  Serial.println(peerClient->getRssi());
-}
-
 static void peerNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
-#ifdef UART_BEGIN
-  DataSerial.print(UART_BEGIN);
-#endif
-  DataSerial.write(pData, length);
-#ifdef UART_END
-  DataSerial.print(UART_END);
-#endif
+  for (unsigned i = 0; i < MAX_PEERS; ++i)
+    if (peers[i] && peers[i]->notify_data(pBLERemoteCharacteristic, pData, length))
+      return;
+
+  uart_begin();
+  DataSerial.print("-data from unknown source");
+  uart_end();
 }
 
-static void connectToPeer(String const& addr)
+void Peer::connect()
 {
-  Serial.print("Connecting to ");
-  Serial.println(addr);
+  report_connecting();
 
-  peerClient = BLEDevice::createClient();
-  peerClient->setClientCallbacks(new MyClientCallback());
+  uart_begin();
+  DataSerial.print("-connecting to ");
+  DataSerial.print(m_addr);
+  uart_end();
 
-  peerClient->connect(addr);
-  peerClient->setMTU(247);  // Request increased MTU from server (default is 23 otherwise)
+  if (!m_Client) {
+    m_Client = BLEDevice::createClient();
+    m_Client->setClientCallbacks(this);
+  }
+
+  m_Client->connect(m_addr);
+  m_Client->setMTU(247);  // Request increased MTU from server (default is 23 otherwise)
 
   // Obtain a reference to the service we are after in the remote BLE server.
-  BLERemoteService *pRemoteService = peerClient->getService(SERVICE_UUID);
+  BLERemoteService *pRemoteService = m_Client->getService(SERVICE_UUID);
   // Reset itself on error to avoid dealing with de-initialization
   if (!pRemoteService) {
-    do_reset("Failed to find our service UUID");
+    fatal("Failed to find our service UUID");
     return;
   }
   // Obtain a reference to the characteristic in the service of the remote BLE server.
-  BLERemoteCharacteristic *pRemoteCharacteristic = pRemoteService->getCharacteristic(CHARACTERISTIC_UUID_TX);
-  if (!pRemoteCharacteristic) {
-    do_reset("Failed to find our characteristic UUID");
+  m_remoteCharacteristic = pRemoteService->getCharacteristic(CHARACTERISTIC_UUID_TX);
+  if (!m_remoteCharacteristic) {
+    fatal("Failed to find our characteristic UUID");
     return;
   }
   // Subscribe to updates
-  if (pRemoteCharacteristic->canNotify()) {
-    pRemoteCharacteristic->registerForNotify(peerNotifyCallback);
+  if (m_remoteCharacteristic->canNotify()) {
+    m_remoteCharacteristic->registerForNotify(peerNotifyCallback);
   } else {
-    do_reset("Notification not supported by the server");
+    fatal("Notification not supported by the server");
   }
+
+  uart_begin();
+  DataSerial.print("-connected to ");
+  DataSerial.print(m_addr);
+  uart_end();
 }
 
 static inline uint16_t max_tx_chunk()
@@ -359,7 +500,7 @@ static inline uint16_t max_tx_chunk()
   return BLEDevice::getMTU() - 3;
 }
 
-static void do_transmit(bool all)
+static void tx_flush(bool all)
 {
   uint16_t max_chunk = max_tx_chunk();
   uint8_t* pdata = (uint8_t*)tx_buff.c_str();
@@ -389,39 +530,71 @@ static void do_transmit(bool all)
   tx_buff = tx_buff.substring(sent);
 }
 
+static inline void report_idle()
+{
+  uart_begin();
+  DataSerial.print(":I " REVISION "." VMAJOR "." VMINOR);
+  uart_end();
+}
+
+static inline void report_connected()
+{
+  uart_begin();
+  DataSerial.print(":D");  
+  uart_end();
+}
+
+static void monitor_peers()
+{
+  for (unsigned i = 0; i < MAX_PEERS; ++i)
+    if (peers[i] && peers[i]->monitor())
+      break;
+
+  bool connected = false;
+  uint32_t const now = millis();
+  if (!connected_peers) {
+    if (!last_status_ts || elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
+      last_status_ts = now;
+      report_idle();
+    }
+  } else if (connected_peers >= npeers) {
+    connected = true;
+    if (elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
+      last_status_ts = now;
+      report_connected();
+    }
+  }
+
+  digitalWrite(CONNECTED_LED, connected ? LOW : HIGH);
+}
+
 void loop()
 {
   uint32_t const now = millis();
-  if (!peer_connected && now - peer_disconn_ts > 500) {
-    connectToPeer(DEV_ADDR);
-    return;
-  }
 
-  if (peer_connected && now - rssi_reported_ts > RSSI_REPORT_INTERVAL) {
-    rssi_reported_ts = now;
-    report_rssi();
-  }
-
-#ifndef ECHO
-  uint32_t const uptime = millis() / 1000;
-  if (uptime != last_uptime) {
-    last_uptime = uptime;
-    tx_buff += String(uptime);
-    do_transmit(true);
-  }
-#endif
-
-  if (start_advertising && millis() - centr_disconn_ts > 500) {
-    Serial.println("start advertising");
+  if (start_advertising && elapsed(centr_disconn_ts, now) > 500) {
+    uart_begin();
+    DataSerial.print("-start advertising");
+    uart_end();
     BLEDevice::startAdvertising(); // restart advertising
     start_advertising = false;
   }
 
-#ifdef SELF_RESET_AFTER
-  if (now > SELF_RESET_AFTER)
-    do_reset("reset itself for testing");
+#if defined(TEST) && !defined(ECHO)
+  uint32_t const uptime = now / 1000;
+  if (uptime != last_uptime) {
+    last_uptime = uptime;
+    tx_buff += String(uptime);
+    tx_flush(true);
+  }
 #endif
 
+#ifdef SELF_RESET_AFTER
+  if (now > SELF_RESET_AFTER)
+    fatal("reset itself for testing");
+#endif
+
+  monitor_peers();
   esp_task_wdt_reset();
 }
 
