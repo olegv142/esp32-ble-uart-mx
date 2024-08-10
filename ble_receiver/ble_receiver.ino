@@ -25,7 +25,6 @@
 #define SERVICE_UUID           "0000ffe0-0000-1000-8000-00805f9b34fb"
 #define CHARACTERISTIC_UUID_TX "0000ffe1-0000-1000-8000-00805f9b34fb"
 #define SCAN_TIME              5     // sec
-#define CONNECT_TOUT           5000  // msec
 #define WDT_TIMEOUT            20000 // msec
 
 // Undefine to keep default power level

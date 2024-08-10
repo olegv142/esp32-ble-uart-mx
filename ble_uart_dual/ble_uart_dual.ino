@@ -30,10 +30,7 @@
 #define SERVICE_UUID           "FFE0"
 #define CHARACTERISTIC_UUID_TX "FFE1"
 
-#define LONG_UUID(uuid) ("0000" uuid "-0000-1000-8000-00805f9b34fb")
-
 #define SCAN_TIME              5     // sec
-#define CONNECT_TOUT           5000  // msec
 #define WDT_TIMEOUT            20000 // msec
 
 // If UART_TX_PIN is defined the data will be output to the hardware serial port
