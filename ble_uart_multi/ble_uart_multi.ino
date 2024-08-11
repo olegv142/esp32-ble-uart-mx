@@ -42,6 +42,7 @@
 #include <esp_task_wdt.h>
 #include <esp_system.h>
 #include <driver/uart.h>
+#include <string.h>
 
 #define REVISION  "1"
 #define VMAJOR    "0"
@@ -72,7 +73,9 @@
 #define UART_BEGIN '\1'
 #define UART_END   '\0'
 #else
-#define TEST
+// If TEST is defined it will connect on startup to the predefined set of peers
+// and broadcast uptime every second to connected central
+// #define TEST
 #define DataSerial Serial
 #define UART_END   '\n'
 #endif
@@ -96,9 +99,6 @@
 
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
-
-// If defined self reset after the specified time since start (for testing)
-// #define SELF_RESET_AFTER 150000 // msec
 
 #ifdef TEST
 // If defined echo back all data received from central
@@ -141,6 +141,7 @@ static uint32_t last_status_ts;
 
 static String   dev_name(DEV_NAME);
 static String   tx_buff;
+static String   rx_buff;
 
 #if defined(TEST) && !defined(ECHO)
 static uint32_t last_uptime;
@@ -168,7 +169,7 @@ static void fatal(const char* what);
 class Peer : public BLEClientCallbacks
 {
 public:
-  Peer(unsigned idx, const char* addr)
+  Peer(unsigned idx, String const& addr)
     : m_idx(idx)
     , m_addr(addr)
     , m_connected(false)
@@ -252,7 +253,7 @@ public:
   BLERemoteCharacteristic* m_remoteCharacteristic;
 };
 
-static void tx_flush(bool all);
+static void tx_flush();
 
 static inline void tx_buff_reset()
 {
@@ -291,7 +292,7 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
     uart_end();
 #ifdef ECHO
     tx_buff += rxValue;
-    tx_flush(true);
+    tx_flush();
 #endif
   }
 };
@@ -328,7 +329,7 @@ static inline void watchdog_init()
   esp_task_wdt_add(NULL);             // add current thread to WDT watch
 }
 
-static void add_peer(unsigned idx, const char* addr)
+static void add_peer(unsigned idx, String const& addr)
 {
   if (idx >= MAX_PEERS) {
     fatal("Bad peer index");
@@ -429,6 +430,8 @@ static void hw_init()
   uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_CTS, 0);
 #endif
 #endif
+  DataSerial.setTimeout(10);
+
   tx_buff_reset();
 }
 
@@ -518,7 +521,7 @@ static inline uint16_t max_tx_chunk()
   return BLEDevice::getMTU() - 3;
 }
 
-static void tx_flush(bool all)
+static void tx_flush()
 {
   uint16_t max_chunk = max_tx_chunk();
   uint8_t* pdata = (uint8_t*)tx_buff.c_str();
@@ -542,10 +545,74 @@ static void tx_flush(bool all)
     sent     += chunk;
     pdata    += chunk;
     data_len -= chunk;
-    if (!all)
-      break;
   }
   tx_buff = tx_buff.substring(sent);
+}
+
+static void cmd_connect(const char* param)
+{
+  String params(param);
+  const char* ptr = param;
+  while (*ptr)
+  {
+    while (isspace(*ptr))
+      ++ptr;
+    const char* begin = ptr;
+    while (*ptr && !isspace(*ptr))
+      ++ptr;
+    if (ptr != begin)
+      add_peer(npeers, params.substring(begin - param, ptr - param));
+  }
+}
+
+static void process_cmd(const char* cmd)
+{
+  switch (cmd[0]) {
+    case 'R':
+      reset_self();
+      break;
+    case 'C':
+      cmd_connect(cmd + 1);
+      break;
+  }
+}
+
+static void process_msg(const char* str)
+{
+  switch (str[0]) {
+    case '#':
+      process_cmd(str + 1);
+      break;
+    case '>':
+      tx_buff += str + 1;
+      tx_flush();
+      break;
+    default:
+      fatal("unrecognized message");
+  }
+}
+
+static void rx_process()
+{
+  const char* str = rx_buff.c_str();
+  const char* next = str;
+  for (;;) {
+#ifdef UART_BEGIN
+    const char* begin = strchr(next, UART_BEGIN);
+    if (!begin)
+      break;
+    begin += 1;
+#else
+    const char* begin = next;
+#endif
+    char* tail = strchr(begin, UART_END);
+    if (!tail)
+      break;
+    *tail = '\0';
+    next = tail + 1;
+    process_msg(begin);
+  }
+  rx_buff = rx_buff.substring(next - str);
 }
 
 static inline void report_idle()
@@ -590,6 +657,14 @@ void loop()
 {
   uint32_t const now = millis();
 
+#ifndef TEST
+  String const received = DataSerial.readString();
+  if (received.length()) {
+    rx_buff += received;
+    rx_process();
+  }
+#endif
+
   if (start_advertising && elapsed(centr_disconn_ts, now) > 500) {
     uart_begin();
     DataSerial.print("-start advertising");
@@ -603,16 +678,10 @@ void loop()
   if (uptime != last_uptime) {
     last_uptime = uptime;
     tx_buff += String(uptime);
-    tx_flush(true);
+    tx_flush();
   }
-#endif
-
-#ifdef SELF_RESET_AFTER
-  if (now > SELF_RESET_AFTER)
-    fatal("reset itself for testing");
 #endif
 
   monitor_peers();
   esp_task_wdt_reset();
 }
-
