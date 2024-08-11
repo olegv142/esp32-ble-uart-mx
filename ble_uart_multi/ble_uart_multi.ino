@@ -506,6 +506,10 @@ void Peer::connect()
   DataSerial.print(" in ");
   DataSerial.print(millis() - start);
   DataSerial.print(" msec");
+#ifdef RESET_ON_DISCONNECT
+  DataSerial.print(", rssi=");
+  DataSerial.print(m_Client->getRssi());
+#endif
   uart_end();
 }
 
