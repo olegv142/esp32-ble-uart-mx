@@ -1,12 +1,19 @@
 # esp32-ble
-The collection of useful ESP32 BLE projects for Arduino targeting telemetry / monitoring applications.
+The collection of useful ESP32 BLE projects for Arduino targeting telemetry / monitoring applications. The main goals were testing various scenarios of using BLE stack in order to reveal its limitations and find workarounds.
 
 ## Simple receiver / transmitter examples
-The **ble_receiver** / **ble_transmitter** are examples of creating one way communication channel with automatic reconnection. The code also illustrates using watchdog for improved reliability and maximizing transmission power for extending range.
+The **ble_receiver** / **ble_transmitter** are examples of creating one way communication channel with automatic re-connection. The code also illustrates using watchdog for improved reliability and maximizing transmission power for extending range.
 
 The **ble_uart_tx** example adds receiving data for transmission from the (USB virtual) serial port, increasing the MTU and the ability to add a hexadecimal suffix to the device name so that it can be distinguished in case there are several devices around with the same firmware.
 
 The **ble_uart_rx** example adds sending received data to hardware serial port, increasing the MTU and using hardware reset on watchdog timeout for better reliability. It also has the option to establish connection to the transmitter without scan in case its address is known.
+
+## Dual mode example
+The **ble_uart_dual** example illustrates creating dual mode device capable of connecting to the transmitter as central and acting as peripheral accepting connections from other central. Here we start to hit BLE stack limitations / bugs. In particular the BLEServerCallbacks methods should be called on every connect / disconnect of the remote central. It turns out that they also called when we act as central and connecting to the remote peripheral. Hopefully we can workaround this issue by just not strictly relying on that callbacks.
+
+## Multi-adapter
+The **ble_uart_multi** is dual mode device capable of creating multiple connections to transmitters as central as well as acting as peripheral accepting connections from other central. It was designed as multipurpose BLE to serial adapter accepting commands from controlling host via serial link. The primary use case is gathering telemetry data from transmitters and providing communication link for other central for commands / responses. Here we hit even more stack limitations / bugs. For example the BLEDevice maintains the pointer to the last created client connection. It is considered current and used to deliver some events from lower layers of the stack. As a consequence some events may not be delivered in case several connections were created. In particular RSSI query will hung forever if made to not the last created client. Hopefully we can workaround this issue by not querying RSSI or doing it once right after connect.
+The host code controlling such adapter may be found in **test/multi_connect.py**.
 
 ## Using watchdog for better reliability
 The BT stack is complex and not well tested bunch of software. Using it one can easily be trapped onto the state
@@ -62,11 +69,11 @@ The following values were measured with SDK v.3.0.3
 The power consumption was significantly improved since SDK v.2. Yet its still not quite suitable for battery powered applications.
 
 ## Range testing results
-The maximum distance over which we can safely transmit data is an important issue in many applications. Typically small and cheap ESP32 modules have small chip antenna soldered on board. With such modules one can expect the opearating distance around 10 meters. The efficiency of such chip antenna is close to nothing. Even printed circuit antenna is better and gives you more range. The external antenna is much better choice. One can solder it just above the chip antenna as shown on the figure below.
+The maximum distance over which we can safely transmit data is an important issue in many applications. Typically small and cheap ESP32 modules have tiny chip antenna soldered on board. With such modules one can expect the operating distance around 10 meters. The efficiency of such chip antenna is close to nothing. Even printed circuit antenna is better and gives you more range. The external antenna is much better choice. One can solder it instead of the chip antenna as shown on the figure below.
 
 ![The ESP32 C3 Super mini module with external antenna](https://github.com/olegv142/esp32-ble/blob/main/doc/c3_supermini_with_antenna.jpg)
 
-One can further increase operating range by setting maximum transmission power programmatically. I have tested two modules with external antennas like shown on the figure above with elevated TX power. This combination has demonstrated quite impressive results. Inside the building I've got stable transmission between basement and second floor through two layers of reinforced concrete slabs. Outdoors, it showed stable transmission at a distance of 100m with line of sight.
+One can further increase operating range by setting maximum transmission power programmatically. I have tested two modules with external antennas like shown on the figure above with elevated TX power. This combination has demonstrated quite impressive results. Inside the building I've got stable transmission between basement and second floor through two layers of reinforced concrete slabs. Outdoors, it showed stable transmission at a distance of 120m with line of sight.
 
 ## Notes about NimBLE
 The **nim_ble_uart_rx** / **nim_ble_uart_tx** are two examples adopted for using NimBLE stack instead of Bluedroid used by default. The NimBLE stack has 2 times smaller amount of code, much less RAM usage and better written in general. For example there are no such stupid things in API as passing class instances with a lot of data by value. Nevertheless testing has revealed severe problems related to using NimBLE stack:
