@@ -61,7 +61,7 @@
 
 // If UART_TX_PIN is defined the data will be output to the hardware serial port
 // Otherwise the USB virtual serial port will be used for that purpose
-#define UART_TX_PIN  7
+// #define UART_TX_PIN  7
 #define UART_RX_PIN  6
 #define UART_BAUD_RATE 115200
 #define UART_MODE SERIAL_8N1
@@ -74,9 +74,6 @@
 #define UART_BEGIN '\1'
 #define UART_END   '\0'
 #else
-// If TEST is defined it will connect on startup to the predefined set of peers
-// and broadcast uptime every second to connected central
-// #define TEST
 #define DataSerial Serial
 #define UART_END   '\n'
 #endif
@@ -101,14 +98,18 @@
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
 
+// If TEST is defined it will connect on startup to the predefined set of peers
+// and broadcast uptime every second to connected central
+#define TEST
+
 #ifdef TEST
 // If defined echo back all data received from central
 // #define ECHO
 
 // Peer device address to connect to
 #define PEER_ADDR    "EC:DA:3B:BB:CE:02"
-#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
-#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
+//#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
+//#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
 
 // There is no flow control in USB serial port.
 // The default buffer size is 256 bytes which may be not enough.
@@ -421,8 +422,10 @@ static void hw_init()
   Serial.setRxBufferSize(CDC_BUFFER_SZ);
 #endif
 
+#ifdef CONNECTED_LED
   pinMode(CONNECTED_LED, OUTPUT);
   digitalWrite(CONNECTED_LED, HIGH);
+#endif
 
 #ifdef UART_TX_PIN
   DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
@@ -650,8 +653,9 @@ static void monitor_peers()
       report_connected();
     }
   }
-
+#ifdef CONNECTED_LED
   digitalWrite(CONNECTED_LED, connected ? LOW : HIGH);
+#endif
 }
 
 void loop()
