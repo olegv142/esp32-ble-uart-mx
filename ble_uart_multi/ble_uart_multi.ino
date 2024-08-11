@@ -15,14 +15,14 @@
   '-message'
 
  Every in/out message on physical UART is started with '\1' end with '\0'. 
- In TEST mode USB VCP is used for communications. In such case there is no start symbol, end symbol is always '\n'
+ In case USB VCP is used for communications there is no start symbol, end symbol is always '\n'
 
  Second symbol of out message is
   ':' for status messages
   '-' for debug messages
   '<' if message is received from connected central
-  '0', '1' .. '7'  for data stream 0, 1, .. 7
- The first data stream message after connection / re-connection has no data payload. This is the stream start token.
+  '0', '1' .. '7'  for data received from peer 0, 1, .. 7
+ The first data stream message after peer connection / re-connection has no data payload. This is the stream start token.
 
  The second symbol for input message is
   '#' for commands
