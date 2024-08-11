@@ -11,7 +11,7 @@ class MutliAdapter:
 	start_byte = b'\1'
 	end_byte   = b'\0'
 
-	def __init__(self, port, timeout=1):
+	def __init__(self, port, timeout=.01):
 		self.port    = port
 		self.com     = None
 		self.timeout = timeout
