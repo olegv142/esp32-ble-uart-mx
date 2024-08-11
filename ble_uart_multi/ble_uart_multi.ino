@@ -61,7 +61,8 @@
 
 // If UART_TX_PIN is defined the data will be output to the hardware serial port
 // Otherwise the USB virtual serial port will be used for that purpose
-// #define UART_TX_PIN  7
+#define UART_TX_PIN  7
+#define UART_RX_PIN  6
 #define UART_BAUD_RATE 115200
 #define UART_MODE SERIAL_8N1
 // If defined the flow control on UART will be configured
@@ -424,7 +425,7 @@ static void hw_init()
   digitalWrite(CONNECTED_LED, HIGH);
 
 #ifdef UART_TX_PIN
-  DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_PIN_NO_CHANGE, UART_TX_PIN);
+  DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
 #ifdef UART_CTS_PIN
   uart_set_pin(DATA_UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_CTS_PIN);  
   uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_CTS, 0);
