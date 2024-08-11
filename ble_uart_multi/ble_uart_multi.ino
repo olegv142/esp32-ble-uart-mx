@@ -84,12 +84,12 @@
  The BT stack is complex and not well tested bunch of software. Using it one can easily be trapped onto the state
  where there is no way out. The biggest problem is that connect routine may hung forever. Although the connect call
  has timeout parameter, it does not help. The call may complete on timeout without errors, but the connection will
- not actually be established. That's why we are using watchdog to detect connection timeout. Moreover it seems that
- soft reset by watchdog is not equivalent to the power cycle or reset by pulling low EN pin. That's why there is an
- option to implement hard reset on connect timeout by hard wiring some output pin to EN input of the chip.
+ not actually be established. That's why we are using watchdog to detect connection timeout. Its unclear if soft
+ reset by watchdog is equivalent to the power cycle or reset by pulling low EN pin. That's why there is an option
+ to implement hard reset on connect timeout by hard wiring some output pin to EN input of the chip.
 */
 // If defined use hard reset on connect timeout
-#define RST_OUT_PIN 3
+// #define RST_OUT_PIN 3
 
 // If defined reset itself on peer disconnection instead of reconnecting
 #define RESET_ON_DISCONNECT
@@ -106,7 +106,8 @@
 
 // Peer device address to connect to
 #define PEER_ADDR    "EC:DA:3B:BB:CE:02"
-#define PEER_ADDR2   "34:B7:DA:F6:44:B2"
+#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
+#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
 #endif
 
 // If USE_SEQ_TAG is defined every chunk of data transmitted (characteristic update) will carry sequence tag as the first symbol.
@@ -168,7 +169,6 @@ public:
     , m_addr(addr)
     , m_connected(false)
     , m_disconn_ts(0)
-    , m_rssi_reported_ts(0)
     , m_Client(nullptr)
     , m_remoteCharacteristic(nullptr)
   {}
@@ -243,7 +243,6 @@ public:
   String      m_addr;
   bool        m_connected;
   uint32_t    m_disconn_ts;
-  uint32_t    m_rssi_reported_ts;
 
   BLEClient*  m_Client;
   BLERemoteCharacteristic* m_remoteCharacteristic;
@@ -430,6 +429,9 @@ void setup()
 {
 #ifdef PEER_ADDR
   add_peer(0, PEER_ADDR);
+#endif
+#ifdef PEER_ADDR1
+  add_peer(1, PEER_ADDR1);
 #endif
 #ifdef PEER_ADDR2
   add_peer(2, PEER_ADDR2);
