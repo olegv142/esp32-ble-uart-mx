@@ -108,6 +108,10 @@
 #define PEER_ADDR    "EC:DA:3B:BB:CE:02"
 #define PEER_ADDR1   "34:B7:DA:F6:44:B2"
 #define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
+
+// There is no flow control in USB serial port.
+// The default buffer size is 256 bytes which may be not enough.
+#define CDC_BUFFER_SZ 4096
 #endif
 
 // If USE_SEQ_TAG is defined every chunk of data transmitted (characteristic update) will carry sequence tag as the first symbol.
@@ -411,6 +415,9 @@ static void bt_device_start()
 static void hw_init()
 {
   Serial.begin(115200);
+#ifdef CDC_BUFFER_SZ
+  Serial.setRxBufferSize(CDC_BUFFER_SZ);
+#endif
 
   pinMode(CONNECTED_LED, OUTPUT);
   digitalWrite(CONNECTED_LED, HIGH);
@@ -458,6 +465,8 @@ void Peer::connect()
 {
   report_connecting();
 
+  uint32_t const start = millis();
+
   uart_begin();
   DataSerial.print("-connecting to ");
   DataSerial.print(m_addr);
@@ -494,6 +503,9 @@ void Peer::connect()
   uart_begin();
   DataSerial.print("-connected to ");
   DataSerial.print(m_addr);
+  DataSerial.print(" in ");
+  DataSerial.print(millis() - start);
+  DataSerial.print(" msec");
   uart_end();
 }
 
