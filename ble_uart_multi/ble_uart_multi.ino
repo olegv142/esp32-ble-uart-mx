@@ -29,10 +29,9 @@
  The second symbol for input message is
   '#' for commands
   '>' for message to be sent to connected central
+  '0', '1' .. '7'  for data to be sent to peer 0, 1, .. 7
 
  Tested on ESP32 C3 with SDK v.3.0
- Use ble_uart_tx or another ble_uart_multi as a peer to connect to.
- Use https://enspectr.github.io/ble-term as a central for testing.
  Use python/ble_multi_adapter.py for interfacing at the host side.
 
  Author: Oleg Volkov
@@ -52,10 +51,10 @@
 #include <freertos/queue.h>
 
 #define REVISION  "1"
-#define VMAJOR    "0"
-#define VMINOR    "1"
+#define VMAJOR    "1"
+#define VMINOR    "0"
 
-#define DEV_NAME  "TestC3-"
+#define DEV_NAME  "Mx-"
 
 // Uncomment to add suffix based on MAC to device name to make it distinguishable
 #define DEV_NAME_SUFF_LEN  6
@@ -136,7 +135,7 @@ static char next_tag = FIRST_TAG;
 #define WRITE_RESPONSE false
 
 // If defined echo all data received from peer back to it
-#define PEER_ECHO
+// #define PEER_ECHO
 
 #ifdef PEER_ECHO
 #define PEER_ECHO_QUEUE 64
@@ -629,6 +628,19 @@ static void cmd_connect(const char* param)
   }
 }
 
+static void process_write(unsigned idx, const char* str)
+{
+  if (idx >= MAX_PEERS || !peers[idx]) {
+    fatal("Bad peer index");
+    return;
+  }
+  if (!peers[idx]->m_writable) {
+    fatal("Peer is not writable");
+    return;
+  }
+  peers[idx]->m_remoteCharacteristic->writeValue((uint8_t*)str, strlen(str), WRITE_RESPONSE);
+}
+
 static void process_cmd(const char* cmd)
 {
   switch (cmd[0]) {
@@ -638,6 +650,8 @@ static void process_cmd(const char* cmd)
     case 'C':
       cmd_connect(cmd + 1);
       break;
+    default:
+      fatal("unrecognized command");
   }
 }
 
@@ -652,7 +666,7 @@ static void process_msg(const char* str)
       tx_flush();
       break;
     default:
-      fatal("unrecognized message");
+      process_write(str[0] - '0', str + 1);
   }
 }
 
