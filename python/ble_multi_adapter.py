@@ -50,6 +50,10 @@ class MutliAdapter:
 		"""Send data to connected central"""
 		self.com.write(MutliAdapter.start_byte + b'>' + data + MutliAdapter.end_byte)
 
+	def send_data_to(self, idx, data):
+		"""Send data to peer given its index"""
+		self.com.write(MutliAdapter.start_byte + (b'0'[0] + idx).to_bytes(1, byteorder='big') + data + MutliAdapter.end_byte)
+
 	def poll(self):
 		if rx_bytes := self.com.read(4096):
 			self.process_rx(rx_bytes)
