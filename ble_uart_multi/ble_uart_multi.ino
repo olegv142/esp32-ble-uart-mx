@@ -48,6 +48,8 @@
 #include <esp_system.h>
 #include <driver/uart.h>
 #include <string.h>
+#include <malloc.h>
+#include <freertos/queue.h>
 
 #define REVISION  "1"
 #define VMAJOR    "0"
@@ -83,6 +85,10 @@
 #define UART_END   '\n'
 #endif
 
+// There is no flow control in USB serial port.
+// The default buffer size is 256 bytes which may be not enough.
+#define UART_BUFFER_SZ 4096
+
 // Connected LED pin, active low
 #define CONNECTED_LED 8
 
@@ -109,14 +115,11 @@
 
 #ifdef TEST
 // Peer device address to connect to
-#define PEER_ADDR    "EC:DA:3B:BB:CE:02"
+//#define PEER_ADDR    "EC:DA:3B:BB:CE:02"
 //#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
 //#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
+#define PEER_ADDR3   "34:B7:DA:FB:58:E2"
 #endif
-
-// There is no flow control in USB serial port.
-// The default buffer size is 256 bytes which may be not enough.
-#define UART_BUFFER_SZ 4096
 
 // If USE_SEQ_TAG is defined every chunk of data transmitted (characteristic update) will carry sequence tag as the first symbol.
 // It will get its value from 16 characters sequence 'a', 'b', .. 'p'. Next update will use next symbol. After 'p' the 'a' will
@@ -128,6 +131,13 @@
 #define NTAGS 16
 #define FIRST_TAG 'a'
 static char next_tag = FIRST_TAG;
+#endif
+
+// If defined echo all data received from peer back to it
+#define PEER_ECHO
+
+#ifdef PEER_ECHO
+#define PEER_ECHO_QUEUE 64
 #endif
 
 static BLEServer*         pServer;
@@ -170,17 +180,29 @@ static inline uint32_t elapsed(uint32_t from, uint32_t to)
 
 static void fatal(const char* what);
 
+#ifdef PEER_ECHO
+struct data_chunk {
+  uint8_t* data;
+  size_t len;
+};
+#endif
+
 class Peer : public BLEClientCallbacks
 {
 public:
   Peer(unsigned idx, String const& addr)
     : m_idx(idx)
     , m_addr(addr)
+    , m_writable(false)
     , m_connected(false)
     , m_disconn_ts(0)
     , m_Client(nullptr)
     , m_remoteCharacteristic(nullptr)
-  {}
+#ifdef PEER_ECHO
+    , m_echo_queue(0)
+#endif
+  {
+  }
 
   void onConnect(BLEClient *pclient) {
     uart_begin();
@@ -235,12 +257,27 @@ public:
     DataSerial.print(m_idx);
     DataSerial.write(pData, length);
     uart_end();
+
+#ifdef PEER_ECHO
+    if (m_writable) {
+      struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
+      memcpy(ch.data, pData, length);
+      xQueueSend(m_echo_queue, &ch, 0);
+    }
+#endif
     return true;
   }
 
   bool monitor()
   {
     uint32_t const now = millis();
+#ifdef PEER_ECHO
+    struct data_chunk ch;
+    if (m_echo_queue && xQueueReceive(m_echo_queue, &ch, 0)) {
+      m_remoteCharacteristic->writeValue(ch.data, ch.len, true);
+      free(ch.data);
+    }
+#endif
     if (!m_connected && elapsed(m_disconn_ts, now) > 500) {
       connect();
       return true;
@@ -250,11 +287,16 @@ public:
 
   unsigned    m_idx;
   String      m_addr;
+  bool        m_writable;
   bool        m_connected;
   uint32_t    m_disconn_ts;
 
   BLEClient*  m_Client;
   BLERemoteCharacteristic* m_remoteCharacteristic;
+
+#ifdef PEER_ECHO
+  QueueHandle_t m_echo_queue;
+#endif
 };
 
 static void tx_flush();
@@ -448,6 +490,9 @@ void setup()
 #ifdef PEER_ADDR2
   add_peer(2, PEER_ADDR2);
 #endif
+#ifdef PEER_ADDR3
+  add_peer(3, PEER_ADDR3);
+#endif
 
   hw_init();
   watchdog_init();
@@ -505,12 +550,20 @@ void Peer::connect()
     fatal("Notification not supported by the server");
   }
 
+  m_writable = m_remoteCharacteristic->canWrite();
+#ifdef PEER_ECHO
+  if (m_writable)
+    m_echo_queue = xQueueCreate(PEER_ECHO_QUEUE, sizeof(struct data_chunk));
+#endif
+
   uart_begin();
   DataSerial.print("-connected to ");
   DataSerial.print(m_addr);
   DataSerial.print(" in ");
   DataSerial.print(millis() - start);
   DataSerial.print(" msec");
+  if (m_writable)
+    DataSerial.print(", writable");
 #ifdef RESET_ON_DISCONNECT
   DataSerial.print(", rssi=");
   DataSerial.print(m_Client->getRssi());
