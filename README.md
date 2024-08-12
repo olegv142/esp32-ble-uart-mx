@@ -13,7 +13,7 @@ The **ble_uart_dual** example illustrates creating dual role device capable of c
 
 ## Multi-adapter
 The **ble_uart_multi** is dual role device capable of creating multiple connections to transmitters as central as well as acting as peripheral accepting connections from other central. It was designed as multipurpose BLE to serial adapter accepting commands from controlling host via serial link. The primary use case is gathering telemetry data from transmitters and providing communication link for other central for commands / responses. Here we hit even more stack limitations / bugs. For example the BLEDevice maintains the pointer to the last created client connection. It is considered current and used to deliver some events from lower layers of the stack. As a consequence some events may not be delivered in case several connections were created. In particular RSSI query will hung forever if made to not the last created client. Hopefully we can workaround this issue by not querying RSSI or doing it once right after connect.
-The host code controlling such adapter may be found in **python/multi_connect.py**.
+The host code controlling such adapter may be found in **python/ble_multi_adapter.py**.
 
 ## Using watchdog for better reliability
 The BT stack is complex and not well tested bunch of software. Using it one can easily be trapped onto the state

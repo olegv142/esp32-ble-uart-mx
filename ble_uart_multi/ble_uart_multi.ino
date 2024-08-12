@@ -63,7 +63,7 @@
 
 // If UART_TX_PIN is defined the data will be output to the hardware serial port
 // Otherwise the USB virtual serial port will be used for that purpose
-// #define UART_TX_PIN  7
+#define UART_TX_PIN  7
 #define UART_RX_PIN  6
 #define UART_BAUD_RATE 115200
 #define UART_MODE SERIAL_8N1
@@ -102,7 +102,7 @@
 
 // If TEST is defined it will connect on startup to the predefined set of peers
 // and broadcast uptime every second to connected central
-#define TEST
+// #define TEST
 
 #ifdef TEST
 // If defined echo back all data received from central
@@ -112,11 +112,11 @@
 #define PEER_ADDR    "EC:DA:3B:BB:CE:02"
 //#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
 //#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
+#endif
 
 // There is no flow control in USB serial port.
 // The default buffer size is 256 bytes which may be not enough.
-#define CDC_BUFFER_SZ 4096
-#endif
+#define UART_BUFFER_SZ 4096
 
 // If USE_SEQ_TAG is defined every chunk of data transmitted (characteristic update) will carry sequence tag as the first symbol.
 // It will get its value from 16 characters sequence 'a', 'b', .. 'p'. Next update will use next symbol. After 'p' the 'a' will
@@ -420,9 +420,6 @@ static void bt_device_start()
 static void hw_init()
 {
   Serial.begin(115200);
-#ifdef CDC_BUFFER_SZ
-  Serial.setRxBufferSize(CDC_BUFFER_SZ);
-#endif
 
 #ifdef CONNECTED_LED
   pinMode(CONNECTED_LED, OUTPUT);
@@ -435,6 +432,9 @@ static void hw_init()
   uart_set_pin(DATA_UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_CTS_PIN);  
   uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_CTS, 0);
 #endif
+#endif
+#ifdef UART_BUFFER_SZ
+  DataSerial.setRxBufferSize(UART_BUFFER_SZ);
 #endif
   DataSerial.setTimeout(10);
 
