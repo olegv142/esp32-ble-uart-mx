@@ -116,7 +116,7 @@
 // Peer device address to connect to
 //#define PEER_ADDR    "EC:DA:3B:BB:CE:02"
 //#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
-//#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
+#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
 #define PEER_ADDR3   "34:B7:DA:FB:58:E2"
 #endif
 
@@ -279,7 +279,8 @@ public:
 #ifdef PEER_ECHO
     struct data_chunk ch;
     if (m_echo_queue && xQueueReceive(m_echo_queue, &ch, 0)) {
-      m_remoteCharacteristic->writeValue(ch.data, ch.len, WRITE_RESPONSE);
+      if (m_connected)
+        m_remoteCharacteristic->writeValue(ch.data, ch.len, WRITE_RESPONSE);
       free(ch.data);
     }
 #endif
