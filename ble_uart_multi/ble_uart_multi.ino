@@ -133,6 +133,8 @@
 static char next_tag = FIRST_TAG;
 #endif
 
+#define WRITE_RESPONSE false
+
 // If defined echo all data received from peer back to it
 #define PEER_ECHO
 
@@ -262,7 +264,11 @@ public:
     if (m_writable) {
       struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
       memcpy(ch.data, pData, length);
-      xQueueSend(m_echo_queue, &ch, 0);
+      if (!xQueueSend(m_echo_queue, &ch, 0)) {
+        uart_begin();
+        DataSerial.print("-echo queue full");
+        uart_end();
+      }
     }
 #endif
     return true;
@@ -274,7 +280,7 @@ public:
 #ifdef PEER_ECHO
     struct data_chunk ch;
     if (m_echo_queue && xQueueReceive(m_echo_queue, &ch, 0)) {
-      m_remoteCharacteristic->writeValue(ch.data, ch.len, true);
+      m_remoteCharacteristic->writeValue(ch.data, ch.len, WRITE_RESPONSE);
       free(ch.data);
     }
 #endif
@@ -435,7 +441,10 @@ static void bt_device_start()
   // Create a BLE Characteristic
   pCharacteristic = pService->createCharacteristic(
     CHARACTERISTIC_UUID_TX,
-    BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE
+    BLECharacteristic::PROPERTY_NOTIFY |
+    BLECharacteristic::PROPERTY_READ   |
+    BLECharacteristic::PROPERTY_WRITE  |
+    BLECharacteristic::PROPERTY_WRITE_NR
   );
 
   pCharacteristic->addDescriptor(new BLE2902());
