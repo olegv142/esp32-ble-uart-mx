@@ -1,6 +1,8 @@
 /*
- This is the dual mode BLE device capable of connecting to multiple peers.
- Its based on the ble_uart_dual example.
+ This is the dual role BLE device capable of connecting to multiple peers. Its based on the ble_uart_dual example.
+ It was designed as multipurpose BLE to serial adapter accepting commands from controlling host via serial link.
+ The primary use case is gathering telemetry data from transmitters and providing communication link for other
+ central for commands / responses. The controlling host uses the following protocol:
 
  Commands:
   '#C addr0 addr1 ..' - connect to peers with given addresses (up to 8)

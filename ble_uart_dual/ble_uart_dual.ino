@@ -1,5 +1,6 @@
 /*
- * This is the dual mode BLE device example.
+ * This is the dual role BLE device capable of connecting to the transmitter
+ * as central and acting as peripheral accepting connections from other central.
  * Its based on ble_uart_rx and ble_uart_tx examples.
  *
  * Tested on ESP32 C3 with SDK v.3.0
