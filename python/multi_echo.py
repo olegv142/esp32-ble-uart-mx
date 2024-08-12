@@ -4,9 +4,6 @@ Expects serial port name as a parameter.
 The script periodically transmits to central a bunch of messages
 representing ever incremented number and expects it to echo them back.
 
-You may use the following WebBLE application as central:
-https://enspectr.github.io/ble-term/?echo
-
 Author: Oleg Volkov
 """
 

@@ -1,5 +1,5 @@
 # esp32-ble
-The collection of useful ESP32 BLE projects for Arduino targeting telemetry / monitoring applications. The main goals were testing various scenarios of using BLE stack in order to reveal its limitations and find workarounds. To avoid reading details go ahead to the [conclusion](#conclusion).
+The collection of useful ESP32 BLE projects for Arduino targeting telemetry / monitoring applications. The main goals were testing various scenarios of using BLE stack in order to reveal its limitations and find workarounds.
 
 ## Simple receiver / transmitter examples
 The **ble_receiver** / **ble_transmitter** are examples of creating one way communication channel with automatic re-connection. The code also illustrates using watchdog for improved reliability and maximizing transmission power for extending range.
@@ -82,20 +82,6 @@ The **nim_ble_uart_rx** / **nim_ble_uart_tx** are two examples adopted for using
 3. In case of bad reception the communication channel may become permanently broken. It can fall to some pathological state where even re-connection does not repair communication. Only transmitter reset is able to repair it so the data may be transmitted again.
 
 So for now considering all issues mentioned above I strongly not recommend using NimBLE stack for anything more complex than LED blinking.
-
-## Notes about bidirectional communications
-One might wonder what about a bidirectional communication channel. Why is there no code for a pair of devices that can simply create a bidirectional virtual serial link. The answer is because there are no simple way to do it reliably with the current Espressif SDK.
-
-The serial communication from peripheral to the central works by updating characteristic and notifying central. This approach works well. It seems that notification routine is synchronous which means it does not return until new value is delivered to the central. The common approach to communication in backward direction (from central to peripheral) is to remotely write to the same or some other characteristic. Unfortunately testing shows that with current SDK this approach leads to data loss and/or duplication.
-
-The test **python/multi_echo.py** works with **ble_uart_multi** example by sending bursts of messages to connected central every second. Each message contains the string representation of ever incrementing sequence counter. The central just sends back every message it receives. One can run such central in browser by following the link https://enspectr.github.io/ble-term/?echo. Results for burst length of 3 are shown on the following figure where browser window on the left shows messages received by central while terminal window on the right shows echo replies received by ESP32C3 module running **ble_uart_multi** code. While messages received by central (running in browser) looks perfectly valid the replies (that should be identical to the messages received by central) contains a lot of missed and duplicated messages.
-
-![BLE write bug in echo test](https://github.com/olegv142/esp32-ble/blob/main/doc/ble_write_bug_in_echo_test.jpg)
-
-The root cause of this issue is asynchronous write notification mechanism implemented in ESP32. The value written by central is stored in the buffer while notification callback is scheduled for execution at some later time. Before actual callback execution the value in the buffer may be overwritten by some other write. As a result overwritten value will be lost while several notification callbacks will deliver the same value most recently written. There is no simple workaround for this issue. The one that is feasible is to implement separate characteristic representing written characteristic version incremented on each write. The writer can subscribe to its updates and delay writing the next value until it receives confirmation of delivery of the previous value. But for now it looks overly complex.
-
-## Conclusion
-Despite years of development Espressif BLE stack works without issues only in very basic situations. Even such common task as creating bidirectional virtual serial port has no simple and reliable solution.
 
 ## Useful links
 
