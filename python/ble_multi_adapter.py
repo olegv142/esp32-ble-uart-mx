@@ -1,5 +1,7 @@
 """
 BLE multi adapter host interface
+
+Author: Oleg Volkov
 """
 
 import sys
@@ -10,11 +12,12 @@ class MutliAdapter:
 	baud_rate  = 115200
 	start_byte = b'\1'
 	end_byte   = b'\0'
+	dsrdtr     = True
+	timeout    = .01
 
-	def __init__(self, port, timeout=.01):
+	def __init__(self, port):
 		self.port    = port
 		self.com     = None
-		self.timeout = timeout
 		self.rx_buff = b''
 
 	def __enter__(self):
@@ -26,7 +29,7 @@ class MutliAdapter:
 
 	def open(self):
 		assert self.com is None
-		self.com = Serial(self.port, baudrate=MutliAdapter.baud_rate, timeout=self.timeout)
+		self.com = Serial(self.port, baudrate=MutliAdapter.baud_rate, timeout=MutliAdapter.timeout, dsrdtr=MutliAdapter.dsrdtr)
 
 	def close(self):
 		if self.com:

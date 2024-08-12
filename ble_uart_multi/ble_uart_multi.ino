@@ -31,9 +31,12 @@
   '>' for message to be sent to connected central
 
  Tested on ESP32 C3 with SDK v.3.0
- Use ../ble_transmitter or ../ble_uart_tx for other side of the connection.
+ Use ble_uart_tx or another ble_uart_multi as a peer to connect to.
+ Use https://enspectr.github.io/ble-term as a central for testing.
+ Use python/ble_multi_adapter.py for interfacing at the host side.
+
  Author: Oleg Volkov
- */
+*/
 
 #include <BLEDevice.h>
 #include <BLEUtils.h>
@@ -68,7 +71,7 @@
 #define UART_BAUD_RATE 115200
 #define UART_MODE SERIAL_8N1
 // If defined the flow control on UART will be configured
-// #define UART_CTS_PIN 5
+#define UART_CTS_PIN 5
 
 #ifdef UART_TX_PIN
 #define DataSerial Serial1

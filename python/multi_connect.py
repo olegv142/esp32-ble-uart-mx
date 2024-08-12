@@ -1,5 +1,9 @@
 """
-BLE multi adapter test script
+BLE multi adapter test script.
+Expects serial port name as a parameter optionally
+followed by peer device addresses to connect to.
+
+Author: Oleg Volkov
 """
 
 import sys
