@@ -99,6 +99,6 @@ Despite years of development Espressif BLE stack works without issues only in ve
 
 ## Useful links
 
-The BLE receiver web page example: https://github.com/enspectr/ble-term
+The BLE terminal web page example: https://github.com/enspectr/ble-term
 
 Dual mode Bluetooth to serial adapter based on ESP32: https://github.com/olegv142/esp32-bt-serial
