@@ -105,9 +105,6 @@
 // #define TEST
 
 #ifdef TEST
-// If defined echo back all data received from central
-// #define ECHO
-
 // Peer device address to connect to
 #define PEER_ADDR    "EC:DA:3B:BB:CE:02"
 //#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
@@ -147,7 +144,7 @@ static String   dev_name(DEV_NAME);
 static String   tx_buff;
 static String   rx_buff;
 
-#if defined(TEST) && !defined(ECHO)
+#ifdef TEST
 static uint32_t last_uptime;
 #endif
 
@@ -294,10 +291,6 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
     DataSerial.print('<');
     DataSerial.print(rxValue);
     uart_end();
-#ifdef ECHO
-    tx_buff += rxValue;
-    tx_flush();
-#endif
   }
 };
 
@@ -680,7 +673,7 @@ void loop()
     start_advertising = false;
   }
 
-#if defined(TEST) && !defined(ECHO)
+#ifdef TEST
   uint32_t const uptime = now / 1000;
   if (uptime != last_uptime) {
     last_uptime = uptime;
