@@ -120,25 +120,13 @@
 #define PEER_ADDR3   "34:B7:DA:FB:58:E2"
 #endif
 
-// If USE_SEQ_TAG is defined every chunk of data transmitted (characteristic update) will carry sequence tag as the first symbol.
-// It will get its value from 16 characters sequence 'a', 'b', .. 'p'. Next update will use next symbol. After 'p' the 'a' will
-// be used again. The receiver may use sequence tag to control the order of delivery of updates detecting missed or reordered
-// updates.
-// #define USE_SEQ_TAG
-
-#ifdef USE_SEQ_TAG
-#define NTAGS 16
-#define FIRST_TAG 'a'
-static char next_tag = FIRST_TAG;
-#endif
-
-#define WRITE_RESPONSE false
+#define MAX_CHUNK 512
 
 // If defined echo all data received from peer back to it
 #define PEER_ECHO
 
 #ifdef PEER_ECHO
-#define PEER_ECHO_QUEUE 64
+#define PEER_ECHO_QUEUE 16
 #endif
 
 static BLEServer*         pServer;
@@ -156,7 +144,6 @@ static uint32_t centr_disconn_ts;
 static uint32_t last_status_ts;
 
 static String   dev_name(DEV_NAME);
-static String   tx_buff;
 static String   rx_buff;
 
 #ifdef TEST
@@ -214,7 +201,6 @@ public:
     , m_echo_queue(0)
 #endif
   {
-    tx_buff_reset();
   }
 
   void onConnect(BLEClient *pclient) {
@@ -226,7 +212,6 @@ public:
     DataSerial.print(" connected");
     uart_end();
     m_connected = true;
-    tx_buff_reset();
     notify_connected();
     connected_peers++;
   }
@@ -243,7 +228,7 @@ public:
     m_disconn_ts = millis();
     --connected_peers;
 #ifdef RESET_ON_DISCONNECT
-    fatal("peer disconnected");
+    fatal("Peer disconnected");
 #endif
   }
 
@@ -262,13 +247,17 @@ public:
 
   void connect();
 
-  void transmit(const char* str) {
+  void transmit(const char* data, size_t len) {
     if (!m_writable) {
       fatal("Peer is not writable");
       return;
     }
-    m_tx_buff += str;
-    tx_flush();
+    if (len > MAX_CHUNK) {
+      fatal("Data size exceeds limit");
+      return;
+    }
+    m_remoteCharacteristic->writeValue((uint8_t*)data, len);
+    taskYIELD();
   }
 
   bool notify_data(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length)
@@ -284,8 +273,11 @@ public:
 #ifdef PEER_ECHO
     if (m_writable && is_connected()) {
       struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
+      if (!ch.data)
+        fatal("No memory");
       memcpy(ch.data, pData, length);
       if (!xQueueSend(m_echo_queue, &ch, 0)) {
+        free(ch.data);
         uart_begin();
         DataSerial.print("-echo queue full");
         uart_end();
@@ -300,9 +292,11 @@ public:
     uint32_t const now = millis();
 #ifdef PEER_ECHO
     struct data_chunk ch;
-    if (m_echo_queue && xQueueReceive(m_echo_queue, &ch, 0)) {
-      if (m_connected)
-        m_remoteCharacteristic->writeValue(ch.data, ch.len, WRITE_RESPONSE);
+    while (m_echo_queue && xQueueReceive(m_echo_queue, &ch, 0)) {
+      if (m_connected) {
+        m_remoteCharacteristic->writeValue(ch.data, ch.len);
+        taskYIELD();
+      }
       free(ch.data);
     }
 #endif
@@ -313,17 +307,6 @@ public:
     return false;
   }
 
-  void tx_buff_reset()
-  {
-  #ifdef USE_SEQ_TAG
-        m_tx_buff = ' ';
-  #else
-        m_tx_buff = "";
-  #endif
-  }
-
-  void tx_flush();
-
   unsigned    m_idx;
   String      m_addr;
   bool        m_writable;
@@ -332,23 +315,11 @@ public:
 
   BLEClient*  m_Client;
   BLERemoteCharacteristic* m_remoteCharacteristic;
-  String      m_tx_buff;
 
 #ifdef PEER_ECHO
   QueueHandle_t m_echo_queue;
 #endif
 };
-
-static void tx_flush();
-
-static inline void tx_buff_reset()
-{
-#ifdef USE_SEQ_TAG
-      tx_buff = ' ';
-#else
-      tx_buff = "";
-#endif
-}
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
@@ -357,7 +328,6 @@ class MyServerCallbacks: public BLEServerCallbacks {
       DataSerial.print(esp_get_free_heap_size());
       DataSerial.print(" heap bytes avail");
       uart_end();
-      tx_buff_reset();
     };
 
     void onDisconnect(BLEServer* pServer) {
@@ -467,7 +437,7 @@ static void bt_device_init()
   // Create the BLE Device
   init_dev_name();
   BLEDevice::init(dev_name);
-  BLEDevice::setMTU(247);
+  BLEDevice::setMTU(MAX_CHUNK+3);
   setup_tx_power();
 }
 
@@ -507,13 +477,14 @@ static void bt_device_start()
 
 static void hw_init()
 {
-  Serial.begin(115200);
-
 #ifdef CONNECTED_LED
   pinMode(CONNECTED_LED, OUTPUT);
   digitalWrite(CONNECTED_LED, HIGH);
 #endif
 
+#ifdef UART_BUFFER_SZ
+  DataSerial.setRxBufferSize(UART_BUFFER_SZ);
+#endif
 #ifdef UART_TX_PIN
   DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
 #ifdef UART_CTS_PIN
@@ -521,12 +492,9 @@ static void hw_init()
   uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_CTS, 0);
 #endif
 #endif
-#ifdef UART_BUFFER_SZ
-  DataSerial.setRxBufferSize(UART_BUFFER_SZ);
-#endif
   DataSerial.setTimeout(10);
 
-  tx_buff_reset();
+  Serial.begin(115200);
 }
 
 void setup()
@@ -578,7 +546,7 @@ void Peer::connect()
   }
 
   m_Client->connect(m_addr);
-  m_Client->setMTU(247);  // Request increased MTU from server (default is 23 otherwise)
+  m_Client->setMTU(MAX_CHUNK+3);  // Request increased MTU from server (default is 23 otherwise)
 
   // Obtain a reference to the service we are after in the remote BLE server.
   BLERemoteService *pRemoteService = m_Client->getService(SERVICE_UUID);
@@ -621,65 +589,15 @@ void Peer::connect()
   uart_end();
 }
 
-static inline uint16_t max_tx_chunk()
+static void transmit(const char* data, size_t len)
 {
-  return BLEDevice::getMTU() - 3;
-}
-
-static void tx_flush()
-{
-  uint16_t max_chunk = max_tx_chunk();
-  uint8_t* pdata = (uint8_t*)tx_buff.c_str();
-  unsigned data_len = tx_buff.length(), sent = 0;
-#ifdef USE_SEQ_TAG
-  max_chunk -= 1;
-  data_len -= 1;
-  pdata += 1;
-#endif
-  while (data_len) {
-    unsigned const chunk = data_len > max_chunk ? max_chunk : data_len;
-#ifdef USE_SEQ_TAG
-    pdata[-1] = next_tag;
-    if (++next_tag >= FIRST_TAG + NTAGS)
-      next_tag = FIRST_TAG;
-    pCharacteristic->setValue(pdata - 1, chunk + 1);
-#else
-    pCharacteristic->setValue(pdata, chunk);
-#endif
-    pCharacteristic->notify();
-    sent     += chunk;
-    pdata    += chunk;
-    data_len -= chunk;
+  if (len > MAX_CHUNK) {
+    fatal("Data size exceeds limit");
+    return;
   }
-  tx_buff = tx_buff.substring(sent);
-}
-
-void Peer::tx_flush()
-{
-  uint16_t max_chunk = max_tx_chunk();
-  uint8_t* pdata = (uint8_t*)m_tx_buff.c_str();
-  unsigned data_len = m_tx_buff.length(), sent = 0;
-#ifdef USE_SEQ_TAG
-  max_chunk -= 1;
-  data_len -= 1;
-  pdata += 1;
-#endif
-  while (data_len) {
-    unsigned const chunk = data_len > max_chunk ? max_chunk : data_len;
-#ifdef USE_SEQ_TAG
-    pdata[-1] = next_tag;
-    if (++next_tag >= FIRST_TAG + NTAGS)
-      next_tag = FIRST_TAG;
-    m_remoteCharacteristic->writeValue(pdata - 1, chunk + 1, WRITE_RESPONSE);
-#else
-    m_remoteCharacteristic->writeValue(pdata, chunk, WRITE_RESPONSE);
-#endif
-    pCharacteristic->notify();
-    sent     += chunk;
-    pdata    += chunk;
-    data_len -= chunk;
-  }
-  m_tx_buff = m_tx_buff.substring(sent);
+  pCharacteristic->setValue((uint8_t*)data, len);
+  pCharacteristic->notify();
+  taskYIELD();
 }
 
 static void cmd_connect(const char* param)
@@ -698,13 +616,13 @@ static void cmd_connect(const char* param)
   }
 }
 
-static void process_write(unsigned idx, const char* str)
+static void process_write(unsigned idx, const char* str, size_t len)
 {
   if (idx >= MAX_PEERS || !peers[idx]) {
     fatal("Bad peer index");
     return;
   }
-  peers[idx]->transmit(str);
+  peers[idx]->transmit(str, len);
 }
 
 static void process_cmd(const char* cmd)
@@ -717,22 +635,25 @@ static void process_cmd(const char* cmd)
       cmd_connect(cmd + 1);
       break;
     default:
-      fatal("unrecognized command");
+      fatal("Unrecognized command");
   }
 }
 
-static void process_msg(const char* str)
+static void process_msg(const char* str, size_t len)
 {
+  if (!len) {
+    fatal("Invalid message");
+    return;
+  }
   switch (str[0]) {
     case '#':
       process_cmd(str + 1);
       break;
     case '>':
-      tx_buff += str + 1;
-      tx_flush();
+      transmit(str + 1, len - 1);
       break;
     default:
-      process_write(str[0] - '0', str + 1);
+      process_write(str[0] - '0', str + 1, len - 1);
   }
 }
 
@@ -754,7 +675,7 @@ static void rx_process()
       break;
     *tail = '\0';
     next = tail + 1;
-    process_msg(begin);
+    process_msg(begin, tail - begin);
   }
   rx_buff = rx_buff.substring(next - str);
 }
@@ -822,8 +743,8 @@ void loop()
   uint32_t const uptime = now / 1000;
   if (uptime != last_uptime) {
     last_uptime = uptime;
-    tx_buff += String(uptime);
-    tx_flush();
+    String msg(uptime);
+    transmit(msg.c_str(), msg.length());
   }
 #endif
 
