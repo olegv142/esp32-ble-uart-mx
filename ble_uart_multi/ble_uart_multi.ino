@@ -151,6 +151,7 @@ static unsigned npeers;
 static int      connected_peers;
 
 static bool     start_advertising = true;
+static bool     centr_disconnected = true;
 static uint32_t centr_disconn_ts;
 static uint32_t last_status_ts;
 
@@ -331,16 +332,23 @@ class MyServerCallbacks: public BLEServerCallbacks {
       DataSerial.print("-central disconnected");
       uart_end();
       centr_disconn_ts = millis();
+      centr_disconnected = true;
       start_advertising = true;
     }
 };
 
 class MyCharCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
-    String rxValue = pCharacteristic->getValue();
+    if (centr_disconnected) {
+      centr_disconnected = false;
+      // Output stream start tag
+      uart_begin();
+      DataSerial.print('<');
+      uart_end();
+    }
     uart_begin();
     DataSerial.print('<');
-    DataSerial.print(rxValue);
+    DataSerial.print(pCharacteristic->getValue());
     uart_end();
   }
 };

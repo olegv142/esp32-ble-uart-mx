@@ -33,6 +33,10 @@ class EchoTest(MutliAdapter):
 	def on_central_msg(self, msg):
 		sn = int(msg[:-1])
 		print('[.] ' + msg.decode(), end='')
+		if not msg:
+			# stream start tag
+			self.last_rx_sn = None
+			return
 		if self.last_rx_sn is not None and sn != self.last_rx_sn + 1:
 			print(' %u %u' % (self.last_rx_sn, sn))
 			self.errors += 1
