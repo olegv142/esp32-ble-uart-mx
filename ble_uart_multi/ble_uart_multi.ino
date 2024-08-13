@@ -67,7 +67,7 @@
 
 // If UART_TX_PIN is defined the data will be output to the hardware serial port
 // Otherwise the USB virtual serial port will be used for that purpose
-// #define UART_TX_PIN  7
+#define UART_TX_PIN  7
 #define UART_RX_PIN  6
 #define UART_BAUD_RATE 115200
 #define UART_MODE SERIAL_8N1
@@ -110,7 +110,7 @@
 
 // If TEST is defined it will connect on startup to the predefined set of peers
 // and broadcast uptime every second to connected central
-#define TEST
+// #define TEST
 
 #ifdef TEST
 // Peer device address to connect to
@@ -137,6 +137,7 @@ class Peer;
 static Peer*    peers[MAX_PEERS];
 static unsigned npeers;
 static int      connected_peers;
+static int      connected_centrals;
 
 static bool     start_advertising = true;
 static bool     centr_disconnected = true;
@@ -328,6 +329,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
       DataSerial.print(esp_get_free_heap_size());
       DataSerial.print(" heap bytes avail");
       uart_end();
+      ++connected_centrals;
     };
 
     void onDisconnect(BLEServer* pServer) {
@@ -337,6 +339,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
       centr_disconn_ts = millis();
       centr_disconnected = true;
       start_advertising = true;
+      --connected_centrals;
     }
 };
 
@@ -700,22 +703,24 @@ static void monitor_peers()
     if (peers[i] && peers[i]->monitor())
       break;
 
-  bool connected = false;
+  bool conn_led = false;
   uint32_t const now = millis();
   if (is_idle()) {
+    if (connected_centrals)
+      conn_led = true;
     if (!last_status_ts || elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
       last_status_ts = now;
       report_idle();
     }
   } else if (is_connected()) {
-    connected = true;
+    conn_led = true;
     if (elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
       last_status_ts = now;
       report_connected();
     }
   }
 #ifdef CONNECTED_LED
-  digitalWrite(CONNECTED_LED, connected ? LOW : HIGH);
+  digitalWrite(CONNECTED_LED, conn_led ? LOW : HIGH);
 #endif
 }
 
