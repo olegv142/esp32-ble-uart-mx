@@ -73,7 +73,7 @@ class MutliAdapter:
 		self.rx_buff = self.rx_buff[first:]
 
 	def process_msg(self, msg):
-		tag = msg[0:1]
+		tag = msg[:1]
 		if tag == b':':
 			self.on_status_msg(msg[1:])
 		elif tag == b'-':
@@ -84,7 +84,7 @@ class MutliAdapter:
 			self.on_peer_msg(msg[0] - b'0'[0], msg[1:])
 
 	def on_status_msg(self, msg):
-		tag = msg[0:1]
+		tag = msg[:1]
 		if tag == b'I':
 			self.on_idle(msg[1:].strip())
 		elif tag == b'C':
