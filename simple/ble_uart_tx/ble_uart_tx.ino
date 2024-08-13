@@ -185,11 +185,11 @@ static void bt_device_start()
 
 static void hw_init()
 {
-  Serial.begin(115200);
-  Serial.setTimeout(10);
 #ifdef CDC_BUFFER_SZ
   Serial.setRxBufferSize(CDC_BUFFER_SZ);
 #endif
+  Serial.begin(115200);
+  Serial.setTimeout(10);
   pinMode(CONNECTED_LED, OUTPUT);
   digitalWrite(CONNECTED_LED, HIGH);
 }

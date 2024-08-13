@@ -129,11 +129,11 @@ static inline void watchdog_init()
 
 void setup()
 {
-  Serial.begin(115200);
-  Serial.setTimeout(10);
 #ifdef CDC_BUFFER_SZ
   Serial.setRxBufferSize(CDC_BUFFER_SZ);
 #endif
+  Serial.begin(115200);
+  Serial.setTimeout(10);
   pinMode(CONNECTED_LED, OUTPUT);
   digitalWrite(CONNECTED_LED, HIGH);
 
