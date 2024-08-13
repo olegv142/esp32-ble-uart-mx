@@ -123,7 +123,7 @@
 #define MAX_CHUNK 512
 
 // If defined echo all data received from peer back to it
-#define PEER_ECHO
+// #define PEER_ECHO
 
 #ifdef PEER_ECHO
 #define PEER_ECHO_QUEUE 16
