@@ -1,5 +1,5 @@
 /*
- This is the dual role BLE device capable of connecting to multiple peers. Its based on the ble_uart_dual example.
+ This is the dual role BLE device capable of connecting to multiple peripheral devices.
  It was designed as multipurpose BLE to serial adapter accepting commands from controlling host via serial link.
  The primary use case is gathering telemetry data from transmitters and providing communication link for other
  central for commands / responses. The controlling host uses the following protocol:
@@ -7,6 +7,7 @@
  Commands:
   '#C addr0 addr1 ..' - connect to peers with given addresses (up to 8)
   '#R'                - reset to idle state
+ Commands will be disabled if AUTOCONNECT is defined
 
  Status messages:
   ':I rev.vmaj.vmin' - idle, not connected
@@ -25,12 +26,15 @@
   '-' for debug messages
   '<' if message is received from connected central
   '0', '1' .. '7'  for data received from peer 0, 1, .. 7
- The first data stream message after peer connection / re-connection has no data payload. This is the stream start token.
+ The first data stream message after connection / re-connection has no data payload. This is the stream start token.
 
  The second symbol for input message is
   '#' for commands
   '>' for message to be sent to connected central
   '0', '1' .. '7'  for data to be sent to peer 0, 1, .. 7
+
+ The maximum size of data in single message is MAX_CHUNK = 512.
+ Larger amount of data should be split onto chunks before sending them to the adapter.
 
  Tested on ESP32 C3 with SDK v.3.0
  Use python/ble_multi_adapter.py for interfacing at the host side.
@@ -74,21 +78,28 @@
 // If defined the status messages will be output periodically
 #define STATUS_REPORT_INTERVAL 1000  // msec
 
-// If UART_TX_PIN is defined the data will be output to the hardware serial port
-// Otherwise the USB virtual serial port will be used for that purpose
+// If UART_TX_PIN is defined the hardware serial port will be used for communications.
+// Otherwise the USB virtual serial port will be utilized.
 #define UART_TX_PIN  7
 #define UART_RX_PIN  6
 #define UART_BAUD_RATE 115200
 #define UART_MODE SERIAL_8N1
 // If defined the flow control on UART will be configured
+// CTS prevents overflow of the host receiving buffer. Use it when
+// you have USB serial adapter at the host side. They typically have
+// buffer capacity of only 128 bytes.
 #define UART_CTS_PIN 5
+// RTS prevents overflow of the esp32 receiving buffer.
+// #define UART_RTS_PIN 4
 
 #ifdef UART_TX_PIN
+// Using hardware UART
 #define DataSerial Serial1
 #define DATA_UART_NUM UART_NUM_1
 #define UART_BEGIN '\1'
 #define UART_END   '\0'
 #else
+// Using USB CDC
 #define DataSerial Serial
 #define UART_END   '\n'
 #endif
@@ -103,11 +114,10 @@
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
 
-// If TEST is defined it will connect on startup to the predefined set of peers
-// and broadcast uptime every second to connected central
-// #define TEST
+// If AUTOCONNECT is defined it will connect on startup to the predefined set of peers
+// #define AUTOCONNECT
 
-#ifdef TEST
+#ifdef AUTOCONNECT
 // Peer device address to connect to
 //#define PEER_ADDR    "EC:DA:3B:BB:CE:02"
 //#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
@@ -115,10 +125,16 @@
 #define PEER_ADDR3   "34:B7:DA:FB:58:E2"
 #endif
 
+// Broadcast uptime every second to connected central (for testing)
+// #define TELL_UPTIME
+
+// The maximum size of the message data.
+// Larger amount of data should be split onto chunks before sending
+// them to the adapter.
 #define MAX_CHUNK 512
 
-// If defined echo all data received from peer back to it
-// #define PEER_ECHO
+// If defined echo all data received from peer back to it (for testing)
+#define PEER_ECHO
 
 #ifdef PEER_ECHO
 #define PEER_ECHO_QUEUE 16
@@ -145,7 +161,7 @@ static uint32_t last_status_ts;
 static String   dev_name(DEV_NAME);
 static String   rx_buff;
 
-#ifdef TEST
+#ifdef TELL_UPTIME
 static uint32_t last_uptime;
 #endif
 
@@ -485,9 +501,18 @@ static void hw_init()
 #endif
 #ifdef UART_TX_PIN
   DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
+#if defined(UART_CTS_PIN) && defined(UART_RTS_PIN)
+  uart_set_pin(DATA_UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_RTS_PIN, UART_CTS_PIN);  
+  uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_CTS_RTS, UART_FIFO_LEN/2);
+#else
 #ifdef UART_CTS_PIN
   uart_set_pin(DATA_UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_CTS_PIN);  
-  uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_CTS, 0);
+  uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_CTS, UART_FIFO_LEN/2);
+#endif
+#ifdef UART_RTS_PIN
+  uart_set_pin(DATA_UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_RTS_PIN, UART_PIN_NO_CHANGE);
+  uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_RTS, UART_FIFO_LEN/2);
+#endif
 #endif
 #endif
   DataSerial.setTimeout(10);
@@ -598,6 +623,16 @@ static void transmit(const char* data, size_t len)
   taskYIELD();
 }
 
+static void process_write(unsigned idx, const char* str, size_t len)
+{
+  if (idx >= MAX_PEERS || !peers[idx]) {
+    fatal("Bad peer index");
+    return;
+  }
+  peers[idx]->transmit(str, len);
+}
+
+#ifndef AUTOCONNECT
 static void cmd_connect(const char* param)
 {
   String params(param);
@@ -614,15 +649,6 @@ static void cmd_connect(const char* param)
   }
 }
 
-static void process_write(unsigned idx, const char* str, size_t len)
-{
-  if (idx >= MAX_PEERS || !peers[idx]) {
-    fatal("Bad peer index");
-    return;
-  }
-  peers[idx]->transmit(str, len);
-}
-
 static void process_cmd(const char* cmd)
 {
   switch (cmd[0]) {
@@ -636,6 +662,7 @@ static void process_cmd(const char* cmd)
       fatal("Unrecognized command");
   }
 }
+#endif
 
 static void process_msg(const char* str, size_t len)
 {
@@ -644,9 +671,11 @@ static void process_msg(const char* str, size_t len)
     return;
   }
   switch (str[0]) {
+#ifndef AUTOCONNECT
     case '#':
       process_cmd(str + 1);
       break;
+#endif
     case '>':
       transmit(str + 1, len - 1);
       break;
@@ -724,13 +753,11 @@ void loop()
 {
   uint32_t const now = millis();
 
-#ifndef TEST
   String const received = DataSerial.readString();
   if (received.length()) {
     rx_buff += received;
     rx_process();
   }
-#endif
 
   if (start_advertising && elapsed(centr_disconn_ts, now) > 500) {
     uart_begin();
@@ -740,7 +767,7 @@ void loop()
     start_advertising = false;
   }
 
-#ifdef TEST
+#ifdef TELL_UPTIME
   uint32_t const uptime = now / 1000;
   if (uptime != last_uptime) {
     last_uptime = uptime;
