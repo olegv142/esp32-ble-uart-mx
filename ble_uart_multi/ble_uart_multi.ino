@@ -67,7 +67,7 @@
 
 // If UART_TX_PIN is defined the data will be output to the hardware serial port
 // Otherwise the USB virtual serial port will be used for that purpose
-#define UART_TX_PIN  7
+// #define UART_TX_PIN  7
 #define UART_RX_PIN  6
 #define UART_BAUD_RATE 115200
 #define UART_MODE SERIAL_8N1
@@ -110,7 +110,7 @@
 
 // If TEST is defined it will connect on startup to the predefined set of peers
 // and broadcast uptime every second to connected central
-// #define TEST
+#define TEST
 
 #ifdef TEST
 // Peer device address to connect to
@@ -135,7 +135,7 @@ static char next_tag = FIRST_TAG;
 #define WRITE_RESPONSE false
 
 // If defined echo all data received from peer back to it
-// #define PEER_ECHO
+#define PEER_ECHO
 
 #ifdef PEER_ECHO
 #define PEER_ECHO_QUEUE 64
@@ -168,6 +168,16 @@ static inline void uart_begin()
 #ifdef UART_BEGIN
   DataSerial.print(UART_BEGIN);
 #endif
+}
+
+static inline bool is_idle()
+{
+  return !connected_peers;
+}
+
+static inline bool is_connected()
+{
+  return !is_idle() && connected_peers >= npeers;
 }
 
 static inline void uart_end()
@@ -272,7 +282,7 @@ public:
     uart_end();
 
 #ifdef PEER_ECHO
-    if (m_writable) {
+    if (m_writable && is_connected()) {
       struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
       memcpy(ch.data, pData, length);
       if (!xQueueSend(m_echo_queue, &ch, 0)) {
@@ -771,12 +781,12 @@ static void monitor_peers()
 
   bool connected = false;
   uint32_t const now = millis();
-  if (!connected_peers) {
+  if (is_idle()) {
     if (!last_status_ts || elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
       last_status_ts = now;
       report_idle();
     }
-  } else if (connected_peers >= npeers) {
+  } else if (is_connected()) {
     connected = true;
     if (elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
       last_status_ts = now;
