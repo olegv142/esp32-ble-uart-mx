@@ -12,6 +12,7 @@
   ':I rev.vmaj.vmin' - idle, not connected
   ':Cn'      - connecting to the n-th peer
   ':D'       - all peers connected, data receiving
+  Status messages will be disabled if STATUS_REPORT_INTERVAL is undefined
 
  Debug messages:
   '-message'
@@ -50,19 +51,27 @@
 #include <malloc.h>
 #include <freertos/queue.h>
 
+// Version info printed as part of idle status message
 #define REVISION  "1"
 #define VMAJOR    "1"
 #define VMINOR    "0"
 
+// Device name (may be followed by unique suffix)
 #define DEV_NAME  "Mx-"
 
-// Uncomment to add suffix based on MAC to device name to make it distinguishable
+// If defined the unique suffix based on MAC is added to device name to make it distinguishable
 #define DEV_NAME_SUFF_LEN  6
+
+// Connected LED pin, active low
+#define CONNECTED_LED 8
 
 #define SERVICE_UUID           "FFE0"
 #define CHARACTERISTIC_UUID_TX "FFE1"
 
+// Watchdog timeout. It will restart esp32 if some operation will hung.
 #define WDT_TIMEOUT            20000 // msec
+
+// If defined the status messages will be output periodically
 #define STATUS_REPORT_INTERVAL 1000  // msec
 
 // If UART_TX_PIN is defined the data will be output to the hardware serial port
@@ -87,20 +96,6 @@
 // There is no flow control in USB serial port.
 // The default buffer size is 256 bytes which may be not enough.
 #define UART_BUFFER_SZ 4096
-
-// Connected LED pin, active low
-#define CONNECTED_LED 8
-
-/*
- The BT stack is complex and not well tested bunch of software. Using it one can easily be trapped onto the state
- where there is no way out. The biggest problem is that connect routine may hung forever. Although the connect call
- has timeout parameter, it does not help. The call may complete on timeout without errors, but the connection will
- not actually be established. That's why we are using watchdog to detect connection timeout. Its unclear if soft
- reset by watchdog is equivalent to the power cycle or reset by pulling low EN pin. That's why there is an option
- to implement hard reset on connect timeout by hard wiring some output pin to EN input of the chip.
-*/
-// If defined use hard reset on connect timeout
-// #define RST_OUT_PIN 3
 
 // If defined reset itself on peer disconnection instead of reconnecting
 #define RESET_ON_DISCONNECT
@@ -142,7 +137,10 @@ static int      connected_centrals;
 static bool     start_advertising = true;
 static bool     centr_disconnected = true;
 static uint32_t centr_disconn_ts;
+
+#ifdef STATUS_REPORT_INTERVAL
 static uint32_t last_status_ts;
+#endif
 
 static String   dev_name(DEV_NAME);
 static String   rx_buff;
@@ -234,10 +232,12 @@ public:
   }
 
   void report_connecting() {
+#ifdef STATUS_REPORT_INTERVAL
     uart_begin();
     DataSerial.print(":C");
     DataSerial.print(m_idx);
     uart_end();
+#endif
   }
 
   void notify_connected() {
@@ -361,12 +361,7 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
 
 static void reset_self()
 {
-#ifdef RST_OUT_PIN
-  pinMode(RST_OUT_PIN, OUTPUT);
-  digitalWrite(RST_OUT_PIN, LOW);
-#else
   esp_restart();
-#endif
 }
 
 static void fatal(const char* what)
@@ -683,6 +678,7 @@ static void rx_process()
   rx_buff = rx_buff.substring(next - str);
 }
 
+#ifdef STATUS_REPORT_INTERVAL
 static inline void report_idle()
 {
   uart_begin();
@@ -696,6 +692,7 @@ static inline void report_connected()
   DataSerial.print(":D");  
   uart_end();
 }
+#endif
 
 static void monitor_peers()
 {
@@ -703,23 +700,22 @@ static void monitor_peers()
     if (peers[i] && peers[i]->monitor())
       break;
 
-  bool conn_led = false;
+#ifdef STATUS_REPORT_INTERVAL
   uint32_t const now = millis();
   if (is_idle()) {
-    if (connected_centrals)
-      conn_led = true;
     if (!last_status_ts || elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
       last_status_ts = now;
       report_idle();
     }
   } else if (is_connected()) {
-    conn_led = true;
     if (elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
       last_status_ts = now;
       report_connected();
     }
   }
+#endif
 #ifdef CONNECTED_LED
+  bool const conn_led = (is_idle() && connected_centrals) || is_connected();
   digitalWrite(CONNECTED_LED, conn_led ? LOW : HIGH);
 #endif
 }
