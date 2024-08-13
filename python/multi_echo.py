@@ -37,7 +37,7 @@ class EchoTest(MutliAdapter):
 			return
 		sn = int(msg[:-1])
 		if self.last_rx_sn is not None and sn != self.last_rx_sn + 1:
-			print(' %u %u' % (self.last_rx_sn, sn))
+			print(' %u %u' % (self.last_rx_sn, sn), end='')
 			self.errors += 1
 		self.last_rx_sn = sn
 
