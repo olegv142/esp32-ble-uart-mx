@@ -21,7 +21,7 @@ class EchoTest(MutliAdapter):
 
 	def send_msg(self):
 		self.last_tx_sn += 1
-		self.send_data(str(self.last_tx_sn).encode() + b'#')
+		self.send_data(b'%u#' % self.last_tx_sn)
 
 	def on_idle(self, version):
 		for _ in range(EchoTest.burst_len):
@@ -30,8 +30,7 @@ class EchoTest(MutliAdapter):
 	def on_debug_msg(self, msg):
 		print('    ' + msg.decode())
 
-	def on_central_msg(self, msg):
-		print('[.] ' + msg.decode(), end='')
+	def msg_received(self, msg):
 		if not msg:
 			# stream start tag
 			self.last_rx_sn = None
@@ -40,9 +39,12 @@ class EchoTest(MutliAdapter):
 		if self.last_rx_sn is not None and sn != self.last_rx_sn + 1:
 			print(' %u %u' % (self.last_rx_sn, sn))
 			self.errors += 1
-		else:
-			print()
 		self.last_rx_sn = sn
+
+	def on_central_msg(self, msg):
+		print('[.] ' + msg.decode(), end='')
+		self.msg_received(msg)
+		print()
 
 if __name__ == '__main__':
 	with EchoTest(sys.argv[1]) as ad:
