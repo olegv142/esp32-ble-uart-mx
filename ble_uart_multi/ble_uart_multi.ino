@@ -204,6 +204,7 @@ public:
     , m_echo_queue(0)
 #endif
   {
+    tx_buff_reset();
   }
 
   void onConnect(BLEClient *pclient) {
@@ -215,6 +216,7 @@ public:
     DataSerial.print(" connected");
     uart_end();
     m_connected = true;
+    tx_buff_reset();
     notify_connected();
     connected_peers++;
   }
@@ -249,6 +251,15 @@ public:
   }
 
   void connect();
+
+  void transmit(const char* str) {
+    if (!m_writable) {
+      fatal("Peer is not writable");
+      return;
+    }
+    m_tx_buff += str;
+    tx_flush();
+  }
 
   bool notify_data(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length)
   {
@@ -292,6 +303,17 @@ public:
     return false;
   }
 
+  void tx_buff_reset()
+  {
+  #ifdef USE_SEQ_TAG
+        m_tx_buff = ' ';
+  #else
+        m_tx_buff = "";
+  #endif
+  }
+
+  void tx_flush();
+
   unsigned    m_idx;
   String      m_addr;
   bool        m_writable;
@@ -300,6 +322,7 @@ public:
 
   BLEClient*  m_Client;
   BLERemoteCharacteristic* m_remoteCharacteristic;
+  String      m_tx_buff;
 
 #ifdef PEER_ECHO
   QueueHandle_t m_echo_queue;
@@ -621,6 +644,34 @@ static void tx_flush()
   tx_buff = tx_buff.substring(sent);
 }
 
+void Peer::tx_flush()
+{
+  uint16_t max_chunk = max_tx_chunk();
+  uint8_t* pdata = (uint8_t*)m_tx_buff.c_str();
+  unsigned data_len = m_tx_buff.length(), sent = 0;
+#ifdef USE_SEQ_TAG
+  max_chunk -= 1;
+  data_len -= 1;
+  pdata += 1;
+#endif
+  while (data_len) {
+    unsigned const chunk = data_len > max_chunk ? max_chunk : data_len;
+#ifdef USE_SEQ_TAG
+    pdata[-1] = next_tag;
+    if (++next_tag >= FIRST_TAG + NTAGS)
+      next_tag = FIRST_TAG;
+    m_remoteCharacteristic->writeValue(pdata - 1, chunk + 1, WRITE_RESPONSE);
+#else
+    m_remoteCharacteristic->writeValue(pdata, chunk, WRITE_RESPONSE);
+#endif
+    pCharacteristic->notify();
+    sent     += chunk;
+    pdata    += chunk;
+    data_len -= chunk;
+  }
+  m_tx_buff = m_tx_buff.substring(sent);
+}
+
 static void cmd_connect(const char* param)
 {
   String params(param);
@@ -643,11 +694,7 @@ static void process_write(unsigned idx, const char* str)
     fatal("Bad peer index");
     return;
   }
-  if (!peers[idx]->m_writable) {
-    fatal("Peer is not writable");
-    return;
-  }
-  peers[idx]->m_remoteCharacteristic->writeValue((uint8_t*)str, strlen(str), WRITE_RESPONSE);
+  peers[idx]->transmit(str);
 }
 
 static void process_cmd(const char* cmd)
