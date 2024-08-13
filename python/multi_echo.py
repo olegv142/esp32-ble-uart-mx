@@ -12,7 +12,7 @@ sys.path.append('.')
 from ble_multi_adapter import MutliAdapter
 
 class EchoTest(MutliAdapter):
-	burst_len = 16
+	burst_len = 8
 	def __init__(self, port):
 		super().__init__(port)
 		self.last_tx_sn = 0
@@ -31,12 +31,12 @@ class EchoTest(MutliAdapter):
 		print('    ' + msg.decode())
 
 	def on_central_msg(self, msg):
-		sn = int(msg[:-1])
 		print('[.] ' + msg.decode(), end='')
 		if not msg:
 			# stream start tag
 			self.last_rx_sn = None
 			return
+		sn = int(msg[:-1])
 		if self.last_rx_sn is not None and sn != self.last_rx_sn + 1:
 			print(' %u %u' % (self.last_rx_sn, sn))
 			self.errors += 1
