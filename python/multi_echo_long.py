@@ -13,7 +13,7 @@ import random
 sys.path.append('.')
 from ble_multi_adapter import MutliAdapter
 
-max_len = 256
+max_len = 240
 
 def random_bytes():
 	n = random.randrange(1, max_len)
@@ -22,9 +22,10 @@ def random_bytes():
 class EchoTest(MutliAdapter):
 	def __init__(self, port):
 		super().__init__(port)
+		self.started = False
 		self.last_tx_sn = 0
 		self.last_rx_sn = None
-		self.rx_buff = b''
+		self.msg_buff = None
 		self.msg_cnt = 0
 		self.errors = 0
 
@@ -39,9 +40,10 @@ class EchoTest(MutliAdapter):
 	def on_debug_msg(self, msg):
 		print('    ' + msg.decode())
 
-	def msg_received(self, msg):
+	def msg_received(self):
+		m = self.msg_buff[1:-1].split(b'#')
+		self.msg_buff = None
 		self.msg_cnt += 1
-		m = msg[1:-1].split(b'#')
 		if len(m) != 3:
 			print(' bad message', end='')
 			self.errors += 1
@@ -63,15 +65,20 @@ class EchoTest(MutliAdapter):
 	def chunk_received(self, msg):
 		if not msg:
 			# stream start tag
+			self.started = False
 			self.last_rx_sn = None
 			return
 		if msg[:1] == b'(':
-			self.rx_buff = msg
-		elif self.rx_buff:
-			self.rx_buff += msg
+			self.msg_buff = msg
+			self.started = True
+		elif self.msg_buff:
+			self.msg_buff += msg
+		elif self.started:
+			print(' bad chunk', end='')
+			self.errors += 1
+			return
 		if msg[-1:] == b')':
-			self.msg_received(self.rx_buff)
-			self.rx_buff = b''
+			self.msg_received()
 
 	def on_central_msg(self, msg):
 		print('[.] ' + msg.decode(), end='')
