@@ -55,93 +55,13 @@
 #include <malloc.h>
 #include <freertos/queue.h>
 
-// Version info printed as part of idle status message
-#define REVISION  "1"
-#define VMAJOR    "1"
-#define VMINOR    "0"
+// The configuration settings in the separate file.
+// So its convenient to switch them by creating yet another file.
+#include "mx_config.h"
 
-// Device name (may be followed by unique suffix)
-#define DEV_NAME  "Mx-"
-
-// If defined the unique suffix based on MAC is added to device name to make it distinguishable
-#define DEV_NAME_SUFF_LEN  6
-
-// Connected LED pin, active low
-#define CONNECTED_LED 8
-
-#define SERVICE_UUID           "FFE0"
-#define CHARACTERISTIC_UUID_TX "FFE1"
-
-// Watchdog timeout. It will restart esp32 if some operation will hung.
-#define WDT_TIMEOUT            20000 // msec
-
-// If defined the status messages will be output periodically
-#define STATUS_REPORT_INTERVAL 1000  // msec
-
-// If UART_TX_PIN is defined the hardware serial port will be used for communications.
-// Otherwise the USB virtual serial port will be utilized.
-#define UART_TX_PIN  7
-#define UART_RX_PIN  6
-#define UART_BAUD_RATE 115200
-#define UART_MODE SERIAL_8N1
-// If defined the flow control on UART will be configured
-// CTS prevents overflow of the host receiving buffer. Use it when
-// you have USB serial adapter at the host side. They typically have
-// buffer capacity of only 128 bytes.
-#define UART_CTS_PIN 5
-// RTS prevents overflow of the esp32 receiving buffer.
-// #define UART_RTS_PIN 4
-
-#ifdef UART_TX_PIN
-// Using hardware UART
-#define DataSerial Serial1
-#define DATA_UART_NUM UART_NUM_1
-#define UART_BEGIN '\1'
-#define UART_END   '\0'
-#else
-// Using USB CDC
-#define DataSerial Serial
-#define UART_END   '\n'
-#endif
-
-// There is no flow control in USB serial port.
-// The default buffer size is 256 bytes which may be not enough.
-#define UART_BUFFER_SZ 4096
-
-// If defined reset itself on peer disconnection instead of reconnecting
-#define RESET_ON_DISCONNECT
-
-// Undefine to keep default power level
-#define TX_PW_BOOST ESP_PWR_LVL_P21
-
-// If AUTOCONNECT is defined it will connect on startup to the predefined set of peers
-// #define AUTOCONNECT
-
-#ifdef AUTOCONNECT
-// Peer device address to connect to
-//#define PEER_ADDR    "EC:DA:3B:BB:CE:02"
-//#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
-#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
-#define PEER_ADDR3   "34:B7:DA:FB:58:E2"
-#endif
-
-// Broadcast uptime every second to connected central (for testing)
-// #define TELL_UPTIME
-
-// The maximum size of the message data.
-// Larger amount of data should be split onto chunks before sending
-// them to the adapter.
-#define MAX_CHUNK 512
-
-// If defined echo all data received from peer back to it (for testing)
-#define PEER_ECHO
-
-#ifdef PEER_ECHO
-#define PEER_ECHO_QUEUE 16
-#endif
-
-static BLEServer*         pServer;
+#ifndef HIDDEN
 static BLECharacteristic* pCharacteristic;
+#endif
 
 #define MAX_PEERS 8
 class Peer;
@@ -306,7 +226,6 @@ public:
 
   bool monitor()
   {
-    uint32_t const now = millis();
 #ifdef PEER_ECHO
     struct data_chunk ch;
     while (m_echo_queue && xQueueReceive(m_echo_queue, &ch, 0)) {
@@ -317,7 +236,7 @@ public:
       free(ch.data);
     }
 #endif
-    if (!m_connected && elapsed(m_disconn_ts, now) > 500) {
+    if (!m_connected && elapsed(m_disconn_ts, millis()) > 500) {
       connect();
       return true;
     }
@@ -457,8 +376,9 @@ static void bt_device_init()
 
 static void bt_device_start()
 {
+#ifndef HIDDEN
   // Create the BLE Server
-  pServer = BLEDevice::createServer();
+  BLEServer* pServer = BLEDevice::createServer();
 
   // Create the BLE Service
   BLEService *pService = pServer->createService(SERVICE_UUID);
@@ -466,10 +386,12 @@ static void bt_device_start()
   // Create a BLE Characteristic
   pCharacteristic = pService->createCharacteristic(
     CHARACTERISTIC_UUID_TX,
-    BLECharacteristic::PROPERTY_NOTIFY |
-    BLECharacteristic::PROPERTY_READ   |
-    BLECharacteristic::PROPERTY_WRITE  |
-    BLECharacteristic::PROPERTY_WRITE_NR
+    BLECharacteristic::PROPERTY_NOTIFY
+    | BLECharacteristic::PROPERTY_READ
+#ifdef WRITABLE
+    | BLECharacteristic::PROPERTY_WRITE
+    | BLECharacteristic::PROPERTY_WRITE_NR
+#endif
   );
 
   pCharacteristic->addDescriptor(new BLE2902());
@@ -479,7 +401,6 @@ static void bt_device_start()
 
   // Start the service
   pService->start();
-
   // Start advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   BLEAdvertisementData data;
@@ -487,6 +408,7 @@ static void bt_device_start()
   pAdvertising->setAdvertisementData(data);
   pAdvertising->setScanResponse(true);
   pAdvertising->addServiceUUID(SERVICE_UUID);
+#endif
 }
 
 static void hw_init()
@@ -612,6 +534,7 @@ void Peer::connect()
   uart_end();
 }
 
+#ifndef HIDDEN
 static void transmit(const char* data, size_t len)
 {
   if (len > MAX_CHUNK) {
@@ -622,6 +545,7 @@ static void transmit(const char* data, size_t len)
   pCharacteristic->notify();
   taskYIELD();
 }
+#endif
 
 static void process_write(unsigned idx, const char* str, size_t len)
 {
@@ -676,9 +600,11 @@ static void process_msg(const char* str, size_t len)
       process_cmd(str + 1);
       break;
 #endif
+#ifndef HIDDEN
     case '>':
       transmit(str + 1, len - 1);
       break;
+#endif
     default:
       process_write(str[0] - '0', str + 1, len - 1);
   }
@@ -751,24 +677,22 @@ static void monitor_peers()
 
 void loop()
 {
-  uint32_t const now = millis();
-
   String const received = DataSerial.readString();
   if (received.length()) {
     rx_buff += received;
     rx_process();
   }
-
-  if (start_advertising && elapsed(centr_disconn_ts, now) > 500) {
+#ifndef HIDDEN
+  if (start_advertising && elapsed(centr_disconn_ts, millis()) > 500) {
     uart_begin();
     DataSerial.print("-start advertising");
     uart_end();
     BLEDevice::startAdvertising(); // restart advertising
     start_advertising = false;
   }
-
+#endif
 #ifdef TELL_UPTIME
-  uint32_t const uptime = now / 1000;
+  uint32_t const uptime = millis() / 1000;
   if (uptime != last_uptime) {
     last_uptime = uptime;
     String msg(uptime);
