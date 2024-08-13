@@ -13,10 +13,12 @@ import random
 sys.path.append('.')
 from ble_multi_adapter import MutliAdapter
 
-max_len = 240
+# The max message length is 512 bytes
+# So we have 8 bytes for sequence number plus 4 separator bytes (##)
+max_data_len = 500
 
 def random_bytes():
-	n = random.randrange(1, max_len)
+	n = random.randrange(1, max_data_len/2)
 	return bytes((random.randrange(ord('0'), ord('z') + 1) for _ in range(n)))
 
 class EchoTest(MutliAdapter):
