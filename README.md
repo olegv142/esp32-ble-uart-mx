@@ -4,6 +4,12 @@ This is the multipurpose dual role BLE to serial bridge capable of creating mult
 ## Architecture and communication protocol
 ![The bridge architecture and communication protocol](https://github.com/olegv142/esp32-ble/blob/main/doc/mx.png)
 
+## How it works
+TBD
+
+## Design decisions and limitations
+TBD
+
 ## Building and flashing
 To be able to build this code examples add the following to Arduino Additional board manager URLs:
 ```
