@@ -139,6 +139,7 @@ public:
   }
 
   void onConnect(BLEClient *pclient) {
+#ifndef NO_DEBUG
     uart_begin();
     DataSerial.print("-peripheral [");
     DataSerial.print(m_idx);
@@ -146,12 +147,14 @@ public:
     DataSerial.print(m_addr);
     DataSerial.print(" connected");
     uart_end();
+#endif
     m_connected = true;
     notify_connected();
     connected_peers++;
   }
 
   void onDisconnect(BLEClient *pclient) {
+#ifndef NO_DEBUG
     uart_begin();
     DataSerial.print("-peripheral [");
     DataSerial.print(m_idx);
@@ -159,6 +162,7 @@ public:
     DataSerial.print(m_addr);
     DataSerial.print(" disconnected");
     uart_end();
+#endif
     m_connected = false;
     m_disconn_ts = millis();
     --connected_peers;
@@ -215,9 +219,11 @@ public:
       memcpy(ch.data, pData, length);
       if (!xQueueSend(m_echo_queue, &ch, 0)) {
         free(ch.data);
+#ifndef NO_DEBUG
         uart_begin();
         DataSerial.print("-echo queue full");
         uart_end();
+#endif
       }
     }
 #endif
@@ -259,18 +265,22 @@ public:
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
+#ifndef NO_DEBUG
       uart_begin();
       DataSerial.print("-central connected, ");
       DataSerial.print(esp_get_free_heap_size());
       DataSerial.print(" heap bytes avail");
       uart_end();
+#endif
       ++connected_centrals;
     };
 
     void onDisconnect(BLEServer* pServer) {
+#ifndef NO_DEBUG
       uart_begin();
       DataSerial.print("-central disconnected");
       uart_end();
+#endif
       centr_disconn_ts = millis();
       centr_disconnected = true;
       start_advertising = true;
@@ -301,11 +311,13 @@ static void reset_self()
 
 static void fatal(const char* what)
 {
+#ifndef NO_DEBUG
   uart_begin();
   DataSerial.print("-fatal: ");
   DataSerial.print(what);
   uart_end();
   delay(100); // give host a chance to read message
+#endif
   reset_self();
 }
 
@@ -439,7 +451,7 @@ static void hw_init()
 #endif
   DataSerial.setTimeout(10);
 
-  Serial.begin(115200);
+  Serial.begin(UART_BAUD_RATE);
 }
 
 void setup()
@@ -469,9 +481,11 @@ static void peerNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic
     if (peers[i] && peers[i]->notify_data(pBLERemoteCharacteristic, pData, length))
       return;
 
+#ifndef NO_DEBUG
   uart_begin();
   DataSerial.print("-data from unknown source");
   uart_end();
+#endif
 }
 
 void Peer::connect()
@@ -480,11 +494,12 @@ void Peer::connect()
 
   uint32_t const start = millis();
 
+#ifndef NO_DEBUG
   uart_begin();
   DataSerial.print("-connecting to ");
   DataSerial.print(m_addr);
   uart_end();
-
+#endif
   if (!m_Client) {
     m_Client = BLEDevice::createClient();
     m_Client->setClientCallbacks(this);
@@ -519,6 +534,7 @@ void Peer::connect()
     m_echo_queue = xQueueCreate(PEER_ECHO_QUEUE, sizeof(struct data_chunk));
 #endif
 
+#ifndef NO_DEBUG
   uart_begin();
   DataSerial.print("-connected to ");
   DataSerial.print(m_addr);
@@ -532,6 +548,7 @@ void Peer::connect()
   DataSerial.print(m_Client->getRssi());
 #endif
   uart_end();
+#endif
 }
 
 #ifndef HIDDEN
@@ -684,9 +701,11 @@ void loop()
   }
 #ifndef HIDDEN
   if (start_advertising && elapsed(centr_disconn_ts, millis()) > 500) {
+#ifndef NO_DEBUG
     uart_begin();
     DataSerial.print("-start advertising");
     uart_end();
+#endif
     BLEDevice::startAdvertising(); // restart advertising
     start_advertising = false;
   }
