@@ -93,3 +93,5 @@ A bunch of experimental projects created mostly for testing during the work on t
 The BLE terminal web page example: https://github.com/enspectr/ble-term
 
 Dual mode Bluetooth to serial adapter based on ESP32: https://github.com/olegv142/esp32-bt-serial
+
+nRF Connect for Mobile - tool for exploring BLE devices: https://play.google.com/store/apps/details?id=no.nordicsemi.android.mcp&pcampaignid=web_share
