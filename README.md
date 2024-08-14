@@ -6,7 +6,7 @@ BLE devices may play two different roles. The peripheral role acts as a server p
 
 ![The bridge architecture and communication protocol](https://github.com/olegv142/esp32-ble/blob/main/doc/mx.png)
 
-The serial communication between controlling host and **ble_uart_mx** adapter takes place by sending and receiving messages as shown on the figure above. Every message begins with start marker shown as white circle and ends with end marker shown as black circle. While using hardware UART the start marker is represented by byte with the value of 1 while the end marker is represented by zero byte. While using ESP32 built-in USB CDC adapter the start marker is absent while the new line symbol plays the role of the end marker. The symbol after start marker (the first message symbol if USB CDC is used) determines the type of the input message. Symbols 0..7 indicate the index of the connection to peripheral device where the data that follows should be sent. The > symbols indicates that the data that follows should be sent to the connected central device. The # symbol indicates that the following symbol represents command. There are only 2 commands - reset and connect to the set of addresses.
+The serial communication between controlling host and **ble_uart_mx** adapter takes place by sending and receiving messages as shown on the figure above. Every message begins with start marker shown as white circle and ends with end marker shown as black circle. While using hardware UART the start marker is represented by byte with the value of 1 while the end marker is represented by zero byte. While using ESP32 built-in USB CDC adapter the start marker is absent while the new line symbol plays the role of the end marker. The symbol after start marker (the first message symbol if USB CDC is used) determines the type of the input message. Symbols 0..7 indicate the index of the connection to peripheral device where the data that follows should be sent. The > symbols indicates that the data that follows should be sent to the connected central device. The # symbol indicates that the following symbol represents command. There are only 2 commands - reset (R) and connect (C) to the set of addresses.
 
 The output messages have similar structure. The first symbol after start marker determines the type of the message. Symbols 0..7 indicate the index of the connection to peripheral where data that follows were received. The < symbols indicates that the data that follows were received from the connected central device. The - symbol indicates the start of the debug message. The : symbol marks the status event. There are 3 kinds of status events. The idle event (I) is sent every second in idle state which means that the device was just reset and no connection was made yet. The connecting event (C) notifies user about initiating connection to the particular peripheral. The connected event (D) is sent every second if connections were successfully made to all peripherals listed in connect command.
 
@@ -46,6 +46,7 @@ The compilation options are placed onto the separate header **ble_uart_mx/mx_con
 * configure device behavior, for example disable discovery
 * configure auto-connecting on startup
 * setup debug options (TELL_UPTIME, PEER_ECHO)
+
 Since configuration options are placed onto the separate file you may conveniently create you own file or set of files for various device variants.
 
 In case you are failed to flash ESP32 board from Arduino do the following:
@@ -68,7 +69,7 @@ If you have only one ESP32 module and want to test **ble_uart_mx** adapter do th
 * open Arduino Serial Monitor
 * observe idle events
 * open https://enspectr.github.io/ble-term in chrome browser
-* press 'connect' and connect to your device
+* press 'connect' to establish connection to your device
 * try using Serial Monitor and BLE terminal application to send data in both directions
 
 ## Power consumption
