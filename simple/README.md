@@ -1,4 +1,4 @@
-This is the collection of useful ESP32 BLE projects for Arduino targeting telemetry / monitoring applications. The main goals were testing various scenarios of using BLE stack in order to reveal its limitations and find workarounds.
+This is the collection of experimental ESP32 BLE projects for Arduino targeting telemetry / monitoring applications. The main goals were testing various scenarios of using BLE stack in order to reveal its limitations and find workarounds.
 
 ## Simple receiver / transmitter examples
 The **ble_receiver** / **ble_transmitter** are examples of creating one way communication channel with automatic re-connection. The code also illustrates using watchdog for improved reliability and maximizing transmission power for extending range.
