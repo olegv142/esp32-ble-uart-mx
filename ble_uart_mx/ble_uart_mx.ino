@@ -5,14 +5,14 @@
  central for commands / responses. The controlling host uses the following protocol:
 
  Commands:
-  '#C addr0 addr1 ..' - connect to peers with given addresses (up to 8)
+  '#C addr0 addr1 ..' - connect to peripherals with given addresses (up to 8)
   '#R'                - reset to idle state
  Commands will be disabled if AUTOCONNECT is defined
 
  Status messages:
   ':I rev.vmaj.vmin' - idle, not connected
   ':Cn'      - connecting to the n-th peripheral
-  ':D'       - all peers connected, data receiving
+  ':D'       - all peripherals connected, data receiving
   Status messages will be disabled if STATUS_REPORT_INTERVAL is undefined
 
  Debug messages:
