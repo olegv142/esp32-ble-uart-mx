@@ -87,7 +87,7 @@
 
 #ifndef HIDDEN
 // Broadcast uptime every second to connected central (for testing)
-#define TELL_UPTIME
+// #define TELL_UPTIME
 #endif
 
 // The maximum size of the message data.
