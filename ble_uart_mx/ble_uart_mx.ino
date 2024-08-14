@@ -229,7 +229,7 @@ public:
 #ifdef PEER_ECHO
     struct data_chunk ch;
     while (m_echo_queue && xQueueReceive(m_echo_queue, &ch, 0)) {
-      if (m_connected) {
+      if (m_writable && is_connected()) {
         m_remoteCharacteristic->writeValue(ch.data, ch.len);
         taskYIELD();
       }
@@ -515,7 +515,7 @@ void Peer::connect()
 
   m_writable = m_remoteCharacteristic->canWrite();
 #ifdef PEER_ECHO
-  if (m_writable)
+  if (m_writable && !m_echo_queue)
     m_echo_queue = xQueueCreate(PEER_ECHO_QUEUE, sizeof(struct data_chunk));
 #endif
 
