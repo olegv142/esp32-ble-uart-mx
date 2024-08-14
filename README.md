@@ -13,7 +13,14 @@ Technically the BLE peripheral device consists of a collection of services (we h
 The very important question is what BLE stack guarantees regarding integrity of characteristic updates. Does connection state mean some set of guarantees which should be obeyed or connection should be closed by BLE stack? The TCP/IP stack for example follows such strict connection paradigm. The data is either delivered to other side of the connection or connection is closed. It turns out that the connection paradigm in BLE is much looser. The connection at least for the two stacks implementation available for ESP32 is just the context making communication possible but without any guarantees except the atomicity and integrity of the particular characteristic update. That means that if the update is delivered to the other side of the connection, it is delivered unchanged. But updates may be easily lost or duplicated. Yet in some cases the connection may be closed by the stack. But there are no guarantees of updates delivery while the connection is open.
 
 ## Design decisions and limitations
-TBD
+### Packed based communications
+One may wander why there is no possibility to create transparent data link. The protocol offers packed based communications instead with data packet size limited by 512 bytes.
+As was mentioned above the BLE stack does not guarantee delivery. The only thing it does guarantee is integrity of the single characteristic update with size limited to 512 bytes.
+Once the API uses some communication abstraction it should should guarantee its integrity. To guarantee transparent data stream integrity is quite challenging task. We have to get acknowledges from the other side of connection which will complicate implementation and slow it down significantly. In fact I don't know any transparent BLE serial adapter implementation that would guarantee stream integrity. Implementing reliable communications over such unreliable data stream is a challenge. The only way to do it is to split data onto packets providing the means of detecting there boundaries even in the presence of corruptions and add means of detecting corrupted packets.
+On the other hand using packets that fit to the characteristic guarantees packet integrity (but does not guarantee delivery). The packet boundaries are preserved so user does not have to create its own way of detecting packet boundaries. So if the user is taking care about data integrity the packet based protocol is more convenient than unreliable transparent data stream.
+
+### Connect by addresses
+The adapter does not provide the possibility to connect to target device by its name. The only way to identify the target is by MAC address consisting of 6 bytes. This is intentional since using device names does not work in case there are 2 devices with the same name. One may easily find device address by using **nRF Connect** application which is available for many platforms.
 
 ## Building and flashing
 To be able to build this code examples add the following to Arduino Additional board manager URLs:
