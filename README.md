@@ -5,7 +5,7 @@ This is the multipurpose dual role BLE to serial bridge capable of creating mult
 ![The bridge architecture and communication protocol](https://github.com/olegv142/esp32-ble/blob/main/doc/mx.png)
 
 ## How it works
-TBD
+![BLE data flow](https://github.com/olegv142/esp32-ble/blob/main/doc/ble_data_flow.png)
 
 ## Design decisions and limitations
 TBD
