@@ -13,6 +13,13 @@ The output messages have similar structure. The first symbol after start marker 
 ## How it works
 Technically the BLE peripheral device consists of a collection of services (we have only one). Each service is a collection of characteristics (we have only one). There are also descriptors but we omit them for clarity. The characteristic may be considered as data buffer accessible for reading and writing either locally or remotely. The central device does not have such reach internal structure. It is just able to establish connection to peripheral device in order to subscribe to characteristic updates and be able to update it remotely. The peripheral device transmits its data by writing it to characteristic. The central device receives them by notification mechanism. The central device writes its data to the characteristic remotely. The peripheral is notified about remote write and receives data written by central. 
 
+<style>
+  img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }  
+</style>
 <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/ble_data_flow.png" width="50%">
 
 ## Data integrity
