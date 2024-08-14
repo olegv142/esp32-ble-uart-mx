@@ -1,4 +1,4 @@
-# esp32-ble
+# esp32-ble (ble_uart_mx)
 This is the multipurpose dual role BLE to serial bridge capable of creating multiple connections to other peripheral devices as well as acting as peripheral accepting connections from other central device. Its operation is controlled by host via the same serial link as used for data transfers. Multiple compile time configuration options are provided to meet requirements in a variety of applications. For example it may be used for gathering telemetry data from some set of devices, providing communication link for commands / responses from controlling application or for creating bidirectional wireless communication channel between the pair of devices. It uses Arduino as building platform to keep code small and make using it as simple as possible. The adapter was tested on ESP32C3 Super Mini modules with Espressif board support package version 3.0.3.
 
 ## Architecture and communication protocol
@@ -31,12 +31,15 @@ The adapter does not provide the possibility to connect to target device by its 
 ### Error handling
 The adapter implements very simple but powerful error handling strategy. Should anything goes wrong it just reset itself. It helps to workaround potential problems with error handling in BLE stack. For example the connect routine may hung forever. Resetting is the only way to recover from such situations.
 
+### No binary data support
+Since bytes with value 1 and 0 are used as message start / end markers passing binary data that may contain that bytes will break communication protocol. If passing binary data is mandatory user may apply base64 encoding to the data.
+
 ## Building and flashing
 To be able to build this code examples add the following to Arduino Additional board manager URLs:
 ```
 https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
 ```
-Then go to Boards Manager and install **esp32 by Espressif Systems**.
+Then go to Boards Manager and install **esp32 by Espressif Systems**. Open **ble_uart_mx** project in Arduino and build it.
 
 The compilation options are placed onto the separate header **ble_uart_mx/mx_config.h**. With those options one can
 * choose device name
