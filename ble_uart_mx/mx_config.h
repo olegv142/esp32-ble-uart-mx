@@ -11,7 +11,8 @@
 // If defined the unique suffix based on MAC is added to device name to make it distinguishable
 #define DEV_NAME_SUFF_LEN  6
 
-// If defined the device will not advertise
+// If defined the device will not advertise so central will be unable to connect to it.
+// The connections to peers may be created though.
 // #define HIDDEN
 
 #ifndef HIDDEN
@@ -31,9 +32,12 @@
 // If defined the status messages will be output periodically
 #define STATUS_REPORT_INTERVAL 1000  // msec
 
-// If UART_TX_PIN is defined the hardware serial port will be used for communications.
+// If HW_UART is defined the hardware serial port will be used for communications.
 // Otherwise the USB virtual serial port will be utilized.
-// #define UART_TX_PIN  7
+#define HW_UART
+
+#ifdef HW_UART
+#define UART_TX_PIN  7
 #define UART_RX_PIN  6
 #define UART_BAUD_RATE 115200
 #define UART_MODE SERIAL_8N1
@@ -44,8 +48,9 @@
 #define UART_CTS_PIN 5
 // RTS prevents overflow of the esp32 receiving buffer.
 // #define UART_RTS_PIN 4
+#endif
 
-#ifdef UART_TX_PIN
+#ifdef HW_UART
 // Using hardware UART
 #define DataSerial Serial1
 #define DATA_UART_NUM UART_NUM_1
@@ -61,13 +66,15 @@
 // The default buffer size is 256 bytes which may be not enough.
 #define UART_BUFFER_SZ 4096
 
-// If defined reset itself on peer disconnection instead of reconnecting
+// If defined reset itself on peripheral disconnection instead of reconnecting
 #define RESET_ON_DISCONNECT
 
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
 
-// If AUTOCONNECT is defined it will connect on startup to the predefined set of peers
+// If AUTOCONNECT is defined it will connect on startup to the predefined set of peers.
+// The host commands will be disabled. One may use AUTOCONNECT with no target peers
+// to disable creating connections.
 // #define AUTOCONNECT
 
 #ifdef AUTOCONNECT
@@ -88,7 +95,7 @@
 // them to the adapter.
 #define MAX_CHUNK 512
 
-// If defined echo all data received from peer back to it (for testing)
+// If defined echo all data received from peripheral back to it (for testing)
 // #define PEER_ECHO
 
 #ifdef PEER_ECHO

@@ -11,7 +11,7 @@
 
  Status messages:
   ':I rev.vmaj.vmin' - idle, not connected
-  ':Cn'      - connecting to the n-th peer
+  ':Cn'      - connecting to the n-th peripheral
   ':D'       - all peers connected, data receiving
   Status messages will be disabled if STATUS_REPORT_INTERVAL is undefined
 
@@ -25,13 +25,13 @@
   ':' for status messages
   '-' for debug messages
   '<' if message is received from connected central
-  '0', '1' .. '7'  for data received from peer 0, 1, .. 7
+  '0', '1' .. '7'  for data received from peripheral 0, 1, .. 7
  The first data stream message after connection / re-connection has no data payload. This is the stream start token.
 
  The second symbol for input message is
   '#' for commands
   '>' for message to be sent to connected central
-  '0', '1' .. '7'  for data to be sent to peer 0, 1, .. 7
+  '0', '1' .. '7'  for data to be sent to peripheral 0, 1, .. 7
 
  The maximum size of data in single message is MAX_CHUNK = 512.
  Larger amount of data should be split onto chunks before sending them to the adapter.
@@ -140,7 +140,7 @@ public:
 
   void onConnect(BLEClient *pclient) {
     uart_begin();
-    DataSerial.print("-peer [");
+    DataSerial.print("-peripheral [");
     DataSerial.print(m_idx);
     DataSerial.print("] ");
     DataSerial.print(m_addr);
@@ -153,7 +153,7 @@ public:
 
   void onDisconnect(BLEClient *pclient) {
     uart_begin();
-    DataSerial.print("-peer [");
+    DataSerial.print("-peripheral [");
     DataSerial.print(m_idx);
     DataSerial.print("] ");
     DataSerial.print(m_addr);
@@ -324,7 +324,7 @@ static inline void watchdog_init()
 static void add_peer(unsigned idx, String const& addr)
 {
   if (idx >= MAX_PEERS) {
-    fatal("Bad peer index");
+    fatal("Bad peripheral index");
     return;
   }
   if (peers[idx]) {
@@ -421,7 +421,7 @@ static void hw_init()
 #ifdef UART_BUFFER_SZ
   DataSerial.setRxBufferSize(UART_BUFFER_SZ);
 #endif
-#ifdef UART_TX_PIN
+#ifdef HW_UART
   DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
 #if defined(UART_CTS_PIN) && defined(UART_RTS_PIN)
   uart_set_pin(DATA_UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_RTS_PIN, UART_CTS_PIN);  
@@ -550,7 +550,7 @@ static void transmit(const char* data, size_t len)
 static void process_write(unsigned idx, const char* str, size_t len)
 {
   if (idx >= MAX_PEERS || !peers[idx]) {
-    fatal("Bad peer index");
+    fatal("Bad peripheral index");
     return;
   }
   peers[idx]->transmit(str, len);
