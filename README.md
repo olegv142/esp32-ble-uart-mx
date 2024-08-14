@@ -70,7 +70,7 @@ There are pair of test scripts **multi_echo.py** and **multi_echo_long.py** in *
 ### The quick way
 If you have only one ESP32 module and want to test **ble_uart_mx** adapter do the following:
 * enable using built-in USB CDC by commenting out HW_UART define in mx_config.h
-* build and flash adapter code
+* build and flash **ble_uart_mx** project by Arduino
 * open Arduino Serial Monitor
 * observe idle events
 * open https://enspectr.github.io/ble-term in chrome browser
