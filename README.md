@@ -13,7 +13,9 @@ The output messages have similar structure. The first symbol after start marker 
 ## How it works
 Technically the BLE peripheral device consists of a collection of services (we have only one). Each service is a collection of characteristics (we have only one). There are also descriptors but we omit them for clarity. The characteristic may be considered as data buffer accessible for reading and writing either locally or remotely. The central device does not have such reach internal structure. It is just able to establish connection to peripheral device in order to subscribe to characteristic updates and be able to update it remotely. The peripheral device transmits its data by writing it to characteristic. The central device receives them by notification mechanism. The central device writes its data to the characteristic remotely. The peripheral is notified about remote write and receives data written by central. 
 
-![BLE data flow](https://github.com/olegv142/esp32-ble/blob/main/doc/ble_data_flow.png)
+<p align="center">
+  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/ble_data_flow.png?raw=true" width="50%" alt="BLE data flow"/>
+</p>
 
 ## Data integrity
 The very important question is what BLE stack guarantees regarding integrity of characteristic updates. Does connection state mean some set of guarantees which should be obeyed or connection should be closed by BLE stack? The TCP/IP stack for example follows such strict connection paradigm. The data is either delivered to other side of the connection or connection is closed. It turns out that the connection paradigm in BLE is much looser. The connection at least for the two stacks implementation available for ESP32 is just the context making communication possible but without any guarantees except the atomicity and integrity of the particular characteristic update. That means that if the update is delivered to the other side of the connection, it is delivered unchanged. But updates may be easily lost or duplicated. Yet in some cases the connection may be closed by the stack. But there are no guarantees of updates delivery while the connection is open.
