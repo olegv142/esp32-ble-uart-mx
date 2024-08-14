@@ -34,7 +34,7 @@ The host API implementation for python may be found in **python/ble_multi_adapte
 There are pair of test scripts **multi_echo.py** and **multi_echo_long.py** in **python** folder sending packets to other side that is expected to echo them back. One may use PEER_ECHO compilation option to echo data right on the device or use **central_echo.py** script for that purpose.
 
 ## Power consumption
-With ESP32C3 one can expect the power consumption of around 65mA. The power consumption was significantly improved since SDK v.2. Yet its still not quite suitable for battery powered applications.
+With ESP32C3 one can expect the power current of around 65mA. The power consumption was significantly improved since SDK v.2. Yet its still not quite suitable for battery powered applications.
 
 ## Range testing results
 The maximum distance over which we can safely transmit data is an important issue in many applications. Typically small and cheap ESP32 modules have tiny chip antenna soldered on board. With such modules one can expect the operating distance around 10 meters. The efficiency of such chip antenna is close to nothing. Even printed circuit antenna is better and gives you more range. The external antenna is much better choice. One can solder it instead of the chip antenna as shown on the figure below.
