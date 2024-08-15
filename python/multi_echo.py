@@ -12,13 +12,17 @@ sys.path.append('.')
 from ble_multi_adapter import MutliAdapter
 
 class EchoTest(MutliAdapter):
-	burst_len = 8
+	burst_len = 16
+
 	def __init__(self, port):
 		super().__init__(port)
 		self.last_tx_sn = 0
 		self.last_rx_sn = None
 		self.msg_cnt = 0
 		self.errors = 0
+		self.lost = 0
+		self.dup = 0
+		self.reorder = 0
 
 	def send_msg(self):
 		self.last_tx_sn += 1
@@ -44,12 +48,18 @@ class EchoTest(MutliAdapter):
 			self.errors += 1
 			return
 		if self.last_rx_sn is not None and sn != self.last_rx_sn + 1:
-			print(' %u %u' % (self.last_rx_sn, sn), end='')
+			print(' sn: %u %u' % (self.last_rx_sn, sn), end='')
 			self.errors += 1
+			if sn > self.last_rx_sn + 1:
+				self.lost += 1
+			elif sn == self.last_rx_sn:
+				self.dup += 1
+			else:
+				self.reorder += 1
 		self.last_rx_sn = sn
 
 	def on_central_msg(self, msg):
-		print('[.] ' + msg.decode(), end='')
+		print('[.] %r' % msg, end='')
 		self.msg_received(msg)
 		print()
 
@@ -60,5 +70,5 @@ if __name__ == '__main__':
 			while True:
 				ad.poll()
 		except KeyboardInterrupt:
-			print('%u messages, %u errors' % (ad.msg_cnt, ad.errors))
+			print('%u messages, %u errors (%u lost, %u dup, %u reorder)' % (ad.msg_cnt, ad.errors, ad.lost, ad.dup, ad.reorder))
 
