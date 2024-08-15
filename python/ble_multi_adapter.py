@@ -1,5 +1,5 @@
 """
-BLE multi adapter host interface
+BLE multi adapter (ble_uart_mx) host interface
 
 Author: Oleg Volkov
 """
