@@ -46,7 +46,7 @@ To be able to build this code examples add the following to Arduino Additional b
 ```
 https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
 ```
-Then go to Boards Manager and install **esp32 by Espressif Systems**. Open **ble_uart_mx** project in Arduino and build it.
+Then go to Boards Manager and install **esp32 by Espressif Systems**. After that you can open **ble_uart_mx** project in Arduino and build it.
 
 The compilation options are placed onto the separate header **ble_uart_mx/mx_config.h**. With those options one can
 * choose device name
