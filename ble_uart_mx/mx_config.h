@@ -34,7 +34,7 @@
 // If defined the status messages will be output periodically
 #define STATUS_REPORT_INTERVAL 1000  // msec
 
-// If defined suppress debug messages
+// If defined all debug messages will be suppressed
 // #define NO_DEBUG
 
 // If HW_UART is defined the hardware serial port will be used for communications.
@@ -84,17 +84,23 @@
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
 
+// If defined creating connections to other peripherals will be disabled
+// #define PASSIVE_ONLY
+
+#ifdef PASSIVE_ONLY
+#define AUTOCONNECT
+#else
 // If AUTOCONNECT is defined it will connect on startup to the predefined set of peers.
 // The host commands will be disabled. One may use AUTOCONNECT with no target peers
 // to disable creating connections.
 // #define AUTOCONNECT
-
 #ifdef AUTOCONNECT
 // Peer device address to connect to
 #define PEER_ADDR    "EC:DA:3B:BB:CE:02"
 //#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
 //#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
 //#define PEER_ADDR3   "34:B7:DA:FB:58:E2"
+#endif
 #endif
 
 #ifndef HIDDEN
