@@ -1,9 +1,11 @@
 #pragma once
 
 // Version info printed as part of idle status message
-#define REVISION  "1"
 #define VMAJOR    "1"
 #define VMINOR    "0"
+#define VARIANT   "A" // A means ASCII, binary data not allowed
+
+#define VERSION VMAJOR "." VMINOR "-" VARIANT
 
 // Device name (may be followed by unique suffix)
 #define DEV_NAME  "Mx-"

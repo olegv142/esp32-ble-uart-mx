@@ -654,7 +654,7 @@ static void rx_process()
 static inline void report_idle()
 {
   uart_begin();
-  DataSerial.print(":I " REVISION "." VMAJOR "." VMINOR);
+  DataSerial.print(":I " VERSION);
   uart_end();
 }
 
