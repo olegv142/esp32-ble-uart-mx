@@ -23,6 +23,7 @@ class MutliAdapter:
 		self.port    = port
 		self.com     = None
 		self.rx_buff = b''
+		self.parse_errors = 0
 
 	def __enter__(self):
 		self.open()
@@ -50,11 +51,11 @@ class MutliAdapter:
 		self.com.write(MutliAdapter.start_byte + b'#' + cmd + MutliAdapter.end_byte)
 
 	def reset(self, drain = True):
-		self.send_cmd(b'R')
 		if drain:
 			self.com.timeout = MutliAdapter.drain_timeout
 			while self.com.read(4096): pass
 			self.com.timeout = MutliAdapter.timeout
+		self.send_cmd(b'R')
 
 	def connect(self, peers):
 		self.send_cmd(b'C' + b' '.join(peers))
@@ -93,8 +94,10 @@ class MutliAdapter:
 			self.on_debug_msg(msg[1:])
 		elif tag == b'<':
 			self.on_central_msg(msg[1:])
-		else:
+		elif msg:
 			self.on_peer_msg(msg[0] - b'0'[0], msg[1:])
+		else:
+			self.parse_errors += 1
 
 	def on_status_msg(self, msg):
 		tag = msg[:1]
@@ -104,6 +107,8 @@ class MutliAdapter:
 			self.on_connecting(msg[1] - b'0'[0])
 		elif tag == b'D':
 			self.on_connected()
+		else:
+			self.parse_errors += 1
 
 	def on_idle(self, version):
 		pass

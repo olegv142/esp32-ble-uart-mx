@@ -70,5 +70,7 @@ if __name__ == '__main__':
 			while True:
 				ad.poll()
 		except KeyboardInterrupt:
-			print('%u messages, %u errors (%u lost, %u dup, %u reorder)' % (ad.msg_cnt, ad.errors, ad.lost, ad.dup, ad.reorder))
+			print('%u messages, %u errors (%u lost, %u dup, %u reorder), parse errors %u' % (
+				ad.msg_cnt, ad.errors, ad.lost, ad.dup, ad.reorder, ad.parse_errors
+			))
 
