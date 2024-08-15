@@ -5,11 +5,14 @@ Author: Oleg Volkov
 """
 
 import sys
-from serial import Serial
+from serial import Serial, PARITY_NONE, PARITY_EVEN
+
+use_parity = True
 
 class MutliAdapter:
 	"""BLE multi-adapter interface class"""
 	baud_rate  = 115200
+	parity     = PARITY_EVEN if use_parity else PARITY_NONE
 	start_byte = b'\1'
 	end_byte   = b'\0'
 	dsrdtr     = True
@@ -29,7 +32,12 @@ class MutliAdapter:
 
 	def open(self):
 		assert self.com is None
-		self.com = Serial(self.port, baudrate=MutliAdapter.baud_rate, timeout=MutliAdapter.timeout, dsrdtr=MutliAdapter.dsrdtr)
+		self.com = Serial(self.port,
+			baudrate=MutliAdapter.baud_rate,
+			parity=MutliAdapter.parity,
+			dsrdtr=MutliAdapter.dsrdtr,
+			timeout=MutliAdapter.timeout
+		)
 
 	def close(self):
 		if self.com:

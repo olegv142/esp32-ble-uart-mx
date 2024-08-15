@@ -40,17 +40,24 @@
 #define HW_UART
 
 #ifdef HW_UART
+// Use even parity if defined
+#define UART_USE_PARITY
+
 #define UART_TX_PIN  7
 #define UART_RX_PIN  6
 #define UART_BAUD_RATE 115200
+#ifndef UART_USE_PARITY
 #define UART_MODE SERIAL_8N1
+#else
+#define UART_MODE SERIAL_8E1
+#endif
 // If defined the flow control on UART will be configured
 // CTS prevents overflow of the host receiving buffer. Use it when
 // you have USB serial adapter at the host side. They typically have
 // buffer capacity of only 128 bytes.
 #define UART_CTS_PIN 5
 // RTS prevents overflow of the esp32 receiving buffer.
-// #define UART_RTS_PIN 4
+#define UART_RTS_PIN 4
 #endif
 
 #ifdef HW_UART
