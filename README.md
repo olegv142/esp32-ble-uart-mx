@@ -46,7 +46,7 @@ Then go to Boards Manager and install **esp32 by Espressif Systems**. Open **ble
 The compilation options are placed onto the separate header **ble_uart_mx/mx_config.h**. With those options one can
 * choose device name
 * choose between USB CDC and hardware UART for communications
-* configure hardware UART flow control
+* configure hardware UART parameters (pins, flow control)
 * disable status and/or debug events if user is interested in data events only
 * configure device behavior, for example disable discovery
 * configure auto-connecting on startup
