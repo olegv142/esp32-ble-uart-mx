@@ -17,6 +17,7 @@ class EchoTest(MutliAdapter):
 		super().__init__(port)
 		self.last_tx_sn = 0
 		self.last_rx_sn = None
+		self.msg_cnt = 0
 		self.errors = 0
 
 	def send_msg(self):
@@ -35,7 +36,13 @@ class EchoTest(MutliAdapter):
 			# stream start tag
 			self.last_rx_sn = None
 			return
-		sn = int(msg[:-1])
+		self.msg_cnt += 1
+		try:
+			sn = int(msg[:-1])
+		except ValueError:
+			print(' bad message', end='')
+			self.errors += 1
+			return
 		if self.last_rx_sn is not None and sn != self.last_rx_sn + 1:
 			print(' %u %u' % (self.last_rx_sn, sn), end='')
 			self.errors += 1
@@ -53,5 +60,5 @@ if __name__ == '__main__':
 			while True:
 				ad.poll()
 		except KeyboardInterrupt:
-			print('%u errors' % ad.errors)
+			print('%u messages, %u errors' % (ad.msg_cnt, ad.errors))
 

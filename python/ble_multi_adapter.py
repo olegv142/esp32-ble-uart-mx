@@ -51,7 +51,7 @@ class MutliAdapter:
 	def reset(self, drain = True):
 		self.send_cmd(b'R')
 		if drain:
-			self.com.read(4096)
+			self.com.read(8192)
 
 	def connect(self, peers):
 		self.send_cmd(b'C' + b' '.join(peers))

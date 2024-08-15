@@ -22,6 +22,8 @@ def random_bytes():
 	return bytes((random.randrange(ord('0'), ord('z') + 1) for _ in range(n)))
 
 class EchoTest(MutliAdapter):
+	burst_len = 4
+
 	def __init__(self, port):
 		super().__init__(port)
 		self.started = False
@@ -37,7 +39,8 @@ class EchoTest(MutliAdapter):
 		self.send_data((b'(%u' % self.last_tx_sn) + b'#' + b + b'#' + b + b')')
 
 	def on_idle(self, version):
-		self.send_msg()
+		for _ in range(EchoTest.burst_len):
+			self.send_msg()
 
 	def on_debug_msg(self, msg):
 		print('    ' + msg.decode())
