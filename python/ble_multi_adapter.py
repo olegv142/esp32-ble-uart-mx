@@ -17,6 +17,7 @@ class MutliAdapter:
 	end_byte   = b'\0'
 	dsrdtr     = True
 	timeout    = .01
+	drain_timeout = .1
 
 	def __init__(self, port):
 		self.port    = port
@@ -51,7 +52,9 @@ class MutliAdapter:
 	def reset(self, drain = True):
 		self.send_cmd(b'R')
 		if drain:
+			self.com.timeout = MutliAdapter.drain_timeout
 			while self.com.read(4096): pass
+			self.com.timeout = MutliAdapter.timeout
 
 	def connect(self, peers):
 		self.send_cmd(b'C' + b' '.join(peers))
