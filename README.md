@@ -23,7 +23,7 @@ The very important question is what BLE stack guarantees regarding integrity of 
 The BLE link is not the only place where data may corrupted. The serial data link between adapter and the controlling host may also drop or alter bytes transmitted. To reduce the probability of serial data corruption the following guidelines may be useful:
 * Use parity bit while transmitting data via physical link (**ble_uart_mx** does it by default).
 * Be aware of the possibility of receiver buffer overflow. This is especially likely to happen when using USB to serial adapter chips typically having rather small (128 byte) buffer. Use at least CTS hardware flow control at ESP32 side of the connection to prevent other side buffer overflow.
-* Be aware that during connecting to peripheral adapter does not process data from serial port. So passing large amount of data to adapter during while its connecting may overflow serial buffer at the ESP32 side of the connection. To prevent this scenario one may either use RTS flow control or keep track connecting/connected events to suspend data transmission while adapter is connecting.
+* Be aware that during connecting to peripheral adapter does not process data from serial port. So passing large amount of data to adapter during while its connecting may overflow serial buffer at ESP32 side. To prevent this scenario one may either use RTS flow control or keep track connecting/connected events to suspend data transmission while adapter is connecting.
 
 ## Design decisions and limitations
 ### Packed based communications
