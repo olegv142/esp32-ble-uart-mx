@@ -24,6 +24,7 @@ The BLE link is not the only place where data may corrupted. The serial data lin
 * Use parity bit while transmitting data via physical link (**ble_uart_mx** does it by default).
 * Be aware of the possibility of receiver buffer overflow. This is especially likely to happen when using USB to serial adapter chips typically having rather small (128 byte) buffer. Use at least CTS hardware flow control at ESP32 side of the connection to prevent other side buffer overflow.
 * Be aware that during connecting to peripheral the adapter does not process data from serial port. So passing large amount of data to the adapter while its connecting may overflow serial buffer at ESP32 side. To prevent this scenario one may either use RTS flow control or keep track connecting/connected events to suspend data transmission while adapter is connecting.
+* Application should not rely solely on the transport layer. If integrity of the messages it is sending and receiving is critical the application should protect them by checksum so messages corrupted by transport layer may be detected.
 
 ## Design decisions and limitations
 ### Packed based communications
