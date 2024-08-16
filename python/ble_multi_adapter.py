@@ -50,11 +50,7 @@ class MutliAdapter:
 		"""Send command to the adapter"""
 		self.com.write(MutliAdapter.start_byte + b'#' + cmd + MutliAdapter.end_byte)
 
-	def reset(self, drain = True):
-		if drain:
-			self.com.timeout = MutliAdapter.drain_timeout
-			while self.com.read(4096): pass
-			self.com.timeout = MutliAdapter.timeout
+	def reset(self):
 		self.send_cmd(b'R')
 
 	def connect(self, peers):
