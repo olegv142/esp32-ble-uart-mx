@@ -1,18 +1,8 @@
 #pragma once
 
-// If defined the binary data transmission is supported (WIP, not implemented yet)
-// #define BINARY_DATA_SUPPORT
-
 // Version info printed as part of idle status message
 #define VMAJOR    "1"
 #define VMINOR    "0"
-#ifndef BINARY_DATA_SUPPORT
-#define VARIANT   "A" // A means ASCII, binary data not allowed
-#else
-#define VARIANT   "B" // Binary data allowed
-#endif
-
-#define VERSION VMAJOR "." VMINOR "-" VARIANT
 
 // Device name (may be followed by unique suffix)
 #define DEV_NAME  "Mx-"
@@ -120,9 +110,57 @@
 // them to the adapter.
 #define MAX_CHUNK 512
 
+// If defined the binary data transmission is supported (WIP, not implemented yet)
+// #define BINARY_DATA_SUPPORT
+
 // If defined echo all data received from peripheral back to it (for testing)
 // #define PEER_ECHO
 
 #ifdef PEER_ECHO
 #define PEER_ECHO_QUEUE 16
 #endif
+
+//
+// Build version string
+//
+
+#ifndef BINARY_DATA_SUPPORT
+#define _DATA "T" // Text only, binary data not allowed
+#else
+#define _DATA "B" // Binary data allowed
+#endif
+
+#ifdef PASSIVE_ONLY
+#define _MODE "P"
+#elif defined(AUTOCONNECT)
+#define _MODE "A"
+#else
+#define _MODE ""
+#endif
+
+#ifdef HIDDEN
+#define _HIDDEN "H"
+#else
+#define _HIDDEN ""
+#endif
+
+#ifndef WRITABLE
+#define _RDONLY "R"
+#else
+#define _RDONLY ""
+#endif
+
+#ifdef PEER_ECHO
+#define _ECHO "e"
+#else
+#define _ECHO ""
+#endif
+
+#ifdef TELL_UPTIME
+#define _UTIME "u"
+#else
+#define _UTIME ""
+#endif
+
+#define VARIANT _DATA _MODE _HIDDEN _RDONLY _ECHO _UTIME
+#define VERSION VMAJOR "." VMINOR "-" VARIANT
