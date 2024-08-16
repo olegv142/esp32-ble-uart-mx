@@ -22,7 +22,7 @@ def random_bytes():
 	return bytes((random.randrange(ord('0'), ord('z') + 1) for _ in range(n)))
 
 class EchoTest(MutliAdapter):
-	burst_len = 8
+	burst_len = 16
 
 	def __init__(self, port):
 		super().__init__(port)
