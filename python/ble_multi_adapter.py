@@ -17,7 +17,7 @@ class MutliAdapter:
 	end_byte   = b'\0'
 	dsrdtr     = True
 	timeout    = .01
-	drain_timeout = .1
+	drain_timeout = .5
 
 	def __init__(self, port):
 		self.port    = port
