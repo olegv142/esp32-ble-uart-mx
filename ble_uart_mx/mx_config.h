@@ -38,13 +38,14 @@
 // Otherwise the USB virtual serial port will be utilized.
 #define HW_UART
 
+#define UART_BAUD_RATE 115200
+
 #ifdef HW_UART
 // Use even parity if defined
 #define UART_USE_PARITY
 
 #define UART_TX_PIN  7
 #define UART_RX_PIN  6
-#define UART_BAUD_RATE 115200
 #ifndef UART_USE_PARITY
 #define UART_MODE SERIAL_8N1
 #else
