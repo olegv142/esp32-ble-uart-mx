@@ -354,6 +354,7 @@ static inline void watchdog_init()
   esp_task_wdt_add(NULL);             // add current thread to WDT watch
 }
 
+#ifndef PASSIVE_ONLY
 static void add_peer(unsigned idx, String const& addr)
 {
   if (idx >= MAX_PEERS) {
@@ -367,6 +368,7 @@ static void add_peer(unsigned idx, String const& addr)
   peers[idx] = new Peer(idx, addr);
   ++npeers;
 }
+#endif
 
 static inline char hex_digit(uint8_t v)
 {
@@ -642,6 +644,7 @@ static void cmd_connect(const char* param)
       add_peer(npeers, params.substring(begin - param, ptr - param));
   }
 }
+#endif
 
 static void process_cmd(const char* cmd)
 {
@@ -649,14 +652,15 @@ static void process_cmd(const char* cmd)
     case 'R':
       reset_self();
       break;
+#ifndef AUTOCONNECT
     case 'C':
       cmd_connect(cmd + 1);
       break;
+#endif
     default:
       fatal("Unrecognized command");
   }
 }
-#endif
 
 static void process_msg(const char* str, size_t len)
 {
@@ -665,11 +669,9 @@ static void process_msg(const char* str, size_t len)
     return;
   }
   switch (str[0]) {
-#ifndef AUTOCONNECT
     case '#':
       process_cmd(str + 1);
       break;
-#endif
 #ifndef HIDDEN
     case '>':
       transmit(str + 1, len - 1);
