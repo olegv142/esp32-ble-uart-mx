@@ -12,12 +12,14 @@ The serial communication between controlling host and **ble_uart_mx** adapter ta
 
 The output messages have similar structure. The first symbol after start marker determines the type of the message. Symbols 0..7 indicate the index of the connection to peripheral where data that follows were received. The < symbols indicates that the data that follows were received from the connected central device. The - symbol indicates the start of the debug message. The : symbol marks the status event. There are 3 kinds of status events. The idle event (I) is sent every second in idle state which means that the device was just reset and no connection was made yet. The connecting event (C) notifies user about initiating connection to the particular peripheral. The connected event (D) is sent every second if connections were successfully made to all peripherals listed in connect command.
 
-### Binary data handling
-Since bytes with value 1 and 0 are used as message start / end markers passing binary data that may contain that bytes will break communication protocol. 
+### Binary data encoding (WIP)
+Since bytes with value 1 and 0 are used as message start / end markers passing binary data that may contain that bytes will break communication protocol. To allow for passing arbitrary binary data the following data encoding scheme is used. If host needs to pass binary data to device it encodes it into base64 encoding and adds prefix byte with the value 2. It plays the role of encoding marker telling the receiver that data that follows is base64 encoded. The adapter decode such data and pass them over the air in binary form to avoid size overhead of base64 encoding. The following figure illustrate this schema.
 
 <p align="center">
-  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/mx_data_encoding.png?raw=true" width="60%" alt="BLE data flow"/>
+  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/mx_data_encoding.png?raw=true" width="50%" alt="BLE data flow"/>
 </p>
+
+On receiving data from the connected peer device the adapter checks if data contains bytes with values 0, 1, 2. If not then its safe to transmit them as plain text to serial channel. Otherwise the adapter encodes data to base64 and prepends encoding marker byte before sending data to serial channel. Since checking every received byte takes CPU time the binary data encoding may be disabled by undefining BINARY_DATA_SUPPORT option in configuration file if it is not required by a particular usage scenario.
 
 ## How it works
 Technically the BLE peripheral device consists of a collection of services (we have only one). Each service is a collection of characteristics (we have only one). There are also descriptors but we omit them for clarity. The characteristic may be considered as data buffer accessible for reading and writing either locally or remotely. The central device does not have such rich internal structure. It is just able to establish connection to peripheral device in order to subscribe to characteristic updates and be able to update it remotely. The peripheral device transmits its data by writing it to characteristic. The central device receives them by notification mechanism. The central device writes its data to the characteristic remotely. The peripheral is notified about remote write and receives data written by central. 
