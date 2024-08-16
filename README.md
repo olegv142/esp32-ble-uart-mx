@@ -2,13 +2,22 @@
 This is the multipurpose dual role BLE to serial bridge capable of creating multiple connections to other peripheral devices as well as acting as peripheral accepting connections from other central device. Its operation is controlled by host via the same serial link as used for data transfers. Multiple compile time configuration options are provided to meet requirements in a variety of applications. For example it may be used for gathering telemetry data from some set of devices, providing communication link for commands / responses from controlling application or for creating bidirectional wireless communication channel between the pair of devices. It uses Arduino as building platform to keep code small and make using it as simple as possible. The adapter was tested on ESP32C3 Super Mini modules with Espressif board support package version 3.0.3.
 
 ## Architecture and communication protocol
+### Device roles
 BLE devices may play two different roles. The peripheral role acts as a server providing access to its internal data to the central role acting as a client accessing that data remotely. Unlike many BLE to serial adapters having only one role the **ble_uart_mx** adapter implements both roles. The peripheral role is typically used to provide wireless access for some computing device such as desktop or mobile phone. There is also a convenient possibility to access peripheral from browser which allows for creating cross platform web applications. The central role on the other hand may be used to access other peripherals. It may be used for wireless communications with one or more devices or just to create a bidirectional communication link with another adapter as a peripheral device. The **ble_uart_mx** adapter is capable of creating of up to 8 connections to peripheral devices while nor more than one central device may create connection to it at the same time. The connection is always initiated by central device. To create connection the 6 byte MAC address of the destination peripheral is required.
 
 ![The bridge architecture and communication protocol](https://github.com/olegv142/esp32-ble/blob/main/doc/mx.png)
 
+### Serial protocol
 The serial communication between controlling host and **ble_uart_mx** adapter takes place by sending and receiving messages as shown on the figure above. Every message begins with start marker shown as white circle and ends with end marker shown as black circle. While using hardware UART the start marker is represented by byte with the value of 1 while the end marker is represented by zero byte. While using ESP32 built-in USB CDC adapter the start marker is absent while the new line symbol plays the role of the end marker. The symbol after start marker (the first message symbol if USB CDC is used) determines the type of the input message. Symbols 0..7 indicate the index of the connection to peripheral device where the data that follows should be sent. The > symbols indicates that the data that follows should be sent to the connected central device. The # symbol indicates that the following symbol represents command. There are only 2 commands - reset (R) and connect (C) to the set of addresses.
 
 The output messages have similar structure. The first symbol after start marker determines the type of the message. Symbols 0..7 indicate the index of the connection to peripheral where data that follows were received. The < symbols indicates that the data that follows were received from the connected central device. The - symbol indicates the start of the debug message. The : symbol marks the status event. There are 3 kinds of status events. The idle event (I) is sent every second in idle state which means that the device was just reset and no connection was made yet. The connecting event (C) notifies user about initiating connection to the particular peripheral. The connected event (D) is sent every second if connections were successfully made to all peripherals listed in connect command.
+
+### Binary data handling
+Since bytes with value 1 and 0 are used as message start / end markers passing binary data that may contain that bytes will break communication protocol. 
+
+<p align="center">
+  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/mx_data_encoding.png?raw=true" width="60%" alt="BLE data flow"/>
+</p>
 
 ## How it works
 Technically the BLE peripheral device consists of a collection of services (we have only one). Each service is a collection of characteristics (we have only one). There are also descriptors but we omit them for clarity. The characteristic may be considered as data buffer accessible for reading and writing either locally or remotely. The central device does not have such rich internal structure. It is just able to establish connection to peripheral device in order to subscribe to characteristic updates and be able to update it remotely. The peripheral device transmits its data by writing it to characteristic. The central device receives them by notification mechanism. The central device writes its data to the characteristic remotely. The peripheral is notified about remote write and receives data written by central. 
@@ -38,9 +47,6 @@ The adapter does not provide the possibility to connect to target device by its 
 
 ### Error handling
 The adapter implements very simple but powerful error handling strategy. Should anything goes wrong it just reset itself. It helps to workaround potential problems with error handling in BLE stack. For example the connect routine may hung forever. Resetting is the only way to recover from such situations.
-
-### No binary data support
-Since bytes with value 1 and 0 are used as message start / end markers passing binary data that may contain that bytes will break communication protocol. If passing binary data is mandatory user may apply base64 encoding to the data.
 
 ## Building and flashing
 To be able to build this code examples add the following to Arduino Additional board manager URLs:
