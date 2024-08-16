@@ -41,6 +41,8 @@ if __name__ == '__main__':
 	peers = [addr.encode() for addr in sys.argv[2:]]
 	with TestMutliAdapter(port, peers) as ad:
 		ad.reset()
-		while True:
-			ad.poll()
-
+		try:
+			while True:
+				ad.poll()
+		except KeyboardInterrupt:
+			print('%u parse errors' % ad.parse_errors)

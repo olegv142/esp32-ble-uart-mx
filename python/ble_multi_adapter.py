@@ -71,15 +71,21 @@ class MutliAdapter:
 	def process_rx(self, rx_bytes):
 		self.rx_buff += rx_bytes
 		first = 0
-		while True:
-			begin = self.rx_buff.find(MutliAdapter.start_byte, first)
-			if begin < 0:
-				break
+		begin = self.rx_buff.find(MutliAdapter.start_byte, 0)
+		while begin >= 0:
 			end = self.rx_buff.find(MutliAdapter.end_byte, begin + 1)
 			if end < 0:
 				break
+			while True:
+				next_begin = self.rx_buff.find(MutliAdapter.start_byte, begin + 1)
+				if next_begin >= 0 and next_begin < end:
+					begin = next_begin
+					self.parse_errors += 1
+				else:
+					break
 			self.process_msg(self.rx_buff[begin+1:end])
 			first = end + 1
+			begin = next_begin
 		self.rx_buff = self.rx_buff[first:]
 
 	def process_msg(self, msg):
