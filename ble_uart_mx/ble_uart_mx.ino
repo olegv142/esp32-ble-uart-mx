@@ -59,6 +59,10 @@
 // So its convenient to switch them by creating yet another file.
 #include "mx_config.h"
 
+#ifdef BINARY_DATA_SUPPORT
+#include "mx_encoding.h"
+#endif
+
 #ifndef HIDDEN
 static BLECharacteristic* pCharacteristic;
 #endif
@@ -92,6 +96,13 @@ static inline void uart_begin()
 #endif
 }
 
+static inline void uart_end()
+{
+  DataSerial.print(UART_END);
+}
+
+static void uart_print_data(uint8_t* data, size_t len);
+
 static inline bool is_idle()
 {
   return !connected_peers;
@@ -100,11 +111,6 @@ static inline bool is_idle()
 static inline bool is_connected()
 {
   return !is_idle() && connected_peers >= npeers;
-}
-
-static inline void uart_end()
-{
-  DataSerial.print(UART_END);
 }
 
 static inline uint32_t elapsed(uint32_t from, uint32_t to)
@@ -193,11 +199,26 @@ public:
       fatal("Peer is not writable");
       return;
     }
+    uint8_t* tx_data = (uint8_t*)data;
+#ifdef BINARY_DATA_SUPPORT
+    uint8_t  tx_buff[MAX_CHUNK];
+    if (len && data[0] == ENCODED_DATA_START_TAG) {
+      if (len > 1 + MAX_ENCODED_DATA_LEN) {
+        fatal("Encoded data size exceeds limit");
+        return;
+      }
+      len = decode(data + 1, len - 1, tx_data = tx_buff);
+    }
+#endif
+    if (!len) {
+      fatal("No data to transmit");
+      return;
+    }
     if (len > MAX_CHUNK) {
       fatal("Data size exceeds limit");
       return;
     }
-    m_remoteCharacteristic->writeValue((uint8_t*)data, len);
+    m_remoteCharacteristic->writeValue(tx_data, len);
     taskYIELD();
   }
 
@@ -208,7 +229,7 @@ public:
 
     uart_begin();
     DataSerial.print(m_idx);
-    DataSerial.write(pData, length);
+    uart_print_data(pData, length);
     uart_end();
 
 #ifdef PEER_ECHO
@@ -299,7 +320,7 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
     }
     uart_begin();
     DataSerial.print('<');
-    DataSerial.print(pCharacteristic->getValue());
+    uart_print_data(pCharacteristic->getData(), pCharacteristic->getLength());
     uart_end();
   }
 };
@@ -554,15 +575,47 @@ void Peer::connect()
 #ifndef HIDDEN
 static void transmit(const char* data, size_t len)
 {
+  uint8_t* tx_data = (uint8_t*)data;
+#ifdef BINARY_DATA_SUPPORT
+  uint8_t  tx_buff[MAX_CHUNK];
+  if (len && data[0] == ENCODED_DATA_START_TAG) {
+    if (len > 1 + MAX_ENCODED_DATA_LEN) {
+      fatal("Encoded data size exceeds limit");
+      return;
+    }
+    len = decode(data + 1, len - 1, tx_data = tx_buff);
+  }
+#endif
+  if (!len) {
+    fatal("No data to transmit");
+    return;
+  }
   if (len > MAX_CHUNK) {
     fatal("Data size exceeds limit");
     return;
   }
-  pCharacteristic->setValue((uint8_t*)data, len);
+  pCharacteristic->setValue(tx_data, len);
   pCharacteristic->notify();
   taskYIELD();
 }
 #endif
+
+void uart_print_data(uint8_t* data, size_t len)
+{
+  if (len > MAX_CHUNK) {
+    fatal("Received data size exceeds limit");
+    return;
+  }
+  uint8_t* out_data = data;
+#ifdef BINARY_DATA_SUPPORT
+  uint8_t enc_buff[1+MAX_ENCODED_DATA_LEN] = {ENCODED_DATA_START_TAG};
+  if (is_data_binary(data, len)) {
+    len = 1 + encode(data, len, enc_buff + 1);
+    out_data = enc_buff;
+  }
+#endif
+  DataSerial.write(out_data, len);
+}
 
 static void process_write(unsigned idx, const char* str, size_t len)
 {

@@ -1,9 +1,16 @@
 #pragma once
 
+// If defined the binary data transmission is supported (WIP, not implemented yet)
+// #define BINARY_DATA_SUPPORT
+
 // Version info printed as part of idle status message
 #define VMAJOR    "1"
 #define VMINOR    "0"
+#ifndef BINARY_DATA_SUPPORT
 #define VARIANT   "A" // A means ASCII, binary data not allowed
+#else
+#define VARIANT   "B" // Binary data allowed
+#endif
 
 #define VERSION VMAJOR "." VMINOR "-" VARIANT
 
