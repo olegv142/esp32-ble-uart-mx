@@ -87,6 +87,10 @@ class EchoTest(MutliAdapter):
 			self.last_rx_sn = None
 			return
 		if msg[:1] == b'(':
+			if self.msg_buff:
+				print(' incomplete message', end='')
+				self.errors += 1
+				self.corrupt += 1
 			self.msg_buff = msg
 			self.started = True
 		elif self.msg_buff:
