@@ -23,6 +23,7 @@ class EchoTest(MutliAdapter):
 		self.lost = 0
 		self.dup = 0
 		self.reorder = 0
+		self.corrupt = 0
 
 	def send_msg(self):
 		self.last_tx_sn += 1
@@ -46,6 +47,7 @@ class EchoTest(MutliAdapter):
 		except ValueError:
 			print(' bad message', end='')
 			self.errors += 1
+			self.corrupt += 1
 			return
 		if self.last_rx_sn is not None and sn != self.last_rx_sn + 1:
 			print(' sn: %u %u' % (self.last_rx_sn, sn), end='')
@@ -70,7 +72,7 @@ if __name__ == '__main__':
 			while True:
 				ad.poll()
 		except KeyboardInterrupt:
-			print('%u messages, %u errors (%u lost, %u dup, %u reorder), parse errors %u' % (
-				ad.msg_cnt, ad.errors, ad.lost, ad.dup, ad.reorder, ad.parse_errors
+			print('%u messages, %u errors (%u lost, %u dup, %u reorder, %u corrupt), parse errors %u' % (
+				ad.msg_cnt, ad.errors, ad.lost, ad.dup, ad.reorder, ad.corrupt, ad.parse_errors
 			))
 
