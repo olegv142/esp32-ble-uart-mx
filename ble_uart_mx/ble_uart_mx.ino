@@ -79,7 +79,6 @@ static int      connected_peers;
 static int      connected_centrals;
 
 static bool     start_advertising = true;
-static bool     centr_disconnected = true;
 static uint32_t centr_disconn_ts;
 
 #ifdef STATUS_REPORT_INTERVAL
@@ -90,6 +89,9 @@ static String   dev_name(DEV_NAME);
 static String   cli_buff;
 
 QueueHandle_t   rx_queue;
+unsigned        queue_full_cnt;
+unsigned        queue_full_last;
+bool            unknown_data_src;
 
 #ifdef TELL_UPTIME
 static uint32_t last_uptime;
@@ -139,44 +141,30 @@ public:
     , m_addr(addr)
     , m_writable(false)
     , m_connected(false)
+    , m_was_connected(false)
     , m_disconn_ts(0)
     , m_Client(nullptr)
     , m_remoteCharacteristic(nullptr)
     , m_rx_queue(0)
+    , m_queue_full_cnt(0)
+    , m_queue_full_last(0)
   {
   }
 
   void onConnect(BLEClient *pclient) {
-#ifndef NO_DEBUG
-    uart_begin();
-    DataSerial.print("-peripheral [");
-    DataSerial.print(m_idx);
-    DataSerial.print("] ");
-    DataSerial.print(m_addr);
-    DataSerial.print(" connected");
-    uart_end();
-#endif
+    // post connected event to receive queue
+    struct data_chunk ch = {.data = nullptr, .len = 0};
+    if (!xQueueSend(m_rx_queue, &ch, 0))
+      ++m_queue_full_cnt;
     m_connected = true;
-    notify_connected();
-    connected_peers++;
   }
 
   void onDisconnect(BLEClient *pclient) {
-#ifndef NO_DEBUG
-    uart_begin();
-    DataSerial.print("-peripheral [");
-    DataSerial.print(m_idx);
-    DataSerial.print("] ");
-    DataSerial.print(m_addr);
-    DataSerial.print(" disconnected");
-    uart_end();
-#endif
-    m_connected = false;
-    m_disconn_ts = millis();
-    --connected_peers;
 #ifdef RESET_ON_DISCONNECT
     fatal("Peer disconnected");
 #endif
+    m_disconn_ts = millis();
+    m_connected = false;
   }
 
   void report_connecting() {
@@ -196,14 +184,15 @@ public:
 
   void connect();
 
-  void transmit(const char* data, size_t len) {
+  void transmit(const char* data, size_t len)
+  {
     if (!m_writable) {
       fatal("Peer is not writable");
       return;
     }
     uint8_t* tx_data = (uint8_t*)data;
 #ifdef BINARY_DATA_SUPPORT
-    uint8_t  tx_buff[MAX_CHUNK];
+    uint8_t tx_buff[MAX_CHUNK];
     if (len && data[0] == ENCODED_DATA_START_TAG) {
       if (len > 1 + MAX_ENCODED_DATA_LEN) {
         fatal("Encoded data size exceeds limit");
@@ -241,11 +230,7 @@ public:
     memcpy(ch.data, pData, length);
     if (!xQueueSend(m_rx_queue, &ch, 0)) {
       free(ch.data);
-#ifndef NO_DEBUG
-      uart_begin();
-      DataSerial.print("-echo queue full");
-      uart_end();
-#endif
+      ++m_queue_full_cnt;
     }
     return true;
   }
@@ -271,7 +256,6 @@ public:
     }
     length -= CHKSUM_SIZE;
 #endif
-
     uart_begin();
     DataSerial.print(m_idx);
     uart_print_data(pData, length);
@@ -282,8 +266,49 @@ public:
   {
     struct data_chunk ch;
     while (m_rx_queue && xQueueReceive(m_rx_queue, &ch, 0)) {
-      receive(ch.data, ch.len);
-      free(ch.data);
+      if (ch.data) {
+        receive(ch.data, ch.len);
+        free(ch.data);
+      } else
+        notify_connected();
+    }
+    if (m_connected != m_was_connected) {
+      m_was_connected = m_connected;
+      if (m_connected) {
+        connected_peers++;
+#ifndef NO_DEBUG
+        uart_begin();
+        DataSerial.print("-peripheral [");
+        DataSerial.print(m_idx);
+        DataSerial.print("] ");
+        DataSerial.print(m_addr);
+        DataSerial.print(" connected");
+        uart_end();
+#endif
+      } else {
+        --connected_peers;
+#ifndef NO_DEBUG
+        uart_begin();
+        DataSerial.print("-peripheral [");
+        DataSerial.print(m_idx);
+        DataSerial.print("] ");
+        DataSerial.print(m_addr);
+        DataSerial.print(" disconnected");
+        uart_end();
+#endif
+      }
+    }
+    if (m_queue_full_cnt != m_queue_full_last) {
+#ifndef NO_DEBUG
+      uart_begin();
+      DataSerial.print("-rx queue [");
+      DataSerial.print(m_idx);
+      DataSerial.print("] full ");
+      DataSerial.print(m_queue_full_cnt - m_queue_full_last);
+      DataSerial.print(" times");
+      uart_end();
+#endif
+      m_queue_full_last = m_queue_full_cnt;
     }
     if (!m_connected && elapsed(m_disconn_ts, millis()) > 500) {
       connect();
@@ -296,34 +321,27 @@ public:
   String      m_addr;
   bool        m_writable;
   bool        m_connected;
+  bool        m_was_connected;
   uint32_t    m_disconn_ts;
 
   BLEClient*  m_Client;
   BLERemoteCharacteristic* m_remoteCharacteristic;
 
   QueueHandle_t m_rx_queue;
+  unsigned      m_queue_full_cnt;
+  unsigned      m_queue_full_last;
 };
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
-#ifndef NO_DEBUG
-      uart_begin();
-      DataSerial.print("-central connected, ");
-      DataSerial.print(esp_get_free_heap_size());
-      DataSerial.print(" heap bytes avail");
-      uart_end();
-#endif
+      struct data_chunk ch = {.data = nullptr, .len = 0};
+      if (!xQueueSend(rx_queue, &ch, 0))
+        ++queue_full_cnt;
       ++connected_centrals;
     };
 
     void onDisconnect(BLEServer* pServer) {
-#ifndef NO_DEBUG
-      uart_begin();
-      DataSerial.print("-central disconnected");
-      uart_end();
-#endif
       centr_disconn_ts = millis();
-      centr_disconnected = true;
       start_advertising = true;
       --connected_centrals;
     }
@@ -340,11 +358,7 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
     memcpy(ch.data, pData, length);
     if (!xQueueSend(rx_queue, &ch, 0)) {
       free(ch.data);
-#ifndef NO_DEBUG
-      uart_begin();
-      DataSerial.print("-echo queue full");
-      uart_end();
-#endif
+      ++queue_full_cnt;
     }
   }
 };
@@ -531,18 +545,12 @@ static void peerNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic
     if (peers[i] && peers[i]->notify_data(pBLERemoteCharacteristic, pData, length))
       return;
 
-#ifndef NO_DEBUG
-  uart_begin();
-  DataSerial.print("-data from unknown source");
-  uart_end();
-#endif
+  unknown_data_src = true;
 }
 
 void Peer::connect()
 {
   report_connecting();
-
-  uint32_t const start = millis();
 
 #ifndef NO_DEBUG
   uart_begin();
@@ -550,11 +558,18 @@ void Peer::connect()
   DataSerial.print(m_addr);
   uart_end();
 #endif
+
   if (!m_Client) {
     m_Client = BLEDevice::createClient();
     m_Client->setClientCallbacks(this);
   }
+  if (!m_rx_queue) {
+    m_rx_queue = xQueueCreate(RX_QUEUE, sizeof(struct data_chunk));
+    if (!m_rx_queue)
+      fatal("No memory");
+  }
 
+  uint32_t const start = millis();
   m_Client->connect(m_addr);
   m_Client->setMTU(MAX_SIZE+3);  // Request increased MTU from server (default is 23 otherwise)
 
@@ -577,13 +592,7 @@ void Peer::connect()
   } else {
     fatal("Notification not supported by the server");
   }
-
   m_writable = m_remoteCharacteristic->canWrite();
-  if (!m_rx_queue) {
-    m_rx_queue = xQueueCreate(RX_QUEUE, sizeof(struct data_chunk));
-    if (!m_rx_queue)
-      fatal("No memory");
-  }
 
 #ifndef NO_DEBUG
   uart_begin();
@@ -603,11 +612,11 @@ void Peer::connect()
 }
 
 #ifndef HIDDEN
-static void transmit(const char* data, size_t len)
+static void transmit_to_central(const char* data, size_t len)
 {
   uint8_t* tx_data = (uint8_t*)data;
 #ifdef BINARY_DATA_SUPPORT
-  uint8_t  tx_buff[MAX_CHUNK];
+  uint8_t tx_buff[MAX_CHUNK];
   if (len && data[0] == ENCODED_DATA_START_TAG) {
     if (len > 1 + MAX_ENCODED_DATA_LEN) {
       fatal("Encoded data size exceeds limit");
@@ -653,7 +662,7 @@ void uart_print_data(uint8_t const* data, size_t len)
   DataSerial.write(out_data, len);
 }
 
-static void process_write(unsigned idx, const char* str, size_t len)
+static void transmit_to_peer(unsigned idx, const char* str, size_t len)
 {
   if (idx >= MAX_PEERS || !peers[idx]) {
     fatal("Bad peripheral index");
@@ -708,11 +717,11 @@ static void process_msg(const char* str, size_t len)
       break;
 #ifndef HIDDEN
     case '>':
-      transmit(str + 1, len - 1);
+      transmit_to_central(str + 1, len - 1);
       break;
 #endif
     default:
-      process_write(str[0] - '0', str + 1, len - 1);
+      transmit_to_peer(str[0] - '0', str + 1, len - 1);
   }
 }
 
@@ -781,16 +790,8 @@ static void monitor_peers()
 #endif
 }
 
-void receive(uint8_t* pData, size_t length)
+void receive_from_central(uint8_t* pData, size_t length)
 {
-  if (centr_disconnected) {
-    centr_disconnected = false;
-    // Output stream start tag
-    uart_begin();
-    DataSerial.print('<');
-    uart_end();
-  }
-
 #ifdef USE_CHKSUM
   if (!chksum_validate(pData, length)) {
 #ifndef NO_DEBUG
@@ -833,14 +834,41 @@ void loop()
   if (uptime != last_uptime) {
     last_uptime = uptime;
     String msg(uptime);
-    transmit(msg.c_str(), msg.length());
+    transmit_to_central(msg.c_str(), msg.length());
   }
 #endif
 
   struct data_chunk ch;
   while (xQueueReceive(rx_queue, &ch, 0)) {
-    receive(ch.data, ch.len);
-    free(ch.data);
+    if (ch.data) {
+      receive_from_central(ch.data, ch.len);
+      free(ch.data);
+    } else {
+      // Output stream start tag
+      uart_begin();
+      DataSerial.print('<');
+      uart_end();
+    }
+  }
+
+  if (queue_full_cnt != queue_full_last) {
+#ifndef NO_DEBUG
+    uart_begin();
+    DataSerial.print("-rx queue full ");
+    DataSerial.print(queue_full_cnt - queue_full_last);
+    DataSerial.print(" times");
+    uart_end();
+#endif
+    queue_full_last = queue_full_cnt;
+  }
+
+  if (unknown_data_src) {
+    unknown_data_src = false;
+#ifndef NO_DEBUG
+    uart_begin();
+    DataSerial.print("-got data from unknown source");
+    uart_end();
+#endif
   }
 
   monitor_peers();
