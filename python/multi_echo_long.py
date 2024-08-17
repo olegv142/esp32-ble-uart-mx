@@ -10,6 +10,8 @@ Author: Oleg Volkov
 
 import sys
 import random
+from collections import defaultdict
+
 sys.path.append('.')
 from ble_multi_adapter import MutliAdapter
 
@@ -40,6 +42,7 @@ class EchoTest(MutliAdapter):
 		self.dup = 0
 		self.reorder = 0
 		self.corrupt = 0
+		self.dbg_msgs = defaultdict(int)
 
 	def send_msg(self):
 		self.last_tx_sn += 1
@@ -54,7 +57,9 @@ class EchoTest(MutliAdapter):
 			self.send_msg()
 
 	def on_debug_msg(self, msg):
-		print('    ' + msg.decode())
+		str = msg.decode()
+		print('    ' + str)
+		self.dbg_msgs[str] += 1
 
 	def msg_received(self):
 		m = self.msg_buff[1:-1].split(b'#')
@@ -129,4 +134,7 @@ if __name__ == '__main__':
 			print('%u messages, %u errors (%u lost, %u dup, %u reorder, %u corrupt), parse errors %u' % (
 				ad.msg_cnt, ad.errors, ad.lost, ad.dup, ad.reorder, ad.corrupt, ad.parse_errors
 			))
+			print('debug messages:')
+			for msg, cnt in ad.dbg_msgs.items():
+				print('%u: %s' % (cnt, msg))
 
