@@ -106,10 +106,19 @@
 // #define TELL_UPTIME
 #endif
 
-// The maximum size of the message data.
-// Larger amount of data should be split onto chunks before sending
-// them to the adapter.
-#define MAX_CHUNK 512
+// The maximum allowed size of the BLE characteristic
+#define MAX_SIZE 512
+
+// If define adapter will protect every message by checksum
+#define USE_CHKSUM
+
+// The maximum size of the message data
+#ifndef USE_CHKSUM
+#define MAX_CHUNK MAX_SIZE
+#else
+#define CHKSUM_SIZE 4
+#define MAX_CHUNK (MAX_SIZE-CHKSUM_SIZE)
+#endif
 
 // If defined the binary data transmission is supported (WIP, not implemented yet)
 // #define BINARY_DATA_SUPPORT
@@ -151,6 +160,12 @@
 #define _RDONLY ""
 #endif
 
+#ifdef USE_CHKSUM
+#define _CHKSUM "C"
+#else
+#define _CHKSUM ""
+#endif
+
 #ifdef PEER_ECHO
 #define _ECHO "e"
 #else
@@ -163,5 +178,5 @@
 #define _UTIME ""
 #endif
 
-#define VARIANT _DATA _MODE _HIDDEN _RDONLY _ECHO _UTIME
+#define VARIANT _DATA _MODE _HIDDEN _RDONLY _CHKSUM _ECHO _UTIME
 #define VERSION VMAJOR "." VMINOR "-" VARIANT

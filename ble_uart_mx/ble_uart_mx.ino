@@ -63,6 +63,10 @@
 #include "mx_encoding.h"
 #endif
 
+#ifdef USE_CHKSUM
+#include "checksum.h"
+#endif
+
 #ifndef HIDDEN
 static BLECharacteristic* pCharacteristic;
 #endif
@@ -101,7 +105,7 @@ static inline void uart_end()
   DataSerial.print(UART_END);
 }
 
-static void uart_print_data(uint8_t* data, size_t len);
+static void uart_print_data(uint8_t const* data, size_t len);
 
 static inline bool is_idle()
 {
@@ -218,6 +222,12 @@ public:
       fatal("Data size exceeds limit");
       return;
     }
+#ifdef USE_CHKSUM
+    uint8_t chksum_buff[MAX_SIZE];
+    chksum_copy(tx_data, len, chksum_buff);
+    tx_data = chksum_buff;
+    len += CHKSUM_SIZE;
+#endif
     m_remoteCharacteristic->writeValue(tx_data, len);
     taskYIELD();
   }
@@ -226,11 +236,6 @@ public:
   {
     if (pBLERemoteCharacteristic != m_remoteCharacteristic)
       return false;
-
-    uart_begin();
-    DataSerial.print(m_idx);
-    uart_print_data(pData, length);
-    uart_end();
 
 #ifdef PEER_ECHO
     if (m_writable && is_connected()) {
@@ -248,6 +253,25 @@ public:
       }
     }
 #endif
+
+#ifdef USE_CHKSUM
+    if (!chksum_validate(pData, length)) {
+#ifndef NO_DEBUG
+      uart_begin();
+      DataSerial.print("-bad checksum from [");
+      DataSerial.print(m_idx);
+      DataSerial.print("]");
+      uart_end();
+#endif
+      return true;
+    }
+    length -= CHKSUM_SIZE;
+#endif
+
+    uart_begin();
+    DataSerial.print(m_idx);
+    uart_print_data(pData, length);
+    uart_end();
     return true;
   }
 
@@ -310,7 +334,11 @@ class MyServerCallbacks: public BLEServerCallbacks {
 };
 
 class MyCharCallbacks : public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) {
+  void onWrite(BLECharacteristic *pCharacteristic)
+  {
+    uint8_t const * const pData = pCharacteristic->getData();
+    size_t length = pCharacteristic->getLength();
+
     if (centr_disconnected) {
       centr_disconnected = false;
       // Output stream start tag
@@ -318,9 +346,21 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
       DataSerial.print('<');
       uart_end();
     }
+
+#ifdef USE_CHKSUM
+    if (!chksum_validate(pData, length)) {
+#ifndef NO_DEBUG
+      uart_begin();
+      DataSerial.print("-bad checksum from central");
+      uart_end();
+#endif
+      return;
+    }
+    length -= CHKSUM_SIZE;
+#endif
     uart_begin();
     DataSerial.print('<');
-    uart_print_data(pCharacteristic->getData(), pCharacteristic->getLength());
+    uart_print_data(pData, length);
     uart_end();
   }
 };
@@ -596,19 +636,25 @@ static void transmit(const char* data, size_t len)
     fatal("Data size exceeds limit");
     return;
   }
+#ifdef USE_CHKSUM
+  uint8_t chksum_buff[MAX_SIZE];
+  chksum_copy(tx_data, len, chksum_buff);
+  tx_data = chksum_buff;
+  len += CHKSUM_SIZE;
+#endif
   pCharacteristic->setValue(tx_data, len);
   pCharacteristic->notify();
   taskYIELD();
 }
 #endif
 
-void uart_print_data(uint8_t* data, size_t len)
+void uart_print_data(uint8_t const* data, size_t len)
 {
   if (len > MAX_CHUNK) {
     fatal("Received data size exceeds limit");
     return;
   }
-  uint8_t* out_data = data;
+  uint8_t const * out_data = data;
 #ifdef BINARY_DATA_SUPPORT
   uint8_t enc_buff[1+MAX_ENCODED_DATA_LEN] = {ENCODED_DATA_START_TAG};
   if (is_data_binary(data, len)) {
