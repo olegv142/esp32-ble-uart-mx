@@ -31,7 +31,6 @@ class TestMutliAdapter(MutliAdapter):
 
 	def on_central_msg(self, msg):
 		print('[.] ' + msg.decode())
-		self.send_data(msg) # send it back
 
 	def on_peer_msg(self, idx, msg):
 		print(('[%d] ' % idx) + msg.decode())
