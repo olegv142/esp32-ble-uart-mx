@@ -14,11 +14,12 @@ sys.path.append('.')
 from ble_multi_adapter import MutliAdapter
 
 # The max message length is 512 bytes
-# So we have 8 bytes for sequence number plus 4 separator bytes (##)
-max_data_len = 500
+# So we have 10 bytes for sequence number plus 4 separator bytes (##)
+# or 6 bytes SN if checksum is enabled
+max_data_len = 498
 
 def random_bytes():
-	n = random.randrange(1, max_data_len//2)
+	n = random.randrange(1, max_data_len//2+1)
 	return bytes((random.randrange(ord('0'), ord('z') + 1) for _ in range(n)))
 
 class EchoTest(MutliAdapter):
@@ -31,6 +32,7 @@ class EchoTest(MutliAdapter):
 		self.last_rx_sn = None
 		self.msg_buff = None
 		self.msg_cnt = 0
+		self.conn_cnt = 0
 		self.errors = 0
 		self.lost = 0
 		self.dup = 0
@@ -83,8 +85,12 @@ class EchoTest(MutliAdapter):
 	def chunk_received(self, msg):
 		if not msg:
 			# stream start tag
-			self.started = False
+			self.started = True
 			self.last_rx_sn = None
+			self.msg_buff = None
+			self.conn_cnt += 1
+			return
+		if not self.started:
 			return
 		if msg[:1] == b'(':
 			if self.msg_buff:
@@ -92,10 +98,9 @@ class EchoTest(MutliAdapter):
 				self.errors += 1
 				self.corrupt += 1
 			self.msg_buff = msg
-			self.started = True
 		elif self.msg_buff:
 			self.msg_buff += msg
-		elif self.started:
+		else:
 			print(' bad chunk', end='')
 			self.errors += 1
 			self.corrupt += 1
@@ -115,6 +120,7 @@ if __name__ == '__main__':
 			while True:
 				ad.poll()
 		except KeyboardInterrupt:
+			print('connected %u time(s)' % ad.conn_cnt)
 			print('%u messages, %u errors (%u lost, %u dup, %u reorder, %u corrupt), parse errors %u' % (
 				ad.msg_cnt, ad.errors, ad.lost, ad.dup, ad.reorder, ad.corrupt, ad.parse_errors
 			))
