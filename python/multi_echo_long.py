@@ -13,14 +13,16 @@ import random
 sys.path.append('.')
 from ble_multi_adapter import MutliAdapter
 
-# The max message length is 512 bytes
-# So we have 10 bytes for sequence number plus 4 separator bytes (##)
-# or 6 bytes SN if checksum is enabled
-max_data_len = 498
+use_chksum = True
 
-def random_bytes():
-	n = random.randrange(1, max_data_len//2+1)
-	return bytes((random.randrange(ord('0'), ord('z') + 1) for _ in range(n)))
+max_size = 512
+max_chunk = max_size - 4 if use_chksum else max_size
+
+random_size = True
+
+def random_bytes(len):
+	n = random.randrange(1, len+1)
+	return bytes((random.randrange(ord('0'), ord('z')+1) for _ in range(len)))
 
 class EchoTest(MutliAdapter):
 	burst_len = 16
@@ -40,9 +42,12 @@ class EchoTest(MutliAdapter):
 		self.corrupt = 0
 
 	def send_msg(self):
-		b = random_bytes()
 		self.last_tx_sn += 1
-		self.send_data((b'(%u' % self.last_tx_sn) + b'#' + b + b'#' + b + b')')
+		sn = b'%u' % self.last_tx_sn
+		max_data_size = (max_chunk - len(sn) - 4) // 2 # takes into account separators (sn#data#data)
+		data = random_bytes(max_data_size if not random_size else random.randrange(1, max_data_size+1))
+		msg = b'(' + sn + b'#' + data + b'#' + data + b')'
+		self.send_data(msg)
 
 	def on_idle(self, version):
 		for _ in range(EchoTest.burst_len):
