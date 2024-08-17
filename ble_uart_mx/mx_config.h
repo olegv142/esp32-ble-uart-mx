@@ -126,9 +126,8 @@
 // If defined echo all data received from peripheral back to it (for testing)
 // #define PEER_ECHO
 
-#ifdef PEER_ECHO
-#define PEER_ECHO_QUEUE 16
-#endif
+// Receive queue length
+#define RX_QUEUE 64
 
 //
 // Build version string

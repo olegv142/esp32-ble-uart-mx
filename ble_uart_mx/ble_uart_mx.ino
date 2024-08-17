@@ -33,7 +33,7 @@
   '>' for message to be sent to connected central
   '0', '1' .. '7'  for data to be sent to peripheral 0, 1, .. 7
 
- The maximum size of data in single message is MAX_CHUNK = 512.
+ The maximum size of data in single message is MAX_CHUNK.
  Larger amount of data should be split onto chunks before sending them to the adapter.
 
  Tested on ESP32 C3 with SDK v.3.0
@@ -87,7 +87,9 @@ static uint32_t last_status_ts;
 #endif
 
 static String   dev_name(DEV_NAME);
-static String   rx_buff;
+static String   cli_buff;
+
+QueueHandle_t   rx_queue;
 
 #ifdef TELL_UPTIME
 static uint32_t last_uptime;
@@ -124,12 +126,10 @@ static inline uint32_t elapsed(uint32_t from, uint32_t to)
 
 static void fatal(const char* what);
 
-#ifdef PEER_ECHO
 struct data_chunk {
   uint8_t* data;
   size_t len;
 };
-#endif
 
 class Peer : public BLEClientCallbacks
 {
@@ -142,9 +142,7 @@ public:
     , m_disconn_ts(0)
     , m_Client(nullptr)
     , m_remoteCharacteristic(nullptr)
-#ifdef PEER_ECHO
-    , m_echo_queue(0)
-#endif
+    , m_rx_queue(0)
   {
   }
 
@@ -237,23 +235,29 @@ public:
     if (pBLERemoteCharacteristic != m_remoteCharacteristic)
       return false;
 
+    struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
+    if (!ch.data)
+      fatal("No memory");
+    memcpy(ch.data, pData, length);
+    if (!xQueueSend(m_rx_queue, &ch, 0)) {
+      free(ch.data);
+#ifndef NO_DEBUG
+      uart_begin();
+      DataSerial.print("-echo queue full");
+      uart_end();
+#endif
+    }
+    return true;
+  }
+
+  void receive(uint8_t* pData, size_t length)
+  {
 #ifdef PEER_ECHO
     if (m_writable && is_connected()) {
-      struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
-      if (!ch.data)
-        fatal("No memory");
-      memcpy(ch.data, pData, length);
-      if (!xQueueSend(m_echo_queue, &ch, 0)) {
-        free(ch.data);
-#ifndef NO_DEBUG
-        uart_begin();
-        DataSerial.print("-echo queue full");
-        uart_end();
-#endif
-      }
+      m_remoteCharacteristic->writeValue(pData, length);
+      taskYIELD();
     }
 #endif
-
 #ifdef USE_CHKSUM
     if (!chksum_validate(pData, length)) {
 #ifndef NO_DEBUG
@@ -263,7 +267,7 @@ public:
       DataSerial.print("]");
       uart_end();
 #endif
-      return true;
+      return;
     }
     length -= CHKSUM_SIZE;
 #endif
@@ -272,21 +276,15 @@ public:
     DataSerial.print(m_idx);
     uart_print_data(pData, length);
     uart_end();
-    return true;
   }
 
   bool monitor()
   {
-#ifdef PEER_ECHO
     struct data_chunk ch;
-    while (m_echo_queue && xQueueReceive(m_echo_queue, &ch, 0)) {
-      if (m_writable && is_connected()) {
-        m_remoteCharacteristic->writeValue(ch.data, ch.len);
-        taskYIELD();
-      }
+    while (m_rx_queue && xQueueReceive(m_rx_queue, &ch, 0)) {
+      receive(ch.data, ch.len);
       free(ch.data);
     }
-#endif
     if (!m_connected && elapsed(m_disconn_ts, millis()) > 500) {
       connect();
       return true;
@@ -303,9 +301,7 @@ public:
   BLEClient*  m_Client;
   BLERemoteCharacteristic* m_remoteCharacteristic;
 
-#ifdef PEER_ECHO
-  QueueHandle_t m_echo_queue;
-#endif
+  QueueHandle_t m_rx_queue;
 };
 
 class MyServerCallbacks: public BLEServerCallbacks {
@@ -336,32 +332,20 @@ class MyServerCallbacks: public BLEServerCallbacks {
 class MyCharCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic)
   {
+    size_t const length = pCharacteristic->getLength();
     uint8_t const * const pData = pCharacteristic->getData();
-    size_t length = pCharacteristic->getLength();
-
-    if (centr_disconnected) {
-      centr_disconnected = false;
-      // Output stream start tag
-      uart_begin();
-      DataSerial.print('<');
-      uart_end();
-    }
-
-#ifdef USE_CHKSUM
-    if (!chksum_validate(pData, length)) {
+    struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
+    if (!ch.data)
+      fatal("No memory");
+    memcpy(ch.data, pData, length);
+    if (!xQueueSend(rx_queue, &ch, 0)) {
+      free(ch.data);
 #ifndef NO_DEBUG
       uart_begin();
-      DataSerial.print("-bad checksum from central");
+      DataSerial.print("-echo queue full");
       uart_end();
 #endif
-      return;
     }
-    length -= CHKSUM_SIZE;
-#endif
-    uart_begin();
-    DataSerial.print('<');
-    uart_print_data(pData, length);
-    uart_end();
   }
 };
 
@@ -445,8 +429,11 @@ static void bt_device_init()
   // Create the BLE Device
   init_dev_name();
   BLEDevice::init(dev_name);
-  BLEDevice::setMTU(MAX_CHUNK+3);
+  BLEDevice::setMTU(MAX_SIZE+3);
   setup_tx_power();
+  rx_queue = xQueueCreate(RX_QUEUE, sizeof(struct data_chunk));
+  if (!rx_queue)
+    fatal("No memory");
 }
 
 static void bt_device_start()
@@ -569,7 +556,7 @@ void Peer::connect()
   }
 
   m_Client->connect(m_addr);
-  m_Client->setMTU(MAX_CHUNK+3);  // Request increased MTU from server (default is 23 otherwise)
+  m_Client->setMTU(MAX_SIZE+3);  // Request increased MTU from server (default is 23 otherwise)
 
   // Obtain a reference to the service we are after in the remote BLE server.
   BLERemoteService *pRemoteService = m_Client->getService(SERVICE_UUID);
@@ -592,10 +579,11 @@ void Peer::connect()
   }
 
   m_writable = m_remoteCharacteristic->canWrite();
-#ifdef PEER_ECHO
-  if (m_writable && !m_echo_queue)
-    m_echo_queue = xQueueCreate(PEER_ECHO_QUEUE, sizeof(struct data_chunk));
-#endif
+  if (!m_rx_queue) {
+    m_rx_queue = xQueueCreate(RX_QUEUE, sizeof(struct data_chunk));
+    if (!m_rx_queue)
+      fatal("No memory");
+  }
 
 #ifndef NO_DEBUG
   uart_begin();
@@ -728,9 +716,9 @@ static void process_msg(const char* str, size_t len)
   }
 }
 
-static void rx_process()
+static void cli_process()
 {
-  const char* str = rx_buff.c_str();
+  const char* str = cli_buff.c_str();
   const char* next = str;
   for (;;) {
 #ifdef UART_BEGIN
@@ -748,7 +736,7 @@ static void rx_process()
     next = tail + 1;
     process_msg(begin, tail - begin);
   }
-  rx_buff = rx_buff.substring(next - str);
+  cli_buff = cli_buff.substring(next - str);
 }
 
 #ifdef STATUS_REPORT_INTERVAL
@@ -793,13 +781,41 @@ static void monitor_peers()
 #endif
 }
 
+void receive(uint8_t* pData, size_t length)
+{
+  if (centr_disconnected) {
+    centr_disconnected = false;
+    // Output stream start tag
+    uart_begin();
+    DataSerial.print('<');
+    uart_end();
+  }
+
+#ifdef USE_CHKSUM
+  if (!chksum_validate(pData, length)) {
+#ifndef NO_DEBUG
+    uart_begin();
+    DataSerial.print("-bad checksum from central");
+    uart_end();
+#endif
+    return;
+  }
+  length -= CHKSUM_SIZE;
+#endif
+  uart_begin();
+  DataSerial.print('<');
+  uart_print_data(pData, length);
+  uart_end();
+}
+
 void loop()
 {
   String const received = DataSerial.readString();
   if (received.length()) {
-    rx_buff += received;
-    rx_process();
+    cli_buff += received;
+    cli_process();
   }
+
 #ifndef HIDDEN
   if (start_advertising && elapsed(centr_disconn_ts, millis()) > 500) {
 #ifndef NO_DEBUG
@@ -811,6 +827,7 @@ void loop()
     start_advertising = false;
   }
 #endif
+
 #ifdef TELL_UPTIME
   uint32_t const uptime = millis() / 1000;
   if (uptime != last_uptime) {
@@ -819,6 +836,12 @@ void loop()
     transmit(msg.c_str(), msg.length());
   }
 #endif
+
+  struct data_chunk ch;
+  while (xQueueReceive(rx_queue, &ch, 0)) {
+    receive(ch.data, ch.len);
+    free(ch.data);
+  }
 
   monitor_peers();
   esp_task_wdt_reset();
