@@ -17,7 +17,7 @@ from ble_multi_adapter import MutliAdapter
 
 use_chksum = True
 
-max_size = 512
+max_size = 244
 max_chunk = max_size - 4 if use_chksum else max_size
 
 random_size = True
