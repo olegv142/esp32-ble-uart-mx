@@ -34,7 +34,6 @@ class EchoTest(MutliAdapter):
 		self.started = False
 		self.last_tx_sn = 0
 		self.last_rx_sn = None
-		self.msg_buff = None
 		self.msg_cnt = 0
 		self.conn_cnt = 0
 		self.errors = 0
@@ -61,12 +60,11 @@ class EchoTest(MutliAdapter):
 		print('    ' + str)
 		self.dbg_msgs[str] += 1
 
-	def msg_received(self):
-		m = self.msg_buff[1:-1].split(b'#')
-		self.msg_buff = None
+	def msg_received(self, msg):
+		m = msg[1:-1].split(b'#')
 		self.msg_cnt += 1
 		if len(m) != 3:
-			print(' bad message', end='')
+			print(' bad msg (delimiters)', end='')
 			self.errors += 1
 			self.corrupt += 1
 			return
@@ -78,7 +76,7 @@ class EchoTest(MutliAdapter):
 			self.corrupt += 1
 			return
 		if m[1] != m[2]:
-			print(' corrupt message', end='')
+			print(' corrupt msg data', end='')
 			self.errors += 1
 			self.corrupt += 1
 		if self.last_rx_sn is not None and sn != self.last_rx_sn + 1:
@@ -97,26 +95,16 @@ class EchoTest(MutliAdapter):
 			# stream start tag
 			self.started = True
 			self.last_rx_sn = None
-			self.msg_buff = None
 			self.conn_cnt += 1
 			return
 		if not self.started:
 			return
-		if msg[:1] == b'(':
-			if self.msg_buff:
-				print(' incomplete message', end='')
-				self.errors += 1
-				self.corrupt += 1
-			self.msg_buff = msg
-		elif self.msg_buff:
-			self.msg_buff += msg
+		if msg[:1] == b'(' and msg[-1:] == b')':
+			self.msg_received(msg)
 		else:
-			print(' bad chunk', end='')
+			print(' bad msg (brackets)', end='')
 			self.errors += 1
 			self.corrupt += 1
-			return
-		if msg[-1:] == b')':
-			self.msg_received()
 
 	def on_central_msg(self, msg):
 		print('[.] %r' % msg, end='')
