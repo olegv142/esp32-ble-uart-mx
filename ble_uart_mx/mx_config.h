@@ -107,7 +107,7 @@
 #endif
 
 // The maximum allowed size of the BLE characteristic
-#define MAX_SIZE 512
+#define MAX_SIZE 244
 
 // If define adapter will protect every message by checksum
 #define USE_CHKSUM
