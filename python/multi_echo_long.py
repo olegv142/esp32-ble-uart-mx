@@ -64,23 +64,23 @@ class EchoTest(MutliAdapter):
 		m = msg[1:-1].split(b'#')
 		self.msg_cnt += 1
 		if len(m) != 3:
-			print(' bad msg (delimiters)', end='')
+			print(' corrupt delimiters', end='')
 			self.errors += 1
 			self.corrupt += 1
 			return
 		try:
 			sn = int(m[0])
 		except ValueError:
-			print(' bad sn', end='')
+			print(' corrupt sn', end='')
 			self.errors += 1
 			self.corrupt += 1
 			return
 		if m[1] != m[2]:
-			print(' corrupt msg data', end='')
+			print(' corrupt data', end='')
 			self.errors += 1
 			self.corrupt += 1
 		if self.last_rx_sn is not None and sn != self.last_rx_sn + 1:
-			print(' sn: %u %u' % (self.last_rx_sn, sn), end='')
+			print(' bad sn: %u %u' % (self.last_rx_sn, sn), end='')
 			self.errors += 1
 			if sn > self.last_rx_sn + 1:
 				self.lost += 1
@@ -88,6 +88,7 @@ class EchoTest(MutliAdapter):
 				self.dup += 1
 			else:
 				self.reorder += 1
+				return
 		self.last_rx_sn = sn
 
 	def chunk_received(self, msg):
@@ -102,7 +103,7 @@ class EchoTest(MutliAdapter):
 		if msg[:1] == b'(' and msg[-1:] == b')':
 			self.msg_received(msg)
 		else:
-			print(' bad msg (brackets)', end='')
+			print(' corrupt brackets', end='')
 			self.errors += 1
 			self.corrupt += 1
 
