@@ -248,10 +248,8 @@ static uint8_t        tx_buff[MAX_FRAME];
 #ifndef EXT_FRAMES
 static void uart_print_data(uint8_t const* data, size_t len, char tag)
 {
-  if (len > MAX_CHUNK) {
+  if (len > MAX_CHUNK)
     fatal("Data size exceeds limit");
-    return;
-  }
   char const * out_data = (char const*)data;
 #ifdef BINARY_DATA_SUPPORT
   char enc_buff[1+MAX_ENCODED_CHUNK_LEN] = {ENCODED_DATA_START_TAG};
@@ -326,29 +324,23 @@ public:
 
   void transmit(const char* data, size_t len)
   {
-    if (!m_writable) {
+    if (!m_writable)
       fatal("Peer is not writable");
-      return;
-    }
     uint8_t* tx_data = (uint8_t*)data;
   #ifdef BINARY_DATA_SUPPORT
     uint8_t binary = 0;
     if (len && (binary = (data[0] == ENCODED_DATA_START_TAG))) {
-      if (len > 1 + MAX_ENCODED_FRAME_LEN) {
+      if (len > 1 + MAX_ENCODED_FRAME_LEN)
         fatal("Encoded data size exceeds limit");
-        return;
-      }
+      if ((len % 4) != 1)
+        fatal("Invalid encoded data size");
       len = decode(data + 1, len - 1, tx_data = tx_buff);
     }
   #endif
-    if (!len) {
+    if (!len)
       fatal("No data to transmit");
-      return;
-    }
-    if (len > MAX_FRAME) {
+    if (len > MAX_FRAME)
       fatal("Data size exceeds limit");
-      return;
-    }
   #ifdef EXT_FRAMES
     uint8_t first = 1, last;
     uint32_t chksum = CHKSUM_INI;
@@ -544,14 +536,10 @@ static inline void watchdog_init()
 #ifndef PASSIVE_ONLY
 static void add_peer(unsigned idx, String const& addr)
 {
-  if (idx >= MAX_PEERS) {
+  if (idx >= MAX_PEERS)
     fatal("Bad peripheral index");
-    return;
-  }
-  if (peers[idx]) {
+  if (peers[idx])
     fatal("Peer already exist");
-    return;
-  }
   peers[idx] = new Peer(idx, addr);
   ++npeers;
 }
@@ -725,22 +713,17 @@ void Peer::connect()
   // Obtain a reference to the service we are after in the remote BLE server.
   BLERemoteService *pRemoteService = m_Client->getService(SERVICE_UUID);
   // Reset itself on error to avoid dealing with de-initialization
-  if (!pRemoteService) {
+  if (!pRemoteService)
     fatal("Failed to find our service UUID");
-    return;
-  }
   // Obtain a reference to the characteristic in the service of the remote BLE server.
   m_remoteCharacteristic = pRemoteService->getCharacteristic(CHARACTERISTIC_UUID_TX);
-  if (!m_remoteCharacteristic) {
+  if (!m_remoteCharacteristic)
     fatal("Failed to find our characteristic UUID");
-    return;
-  }
   // Subscribe to updates
-  if (m_remoteCharacteristic->canNotify()) {
+  if (m_remoteCharacteristic->canNotify())
     m_remoteCharacteristic->registerForNotify(peerNotifyCallback);
-  } else {
+  else
     fatal("Notification not supported by the server");
-  }
   m_writable = m_remoteCharacteristic->canWrite();
 
 #ifndef NO_DEBUG
@@ -767,17 +750,15 @@ static void transmit_to_central(const char* data, size_t len)
 #ifdef BINARY_DATA_SUPPORT
   uint8_t binary = 0;
   if (len && (binary = (data[0] == ENCODED_DATA_START_TAG))) {
-    if (len > 1 + MAX_ENCODED_FRAME_LEN) {
+    if (len > 1 + MAX_ENCODED_FRAME_LEN)
       fatal("Encoded data size exceeds limit");
-      return;
-    }
+    if ((len % 4) != 1)
+      fatal("Invalid encoded data size");
     len = decode(data + 1, len - 1, tx_data = tx_buff);
   }
 #endif
-  if (!len) {
+  if (!len)
     fatal("No data to transmit");
-    return;
-  }
   if (len > MAX_FRAME) {
     fatal("Data size exceeds limit");
     return;
@@ -856,10 +837,8 @@ static void process_cmd(const char* cmd)
 
 static void process_msg(const char* str, size_t len)
 {
-  if (!len) {
+  if (!len)
     fatal("Invalid message");
-    return;
-  }
   switch (str[0]) {
     case '#':
       process_cmd(str + 1);
