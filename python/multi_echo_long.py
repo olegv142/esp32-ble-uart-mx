@@ -15,19 +15,14 @@ from collections import defaultdict
 sys.path.append('.')
 from ble_multi_adapter import MutliAdapter
 
-use_chksum = True
-
-max_size = 244
-max_chunk = max_size - 4 if use_chksum else max_size
-
 random_size = True
+max_burst = 5000
 
 def random_bytes(len):
 	n = random.randrange(1, len+1)
 	return bytes((random.randrange(ord('0'), ord('z')+1) for _ in range(len)))
 
 class EchoTest(MutliAdapter):
-	burst_len = 16
 
 	def __init__(self, port):
 		super().__init__(port)
@@ -43,17 +38,23 @@ class EchoTest(MutliAdapter):
 		self.corrupt = 0
 		self.dbg_msgs = defaultdict(int)
 
-	def send_msg(self):
+	def send_msg(self, max_frame):
 		self.last_tx_sn += 1
 		sn = b'%u' % self.last_tx_sn
-		max_data_size = (max_chunk - len(sn) - 4) // 2 # takes into account separators (sn#data#data)
+		max_data_size = (max_frame - len(sn) - 4) // 2 # takes into account separators (sn#data#data)
 		data = random_bytes(max_data_size if not random_size else random.randrange(1, max_data_size+1))
 		msg = b'(' + sn + b'#' + data + b'#' + data + b')'
 		self.send_data(msg)
 
 	def on_idle(self, version):
-		for _ in range(EchoTest.burst_len):
-			self.send_msg()
+		try:
+			v = version.split(b'-')
+			max_frame = int(v[1])
+		except:
+			print('bad version: %s', version)
+			return
+		for _ in range(max_burst // max_frame):
+			self.send_msg(max_frame)
 
 	def on_debug_msg(self, msg):
 		str = msg.decode()
