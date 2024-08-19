@@ -1,13 +1,13 @@
 # esp32-ble (ble_uart_mx)
-This is the multipurpose dual role BLE to serial bridge capable of creating multiple connections to other peripheral devices as well as acting as peripheral accepting connections from other central device. Its operation is controlled by host via the same serial link as used for data transfers. Multiple compile time configuration options are provided to meet requirements in a variety of applications. For example it may be used for gathering telemetry data from some set of devices, providing communication link for commands / responses from controlling application or for creating bidirectional wireless communication channel between the pair of devices. It uses Arduino as building platform to keep code small and make using it as simple as possible. The adapter was tested on ESP32C3 Super Mini modules with Espressif board support package version 3.0.3.
+This is the multipurpose dual role BLE to serial bridge capable of creating multiple connections to other peripheral devices as well as acting as peripheral accepting connections from other central device. Its operation is controlled by the host via the same serial link as used for data transfers. Multiple compile time configuration options are provided to meet requirements in a variety of applications. For example it may be used for gathering telemetry data from some set of devices, providing communication link for commands / responses from controlling application or for creating bidirectional wireless communication channel between the pair of devices. It uses Arduino as building platform to keep code compact and make building and flashing as simple as possible. The adapter was tested on ESP32C3 Super Mini modules with Espressif board support package version 3.0.3.
 
 ## Architecture and communication protocol
 
 ### Device roles
-BLE devices may play two different roles. The peripheral role acts as a server providing access to its internal data to the central role acting as a client accessing that data remotely. Unlike many BLE to serial adapters having only one role the **ble_uart_mx** adapter implements both roles. The peripheral role is typically used to provide wireless access for some computing device such as desktop or mobile phone. There is also a convenient possibility to access peripheral from browser which allows for creating cross platform web applications. The central role on the other hand may be used to access other peripherals. It may be used for wireless communications with one or more devices or just to create a bidirectional communication link with another adapter as a peripheral device. The **ble_uart_mx** adapter is capable of creating of up to 8 connections to peripheral devices while nor more than one central device may create connection to it at the same time. The connection is always initiated by central device. To create connection the 6 byte MAC address of the destination peripheral is required.
+BLE devices may play two different roles. The peripheral role acts as a server providing access to its internal data to the central role acting as a client accessing that data remotely. Unlike many BLE to serial adapters that may be used in only one role at a time the **ble_uart_mx** adapter implements both roles and they can be used simultaneously. The peripheral role is typically used to provide wireless access for some computing device such as desktop or mobile phone. There is also a convenient possibility to access peripheral from browser which allows for creating cross platform web applications. The central role on the other hand may be used to access other peripherals. It may be used for wireless communications with one or more devices or just to create a bidirectional communication link with another adapter as a peripheral device. The **ble_uart_mx** adapter is capable of creating of up to 8 connections to peripheral devices while no more than one central device may create connection to it at the same time. The connection is always initiated by central device. To create connection the 6 byte MAC address of the destination peripheral is required.
 
 ### How it works
-Technically the BLE peripheral device consists of a collection of services (we have only one). Each service is a collection of characteristics (we have only one). There are also descriptors but we omit them for clarity. The characteristic may be considered as data buffer accessible for reading and writing either locally or remotely. The central device does not have such rich internal structure. It is just able to establish connection to peripheral device in order to subscribe to characteristic updates and be able to update it remotely. The peripheral device transmits its data by writing it to characteristic. The central device receives them by notification mechanism. The central device writes its data to the characteristic remotely. The peripheral is notified about remote write and receives data written by central. 
+Technically the BLE peripheral device consists of a collection of services (we have only one). Each service is a collection of characteristics (we have only one). There are also descriptors but we omit them for clarity. The characteristic may be considered as data buffer accessible for reading and writing either locally or remotely. The central device does not have such rich internal structure. It is just able to establish connection to peripheral device in order to subscribe to characteristic updates and to be able to update it remotely. The peripheral device transmits its data by writing it to characteristic. The central device receives them by notification mechanism. The central device writes its data to the characteristic remotely. The peripheral is notified about remote write and receives data written by central. 
 
 <p align="center">
   <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/ble_data_flow.png?raw=true" width="70%" alt="BLE data flow"/>
@@ -20,7 +20,7 @@ The serial communication between controlling host and **ble_uart_mx** adapter ta
 
 The output messages have similar structure. The first symbol after start marker determines the type of the message. Symbols 0..7 indicate the index of the connection to peripheral where data that follows were received. The < symbols indicates that the data that follows were received from the connected central device. The - symbol indicates the start of the debug message. The : symbol marks the status event. There are 3 kinds of status events. The idle event (I) is sent every second in idle state which means that the device was just reset and no connection was made yet. The connecting event (C) notifies user about initiating connection to the particular peripheral. The connected event (D) is sent every second if connections were successfully made to all peripherals listed in connect command.
 
-### Binary data encoding (WIP)
+### Binary data encoding
 Since bytes with value 1 and 0 are used as message start / end markers passing binary data that may contain that bytes will break communication protocol. To allow for passing arbitrary binary data the following data encoding scheme is used. If host needs to pass binary data to device it encodes it into base64 encoding and adds prefix byte with the value 2. It plays the role of encoding marker telling the receiver that data that follows is base64 encoded. The adapter decodes such data and passes them over the air in binary form to avoid size overhead of base64 encoding. The following figure illustrates this schema.
 
 <p align="center">
@@ -28,6 +28,17 @@ Since bytes with value 1 and 0 are used as message start / end markers passing b
 </p>
 
 On receiving data from the connected peer device the adapter checks if data contains bytes with values 0, 1, 2. If not then its safe to transmit them as plain text to serial channel. Otherwise the adapter encodes data to base64 and prepends encoding marker byte before sending data to serial channel. Since checking every received byte takes CPU time the binary data encoding may be disabled by undefining BINARY_DATA_SUPPORT option in configuration file if it is not required by a particular usage scenario.
+
+### Extended data frames
+The next big feature that is enabled by default is extended data frames. It adds the bunch of the following convenient features:
+* checksums to detect data lost or corrupted in transit
+* automatic large data frames fragmentation
+* binary data support as described above
+
+<p align="center">
+  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/ext_frame.png?raw=true" width="70%" alt="BLE data flow"/>
+</p>
+
 
 ## Notes on data integrity
 The very important question is what BLE stack guarantees regarding integrity of characteristic updates. Does connection state mean some set of guarantees which should be obeyed or connection should be closed by BLE stack? The TCP/IP stack for example follows such strict connection paradigm. The data is either delivered to other side of the connection or connection is closed. It turns out that the connection paradigm in BLE is much looser. The connection at least for the two stacks implementation available for ESP32 is just the context making communication possible but without any guarantees except the atomicity and integrity of the particular characteristic update. That means that if the update is delivered to the other side of the connection, it is delivered unchanged. But updates may be easily lost, duplicated and/or reordered. Yet in some cases the connection may be closed by the stack. But there are no guarantees of updates delivery while the connection is open.
@@ -65,6 +76,7 @@ The compilation options are placed onto the separate header **ble_uart_mx/mx_con
 * disable status and/or debug events if user is interested in data events only
 * configure device behavior, for example disable discovery
 * configure auto-connecting on startup
+* configure using extended data frames or binary data encoding
 * setup debug options (TELL_UPTIME, PEER_ECHO)
 
 Since configuration options are placed onto the separate file you may conveniently create you own file or set of files for various device variants.
