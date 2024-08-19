@@ -9,7 +9,7 @@
 #define ENCODED_DATA_START_TAG '\2'
 
 // Get the length of base64 encoded data (with padding)
-#define MAX_BASE64_ENCODED_LEN(raw_len) (raw_len) // FIXME
+#define MAX_BASE64_ENCODED_LEN(raw_len) ((((raw_len)+2)/3)*4)
 
 #define MAX_ENCODED_FRAME_LEN MAX_BASE64_ENCODED_LEN(MAX_FRAME)
 #define MAX_ENCODED_CHUNK_LEN MAX_BASE64_ENCODED_LEN(MAX_CHUNK)

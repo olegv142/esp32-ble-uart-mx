@@ -5,6 +5,8 @@ Author: Oleg Volkov
 """
 
 import sys
+import base64
+import binascii
 from serial import Serial, PARITY_NONE, PARITY_EVEN
 
 use_parity = True
@@ -15,6 +17,7 @@ class MutliAdapter:
 	parity     = PARITY_EVEN if use_parity else PARITY_NONE
 	start_byte = b'\1'
 	end_byte   = b'\0'
+	b64_tag    = b'\2'
 	dsrdtr     = True
 	timeout    = .01
 	drain_timeout = .5
@@ -56,12 +59,16 @@ class MutliAdapter:
 	def connect(self, peers):
 		self.send_cmd(b'C' + b' '.join(peers))
 
-	def send_data(self, data):
+	def send_data(self, data, binary=False):
 		"""Send data to connected central"""
+		if binary:
+			data = MutliAdapter.b64_tag + base64.b64encode(data)
 		self.com.write(MutliAdapter.start_byte + b'>' + data + MutliAdapter.end_byte)
 
-	def send_data_to(self, idx, data):
+	def send_data_to(self, idx, data, binary=False):
 		"""Send data to peer given its index"""
+		if binary:
+			data = MutliAdapter.b64_tag + base64.b64encode(data)
 		self.com.write(MutliAdapter.start_byte + (b'0'[0] + idx).to_bytes(1, byteorder='big') + data + MutliAdapter.end_byte)
 
 	def poll(self):
@@ -95,9 +102,9 @@ class MutliAdapter:
 		elif tag == b'-':
 			self.on_debug_msg(msg[1:])
 		elif tag == b'<':
-			self.on_central_msg(msg[1:])
+			self.on_central_msg_(msg[1:])
 		elif msg:
-			self.on_peer_msg(msg[0] - b'0'[0], msg[1:])
+			self.on_peer_msg_(msg[0] - b'0'[0], msg[1:])
 		else:
 			self.parse_errors += 1
 
@@ -111,6 +118,24 @@ class MutliAdapter:
 			self.on_connected()
 		else:
 			self.parse_errors += 1
+
+	def on_central_msg_(self, msg):
+		if msg[:1] == MutliAdapter.b64_tag:
+			try:
+				msg = base64.b64decode(msg[1:])
+			except binascii.Error:
+				self.parse_errors += 1
+				return
+		self.on_central_msg(msg)
+
+	def on_peer_msg_(self, idx, msg):
+		if msg[:1] == MutliAdapter.b64_tag:
+			try:
+				msg = base64.b64decode(msg[1:])
+			except binascii.Error:
+				self.parse_errors += 1
+				return
+		self.on_peer_msg(idx, msg)
 
 	def on_idle(self, version):
 		pass

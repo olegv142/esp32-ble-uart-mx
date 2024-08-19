@@ -21,9 +21,18 @@ random_size = True
 # Use the following to decide how mane messages should be sent at once
 max_burst = 5000
 
+# Use binary data or text
+binary_data = True
+
+if binary_data:
+	data_delimiter = b'\xff'
+else:
+	data_delimiter = b'#'
+
 def random_bytes(len):
-	n = random.randrange(1, len+1)
-	return bytes((random.randrange(ord('0'), ord('z')+1) for _ in range(len)))
+	return bytes((
+		 random.randrange(0, 255) if binary_data else random.randrange(ord('0'), ord('z')+1) for _ in range(len)
+	))
 
 class EchoTest(MutliAdapter):
 
@@ -48,11 +57,11 @@ class EchoTest(MutliAdapter):
 		sn = b'%u' % self.last_tx_sn
 		max_data_size = (self.max_frame - len(sn) - 4) // 2 # takes into account separators (sn#data#data)
 		data = random_bytes(max_data_size if not random_size else random.randrange(1, max_data_size+1))
-		msg = b'(' + sn + b'#' + data + b'#' + data + b')'
+		msg = b'(' + sn + data_delimiter + data + data_delimiter + data + b')'
 		if self.target is None:
-			self.send_data(msg)
+			self.send_data(msg, binary_data)
 		else:
-			self.send_data_to(0, msg)
+			self.send_data_to(0, msg, binary_data)
 
 	def send_msgs(self):
 		if self.max_frame is None:
@@ -82,7 +91,7 @@ class EchoTest(MutliAdapter):
 		self.dbg_msgs[str] += 1
 
 	def msg_received(self, msg):
-		m = msg[1:-1].split(b'#')
+		m = msg[1:-1].split(data_delimiter)
 		self.msg_cnt += 1
 		if len(m) != 3:
 			print(' corrupt delimiters', end='')
