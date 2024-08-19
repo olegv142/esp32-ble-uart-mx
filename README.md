@@ -35,9 +35,7 @@ The next big feature that is enabled by default is extended data frames. It adds
 * automatic large data frames fragmentation
 * binary data support as described above
 
-<p align="center">
-  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/ext_frame.png?raw=true" width="70%" alt="BLE data flow"/>
-</p>
+![Extended data frame fragment structure](https://github.com/olegv142/esp32-ble/blob/main/doc/ext_frame.png)
 
 
 ## Notes on data integrity
