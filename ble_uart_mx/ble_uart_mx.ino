@@ -544,11 +544,11 @@ static inline void watchdog_init()
 static void add_peer(unsigned idx, String const& addr)
 {
   if (idx >= MAX_PEERS) {
-    debug_msg("-bad peripheral index");
+    fatal("Bad peripheral index");
     return;
   }
   if (peers[idx]) {
-    debug_msg("-peer already exist");
+    fatal("Peer already exist");
     return;
   }
   peers[idx] = new Peer(idx, addr);
@@ -820,6 +820,10 @@ static void cmd_connect(const char* param)
 {
   String params(param);
   const char* ptr = param;
+  if (npeers) {
+    debug_msg("-already connected");
+    return;
+  }
   while (*ptr)
   {
     while (isspace(*ptr))
