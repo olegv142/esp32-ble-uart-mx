@@ -140,8 +140,8 @@
 #endif
 #endif
 
-// If defined echo all data received from peripheral back to it (for testing)
-// #define PEER_ECHO
+// If defined echo all data received back to sender (for testing)
+// #define ECHO
 
 // Receive queue length
 #define RX_QUEUE 64
@@ -178,7 +178,7 @@
 #define _RDONLY ""
 #endif
 
-#ifdef PEER_ECHO
+#ifdef ECHO
 #define _ECHO "e"
 #else
 #define _ECHO ""

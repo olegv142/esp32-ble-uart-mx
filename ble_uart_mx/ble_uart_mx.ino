@@ -378,7 +378,7 @@ public:
 
   void receive(struct data_chunk const* chunk)
   {
-#ifdef PEER_ECHO
+#ifdef ECHO
     if (m_writable && is_connected()) {
       m_remoteCharacteristic->writeValue(chunk->data, chunk->len);
       taskYIELD();
@@ -925,6 +925,11 @@ static void monitor_peers()
 
 void receive_from_central(struct data_chunk const* chunk)
 {
+#ifdef ECHO
+  pCharacteristic->setValue(chunk->data, chunk->len);
+  pCharacteristic->notify();
+  taskYIELD();
+#endif
 #ifdef EXT_FRAMES
   centr_xrx.receive(chunk);
 #else
