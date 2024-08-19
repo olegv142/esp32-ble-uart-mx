@@ -495,7 +495,7 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic)
   {
     size_t const length = pCharacteristic->getLength();
-    uint8_t const * const pData = pCharacteristic->getData();
+    uint8_t* const pData = pCharacteristic->getData();
     struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
     if (!ch.data)
       fatal("No memory");
@@ -504,6 +504,10 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
       free(ch.data);
       ++queue_full_cnt;
     }
+#ifdef ECHO
+    pCharacteristic->setValue(pData, length);
+    pCharacteristic->notify();
+#endif
   }
 };
 
@@ -934,11 +938,6 @@ static void monitor_peers()
 
 void receive_from_central(struct data_chunk const* chunk)
 {
-#ifdef ECHO
-  pCharacteristic->setValue(chunk->data, chunk->len);
-  pCharacteristic->notify();
-  taskYIELD();
-#endif
 #ifdef EXT_FRAMES
   centr_xrx.receive(chunk);
 #else
