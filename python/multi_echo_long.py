@@ -15,7 +15,10 @@ from collections import defaultdict
 sys.path.append('.')
 from ble_multi_adapter import MutliAdapter
 
+# If false all messages will have maximum allowed size
 random_size = True
+
+# Use the following to decide how mane messages should be sent at once
 max_burst = 5000
 
 def random_bytes(len):
@@ -24,8 +27,10 @@ def random_bytes(len):
 
 class EchoTest(MutliAdapter):
 
-	def __init__(self, port):
+	def __init__(self, port, target=None):
 		super().__init__(port)
+		self.target = target
+		self.max_frame = None
 		self.started = False
 		self.last_tx_sn = 0
 		self.last_rx_sn = None
@@ -38,23 +43,38 @@ class EchoTest(MutliAdapter):
 		self.corrupt = 0
 		self.dbg_msgs = defaultdict(int)
 
-	def send_msg(self, max_frame):
+	def send_msg(self):
 		self.last_tx_sn += 1
 		sn = b'%u' % self.last_tx_sn
-		max_data_size = (max_frame - len(sn) - 4) // 2 # takes into account separators (sn#data#data)
+		max_data_size = (self.max_frame - len(sn) - 4) // 2 # takes into account separators (sn#data#data)
 		data = random_bytes(max_data_size if not random_size else random.randrange(1, max_data_size+1))
 		msg = b'(' + sn + b'#' + data + b'#' + data + b')'
-		self.send_data(msg)
+		if self.target is None:
+			self.send_data(msg)
+		else:
+			self.send_data_to(0, msg)
+
+	def send_msgs(self):
+		if self.max_frame is None:
+			return
+		for _ in range(max_burst // self.max_frame):
+			self.send_msg()
 
 	def on_idle(self, version):
 		try:
 			v = version.split(b'-')
-			max_frame = int(v[1])
+			self.max_frame = int(v[1])
 		except:
 			print('bad version: %s', version)
 			return
-		for _ in range(max_burst // max_frame):
-			self.send_msg(max_frame)
+		if self.target is None:
+			self.send_msgs()
+		else:
+			print('Idle, version ' + version.decode())
+			self.connect([self.target])
+
+	def on_connected(self):
+		self.send_msgs()
 
 	def on_debug_msg(self, msg):
 		str = msg.decode()
@@ -110,11 +130,18 @@ class EchoTest(MutliAdapter):
 
 	def on_central_msg(self, msg):
 		print('[.] %r' % msg, end='')
-		self.chunk_received(msg)
+		if self.target is None:
+			self.chunk_received(msg)
+		print()
+
+	def on_peer_msg(self, idx, msg):
+		print('[%d] %r' % (idx, msg), end='')
+		if self.target is not None:
+			self.chunk_received(msg)
 		print()
 
 if __name__ == '__main__':
-	with EchoTest(sys.argv[1]) as ad:
+	with EchoTest(sys.argv[1], sys.argv[2].encode() if len(sys.argv) > 2 else None) as ad:
 		ad.reset()
 		try:
 			while True:
