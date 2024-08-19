@@ -211,19 +211,18 @@ private:
   void flush()
   {
     uint8_t const is_binary = m_chunks[0].data[0] & XH_BINARY;
-    uint8_t enc_buff[MAX_ENCODED_CHUNK_LEN];
+    char enc_buff[MAX_ENCODED_CHUNK_LEN];
     uart_begin();
     DataSerial.print(m_tag);
     if (is_binary)
       DataSerial.print(ENCODED_DATA_START_TAG);
     for (int i = 0; i <= m_last_chunk; ++i) {
       size_t len = m_chunks[i].len - XHDR_SIZE - CHKSUM_SIZE;
-      uint8_t * pchunk = m_chunks[i].data + XHDR_SIZE;
-      if (is_binary) {
-        len = encode(pchunk, len, enc_buff);
-        pchunk = enc_buff;
-      }
-      DataSerial.write(pchunk, len);
+      const uint8_t* const pchunk = m_chunks[i].data + XHDR_SIZE;
+      const char* out_data = (const char*)pchunk;
+      if (is_binary)
+        len = encode(pchunk, len, out_data = enc_buff);
+      DataSerial.write(out_data, len);
     }
     uart_end();
     reset();
@@ -251,9 +250,9 @@ static void uart_print_data(uint8_t const* data, size_t len, char tag)
     fatal("Data size exceeds limit");
     return;
   }
-  uint8_t const * out_data = data;
+  char const * out_data = (char const*)data;
 #ifdef BINARY_DATA_SUPPORT
-  uint8_t enc_buff[1+MAX_ENCODED_CHUNK_LEN] = {ENCODED_DATA_START_TAG};
+  char enc_buff[1+MAX_ENCODED_CHUNK_LEN] = {ENCODED_DATA_START_TAG};
   if (is_data_binary(data, len)) {
     len = 1 + encode(data, len, enc_buff + 1);
     out_data = enc_buff;

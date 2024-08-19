@@ -1,7 +1,7 @@
 #include "mx_encoding.h"
 
 // Encode binary data to base64 with padding, returns encoded data length
-size_t encode(uint8_t const * bin_data, size_t len, uint8_t asc_data[MAX_ENCODED_CHUNK_LEN])
+size_t encode(uint8_t const * bin_data, size_t len, char asc_data[MAX_ENCODED_CHUNK_LEN])
 {
   return 0; // FIXME
 }
