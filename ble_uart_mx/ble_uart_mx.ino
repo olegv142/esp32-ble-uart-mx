@@ -220,8 +220,10 @@ private:
       size_t len = m_chunks[i].len - XHDR_SIZE - CHKSUM_SIZE;
       const uint8_t* const pchunk = m_chunks[i].data + XHDR_SIZE;
       const char* out_data = (const char*)pchunk;
-      if (is_binary)
-        len = encode(pchunk, len, out_data = enc_buff);
+      if (is_binary) {
+        len = encode(pchunk, len, enc_buff);
+        out_data = enc_buff;
+      }
       DataSerial.write(out_data, len);
     }
     uart_end();
