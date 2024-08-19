@@ -126,6 +126,15 @@ static inline uint32_t elapsed(uint32_t from, uint32_t to)
   return to < from ? 0 : to - from;
 }
 
+static inline void debug_msg(const char* msg)
+{
+#ifndef NO_DEBUG
+  uart_begin();
+  DataSerial.print(msg);
+  uart_end();
+#endif
+}
+
 static void fatal(const char* what);
 
 struct data_chunk {
@@ -285,6 +294,7 @@ public:
     if (!xQueueSend(m_rx_queue, &ch, 0))
       ++m_queue_full_cnt;
     m_connected = true;
+    ++connected_peers;
   }
 
   void onDisconnect(BLEClient *pclient) {
@@ -293,6 +303,7 @@ public:
 #endif
     m_disconn_ts = millis();
     m_connected = false;
+    --connected_peers;
   }
 
   void report_connecting() {
@@ -407,9 +418,8 @@ public:
     }
     if (m_connected != m_was_connected) {
       m_was_connected = m_connected;
-      if (m_connected) {
-        connected_peers++;
 #ifndef NO_DEBUG
+      if (m_connected) {
         uart_begin();
         DataSerial.print("-peripheral [");
         DataSerial.print(m_tag);
@@ -417,10 +427,7 @@ public:
         DataSerial.print(m_addr);
         DataSerial.print(" connected");
         uart_end();
-#endif
       } else {
-        --connected_peers;
-#ifndef NO_DEBUG
         uart_begin();
         DataSerial.print("-peripheral [");
         DataSerial.print(m_tag);
@@ -428,8 +435,8 @@ public:
         DataSerial.print(m_addr);
         DataSerial.print(" disconnected");
         uart_end();
-#endif
       }
+#endif
     }
     if (m_queue_full_cnt != m_queue_full_last) {
 #ifndef NO_DEBUG
@@ -533,11 +540,11 @@ static inline void watchdog_init()
 static void add_peer(unsigned idx, String const& addr)
 {
   if (idx >= MAX_PEERS) {
-    fatal("Bad peripheral index");
+    debug_msg("-bad peripheral index");
     return;
   }
   if (peers[idx]) {
-    fatal("Peer already exist");
+    debug_msg("-peer already exist");
     return;
   }
   peers[idx] = new Peer(idx, addr);
@@ -798,7 +805,7 @@ static void transmit_to_central(const char* data, size_t len)
 static void transmit_to_peer(unsigned idx, const char* str, size_t len)
 {
   if (idx >= MAX_PEERS || !peers[idx]) {
-    fatal("Bad peripheral index");
+    debug_msg("-bad peripheral index");
     return;
   }
   peers[idx]->transmit(str, len);
@@ -950,11 +957,7 @@ void loop()
 
 #ifndef HIDDEN
   if (start_advertising && elapsed(centr_disconn_ts, millis()) > 500) {
-#ifndef NO_DEBUG
-    uart_begin();
-    DataSerial.print("-start advertising");
-    uart_end();
-#endif
+    debug_msg("-start advertising");
     BLEDevice::startAdvertising(); // restart advertising
     start_advertising = false;
   }
@@ -997,11 +1000,7 @@ void loop()
 
   if (unknown_data_src) {
     unknown_data_src = false;
-#ifndef NO_DEBUG
-    uart_begin();
-    DataSerial.print("-got data from unknown source");
-    uart_end();
-#endif
+    debug_msg("-got data from unknown source");
   }
 
   monitor_peers();
