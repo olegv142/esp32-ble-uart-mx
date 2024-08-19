@@ -885,7 +885,9 @@ static void cli_process()
 static inline void report_idle()
 {
   uart_begin();
-  DataSerial.print(":I " VERSION);
+  DataSerial.print(":I " VMAJOR "." VMINOR "-");
+  DataSerial.print(MAX_FRAME);
+  DataSerial.print("-" VARIANT);
   uart_end();
 }
 
