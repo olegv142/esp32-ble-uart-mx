@@ -88,7 +88,7 @@
 #define TX_PW_BOOST ESP_PWR_LVL_P21
 
 // If defined creating connections to other peripherals will be disabled
-#define PASSIVE_ONLY
+// #define PASSIVE_ONLY
 
 #ifdef PASSIVE_ONLY
 #define AUTOCONNECT
@@ -96,7 +96,7 @@
 // If AUTOCONNECT is defined it will connect on startup to the predefined set of peers.
 // The host commands will be disabled. One may use AUTOCONNECT with no target peers
 // to disable creating connections.
-// #define AUTOCONNECT
+#define AUTOCONNECT
 #ifdef AUTOCONNECT
 // Peer device address to connect to
 //#define PEER_ADDR    "EC:DA:3B:BB:CE:02"
