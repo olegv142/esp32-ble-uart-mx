@@ -55,23 +55,25 @@
 #include <malloc.h>
 #include <freertos/queue.h>
 
-// The configuration settings in the separate file.
-// So its convenient to switch them by creating yet another file.
 #include "mx_config.h"
 
 #ifdef BINARY_DATA_SUPPORT
 #include "mx_encoding.h"
 #endif
 
-#ifdef USE_CHKSUM
+#ifdef EXT_FRAMES
 #include "checksum.h"
+#include "xframe.h"
 #endif
 
 #ifndef HIDDEN
 static BLECharacteristic* pCharacteristic;
 #endif
 
+#ifndef MAX_PEERS
 #define MAX_PEERS 8
+#endif
+
 class Peer;
 static Peer*    peers[MAX_PEERS];
 static unsigned npeers;
@@ -88,10 +90,10 @@ static uint32_t last_status_ts;
 static String   dev_name(DEV_NAME);
 static String   cli_buff;
 
-QueueHandle_t   rx_queue;
-unsigned        queue_full_cnt;
-unsigned        queue_full_last;
-bool            unknown_data_src;
+static QueueHandle_t rx_queue;
+static unsigned      queue_full_cnt;
+static unsigned      queue_full_last;
+static bool          unknown_data_src;
 
 #ifdef TELL_UPTIME
 static uint32_t last_uptime;
@@ -108,8 +110,6 @@ static inline void uart_end()
 {
   DataSerial.print(UART_END);
 }
-
-static void uart_print_data(uint8_t const* data, size_t len);
 
 static inline bool is_idle()
 {
@@ -133,11 +133,135 @@ struct data_chunk {
   size_t len;
 };
 
+#ifdef EXT_FRAMES
+class XFrameReceiver {
+public:
+  XFrameReceiver(char tag)
+    : m_tag(tag), m_next_sn(0), m_last_chunk(-1) {}
+
+  void receive(struct data_chunk const* chunk)
+  {
+    uint8_t const h = chunk->data[0];
+    uint32_t chksum = h & XH_FIRST ? CHKSUM_INI : m_last_chksum;
+    if (chunk->len <= XHDR_SIZE + CHKSUM_SIZE || chunk->len > MAX_SIZE) {
+#ifndef NO_DEBUG
+      uart_begin();
+      DataSerial.print("-invalid chunk size from [");
+      DataSerial.print(m_tag);
+      DataSerial.print("]");
+      uart_end();
+#endif
+      goto skip;
+    }
+    if (!(h & XH_FIRST)) {
+      if (m_last_chunk < 0)
+        goto skip_verbose;
+      if (m_next_sn != (h & XH_SN_MASK))
+        goto skip_verbose;
+      if (m_last_chunk + 2 >= MAX_CHUNKS && !(h & XH_LAST))
+        goto skip_verbose;
+    }
+    if (!chksum_validate(chunk->data, chunk->len - CHKSUM_SIZE, &chksum)) {
+#ifndef NO_DEBUG
+      uart_begin();
+      DataSerial.print("-invalid checksum from [");
+      DataSerial.print(m_tag);
+      DataSerial.print("]");
+      uart_end();
+#endif
+      goto skip;
+    }
+    if (h & XH_FIRST)
+      reset();
+    m_chunks[++m_last_chunk] = *chunk;
+    m_next_sn = (h + 1) & XH_SN_MASK;
+    m_last_chksum = chksum;
+    if (h & XH_LAST)
+      flush();
+    return;
+  skip_verbose:
+#ifdef VERBOSE_DEBUG
+      uart_begin();
+      DataSerial.print("-skip chunk from [");
+      DataSerial.print(m_tag);
+      DataSerial.print("]");
+      uart_end();
+#endif
+  skip:
+    free(chunk->data);
+  }
+
+  void reset()
+  {
+    for (int i = 0; i <= m_last_chunk; ++i)
+      free(m_chunks[i].data);
+    m_last_chunk = -1;
+  }
+
+private:
+  void flush()
+  {
+    uint8_t const is_binary = m_chunks[0].data[0] & XH_BINARY;
+    uint8_t enc_buff[MAX_ENCODED_CHUNK_LEN];
+    uart_begin();
+    DataSerial.print(m_tag);
+    if (is_binary)
+      DataSerial.print(ENCODED_DATA_START_TAG);
+    for (int i = 0; i <= m_last_chunk; ++i) {
+      size_t len = m_chunks[i].len - XHDR_SIZE - CHKSUM_SIZE;
+      uint8_t * pchunk = m_chunks[i].data + XHDR_SIZE;
+      if (is_binary) {
+        len = encode(pchunk, len, enc_buff);
+        pchunk = enc_buff;
+      }
+      DataSerial.write(pchunk, len);
+    }
+    uart_end();
+    reset();
+  }
+
+  char const m_tag;
+  uint8_t    m_next_sn;
+  int        m_last_chunk;
+  uint32_t   m_last_chksum;
+  struct data_chunk m_chunks[MAX_CHUNKS];
+};
+
+static XFrameReceiver centr_xrx('<');
+static uint8_t        centr_tx_sn;
+#endif
+
+#ifdef BINARY_DATA_SUPPORT
+static uint8_t        tx_buff[MAX_FRAME];
+#endif
+
+#ifndef EXT_FRAMES
+static void uart_print_data(uint8_t const* data, size_t len, char tag)
+{
+  if (len > MAX_CHUNK) {
+    fatal("Data size exceeds limit");
+    return;
+  }
+  uint8_t const * out_data = data;
+#ifdef BINARY_DATA_SUPPORT
+  uint8_t enc_buff[1+MAX_ENCODED_CHUNK_LEN] = {ENCODED_DATA_START_TAG};
+  if (is_data_binary(data, len)) {
+    len = 1 + encode(data, len, enc_buff + 1);
+    out_data = enc_buff;
+  }
+#endif
+  uart_begin();
+  DataSerial.print(tag);
+  DataSerial.write(out_data, len);
+  uart_end();
+}
+#endif
+
 class Peer : public BLEClientCallbacks
 {
 public:
   Peer(unsigned idx, String const& addr)
-    : m_idx(idx)
+    : m_tag('0' + idx)
     , m_addr(addr)
     , m_writable(false)
     , m_connected(false)
@@ -145,9 +269,13 @@ public:
     , m_disconn_ts(0)
     , m_Client(nullptr)
     , m_remoteCharacteristic(nullptr)
+    , m_tx_sn(0)
     , m_rx_queue(0)
     , m_queue_full_cnt(0)
     , m_queue_full_last(0)
+#ifdef EXT_FRAMES
+    , m_xrx('0' + idx)
+#endif
   {
   }
 
@@ -171,14 +299,14 @@ public:
 #ifdef STATUS_REPORT_INTERVAL
     uart_begin();
     DataSerial.print(":C");
-    DataSerial.print(m_idx);
+    DataSerial.print(m_tag);
     uart_end();
 #endif
   }
 
   void notify_connected() {
     uart_begin();
-    DataSerial.print(m_idx);
+    DataSerial.print(m_tag);
     uart_end();
   }
 
@@ -191,32 +319,45 @@ public:
       return;
     }
     uint8_t* tx_data = (uint8_t*)data;
-#ifdef BINARY_DATA_SUPPORT
-    uint8_t tx_buff[MAX_CHUNK];
-    if (len && data[0] == ENCODED_DATA_START_TAG) {
-      if (len > 1 + MAX_ENCODED_DATA_LEN) {
+  #ifdef BINARY_DATA_SUPPORT
+    uint8_t binary = 0;
+    if (len && (binary = (data[0] == ENCODED_DATA_START_TAG))) {
+      if (len > 1 + MAX_ENCODED_FRAME_LEN) {
         fatal("Encoded data size exceeds limit");
         return;
       }
       len = decode(data + 1, len - 1, tx_data = tx_buff);
     }
-#endif
+  #endif
     if (!len) {
       fatal("No data to transmit");
       return;
     }
-    if (len > MAX_CHUNK) {
+    if (len > MAX_FRAME) {
       fatal("Data size exceeds limit");
       return;
     }
-#ifdef USE_CHKSUM
-    uint8_t chksum_buff[MAX_SIZE];
-    chksum_copy(tx_data, len, chksum_buff);
-    tx_data = chksum_buff;
-    len += CHKSUM_SIZE;
-#endif
-    m_remoteCharacteristic->writeValue(tx_data, len);
-    taskYIELD();
+  #ifdef EXT_FRAMES
+    uint8_t first = 1, last;
+    uint32_t chksum = CHKSUM_INI;
+  #endif
+    while (len) {
+      size_t chunk = len;
+      uint8_t* pdata = tx_data;
+  #ifdef EXT_FRAMES
+      if (!(last = (chunk <= MAX_CHUNK)))
+        chunk = MAX_CHUNK;
+      uint8_t chunk_buff[MAX_SIZE] = {mk_xframe_hdr(++m_tx_sn, binary, first, last)};
+      chksum = chksum_up(chunk_buff[0], chksum);
+      chksum = chksum_copy(tx_data, chunk, chunk_buff + 1, chksum);
+      pdata = chunk_buff;
+      first = 0;
+  #endif
+      m_remoteCharacteristic->writeValue(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE);
+      tx_data += chunk;
+      len -= chunk;
+      taskYIELD();
+    }
   }
 
   bool notify_data(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length)
@@ -235,31 +376,20 @@ public:
     return true;
   }
 
-  void receive(uint8_t* pData, size_t length)
+  void receive(struct data_chunk const* chunk)
   {
 #ifdef PEER_ECHO
     if (m_writable && is_connected()) {
-      m_remoteCharacteristic->writeValue(pData, length);
+      m_remoteCharacteristic->writeValue(chunk->data, chunk->len);
       taskYIELD();
     }
 #endif
-#ifdef USE_CHKSUM
-    if (!chksum_validate(pData, length)) {
-#ifndef NO_DEBUG
-      uart_begin();
-      DataSerial.print("-bad checksum from [");
-      DataSerial.print(m_idx);
-      DataSerial.print("]");
-      uart_end();
+#ifdef EXT_FRAMES
+    m_xrx.receive(chunk);
+#else
+    uart_print_data(chunk->data, chunk->len, m_tag);
+    free(chunk->data);
 #endif
-      return;
-    }
-    length -= CHKSUM_SIZE;
-#endif
-    uart_begin();
-    DataSerial.print(m_idx);
-    uart_print_data(pData, length);
-    uart_end();
   }
 
   bool monitor()
@@ -267,10 +397,13 @@ public:
     struct data_chunk ch;
     while (m_rx_queue && xQueueReceive(m_rx_queue, &ch, 0)) {
       if (ch.data) {
-        receive(ch.data, ch.len);
-        free(ch.data);
-      } else
+        receive(&ch);
+      } else {
         notify_connected();
+#ifdef EXT_FRAMES
+        m_xrx.reset();
+#endif
+      }
     }
     if (m_connected != m_was_connected) {
       m_was_connected = m_connected;
@@ -279,7 +412,7 @@ public:
 #ifndef NO_DEBUG
         uart_begin();
         DataSerial.print("-peripheral [");
-        DataSerial.print(m_idx);
+        DataSerial.print(m_tag);
         DataSerial.print("] ");
         DataSerial.print(m_addr);
         DataSerial.print(" connected");
@@ -290,7 +423,7 @@ public:
 #ifndef NO_DEBUG
         uart_begin();
         DataSerial.print("-peripheral [");
-        DataSerial.print(m_idx);
+        DataSerial.print(m_tag);
         DataSerial.print("] ");
         DataSerial.print(m_addr);
         DataSerial.print(" disconnected");
@@ -302,7 +435,7 @@ public:
 #ifndef NO_DEBUG
       uart_begin();
       DataSerial.print("-rx queue [");
-      DataSerial.print(m_idx);
+      DataSerial.print(m_tag);
       DataSerial.print("] full ");
       DataSerial.print(m_queue_full_cnt - m_queue_full_last);
       DataSerial.print(" times");
@@ -317,7 +450,7 @@ public:
     return false;
   }
 
-  unsigned    m_idx;
+  char const  m_tag;
   String      m_addr;
   bool        m_writable;
   bool        m_connected;
@@ -327,9 +460,13 @@ public:
   BLEClient*  m_Client;
   BLERemoteCharacteristic* m_remoteCharacteristic;
 
+  uint8_t       m_tx_sn;
   QueueHandle_t m_rx_queue;
   unsigned      m_queue_full_cnt;
   unsigned      m_queue_full_last;
+#ifdef EXT_FRAMES
+  XFrameReceiver m_xrx;
+#endif
 };
 
 class MyServerCallbacks: public BLEServerCallbacks {
@@ -616,9 +753,9 @@ static void transmit_to_central(const char* data, size_t len)
 {
   uint8_t* tx_data = (uint8_t*)data;
 #ifdef BINARY_DATA_SUPPORT
-  uint8_t tx_buff[MAX_CHUNK];
-  if (len && data[0] == ENCODED_DATA_START_TAG) {
-    if (len > 1 + MAX_ENCODED_DATA_LEN) {
+  uint8_t binary = 0;
+  if (len && (binary = (data[0] == ENCODED_DATA_START_TAG))) {
+    if (len > 1 + MAX_ENCODED_FRAME_LEN) {
       fatal("Encoded data size exceeds limit");
       return;
     }
@@ -629,38 +766,34 @@ static void transmit_to_central(const char* data, size_t len)
     fatal("No data to transmit");
     return;
   }
-  if (len > MAX_CHUNK) {
+  if (len > MAX_FRAME) {
     fatal("Data size exceeds limit");
     return;
   }
-#ifdef USE_CHKSUM
-  uint8_t chksum_buff[MAX_SIZE];
-  chksum_copy(tx_data, len, chksum_buff);
-  tx_data = chksum_buff;
-  len += CHKSUM_SIZE;
+#ifdef EXT_FRAMES
+  uint8_t first = 1, last;
+  uint32_t chksum = CHKSUM_INI;
 #endif
-  pCharacteristic->setValue(tx_data, len);
-  pCharacteristic->notify();
-  taskYIELD();
+  while (len) {
+    size_t chunk = len;
+    uint8_t* pdata = tx_data;
+#ifdef EXT_FRAMES
+    if (!(last = (chunk <= MAX_CHUNK)))
+      chunk = MAX_CHUNK;
+    uint8_t chunk_buff[MAX_SIZE] = {mk_xframe_hdr(++centr_tx_sn, binary, first, last)};
+    chksum = chksum_up(chunk_buff[0], chksum);
+    chksum = chksum_copy(tx_data, chunk, chunk_buff + 1, chksum);
+    pdata = chunk_buff;
+    first = 0;
+#endif
+    pCharacteristic->setValue(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE);
+    pCharacteristic->notify();
+    tx_data += chunk;
+    len -= chunk;
+    taskYIELD();
+  }
 }
 #endif
-
-void uart_print_data(uint8_t const* data, size_t len)
-{
-  if (len > MAX_CHUNK) {
-    fatal("Received data size exceeds limit");
-    return;
-  }
-  uint8_t const * out_data = data;
-#ifdef BINARY_DATA_SUPPORT
-  uint8_t enc_buff[1+MAX_ENCODED_DATA_LEN] = {ENCODED_DATA_START_TAG};
-  if (is_data_binary(data, len)) {
-    len = 1 + encode(data, len, enc_buff + 1);
-    out_data = enc_buff;
-  }
-#endif
-  DataSerial.write(out_data, len);
-}
 
 static void transmit_to_peer(unsigned idx, const char* str, size_t len)
 {
@@ -790,23 +923,14 @@ static void monitor_peers()
 #endif
 }
 
-void receive_from_central(uint8_t* pData, size_t length)
+void receive_from_central(struct data_chunk const* chunk)
 {
-#ifdef USE_CHKSUM
-  if (!chksum_validate(pData, length)) {
-#ifndef NO_DEBUG
-    uart_begin();
-    DataSerial.print("-bad checksum from central");
-    uart_end();
+#ifdef EXT_FRAMES
+  centr_xrx.receive(chunk);
+#else
+  uart_print_data(chunk->data, chunk->len, '<');
+  free(chunk->data);
 #endif
-    return;
-  }
-  length -= CHKSUM_SIZE;
-#endif
-  uart_begin();
-  DataSerial.print('<');
-  uart_print_data(pData, length);
-  uart_end();
 }
 
 void loop()
@@ -841,13 +965,15 @@ void loop()
   struct data_chunk ch;
   while (xQueueReceive(rx_queue, &ch, 0)) {
     if (ch.data) {
-      receive_from_central(ch.data, ch.len);
-      free(ch.data);
+      receive_from_central(&ch);
     } else {
       // Output stream start tag
       uart_begin();
       DataSerial.print('<');
       uart_end();
+#ifdef EXT_FRAMES
+      centr_xrx.reset();
+#endif
     }
   }
 

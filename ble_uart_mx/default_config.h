@@ -34,6 +34,11 @@
 // If defined all debug messages will be suppressed
 // #define NO_DEBUG
 
+#ifndef NO_DEBUG
+// Enable more debug messages
+// #define VERBOSE_DEBUG
+#endif
+
 // If HW_UART is defined the hardware serial port will be used for communications.
 // Otherwise the USB virtual serial port will be utilized.
 #define HW_UART
@@ -109,19 +114,31 @@
 // The maximum allowed size of the BLE characteristic
 #define MAX_SIZE 244
 
-// If define adapter will protect every message by checksum
-#define USE_CHKSUM
-
-// The maximum size of the message data
-#ifndef USE_CHKSUM
-#define MAX_CHUNK MAX_SIZE
-#else
-#define CHKSUM_SIZE 4
-#define MAX_CHUNK (MAX_SIZE-CHKSUM_SIZE)
-#endif
-
 // If defined the binary data transmission is supported (WIP, not implemented yet)
 // #define BINARY_DATA_SUPPORT
+
+// If define adapter will transparently use extended data frames with the following features:
+// - checksums to detect data lost or corrupted in transit
+// - automatic large frames fragmentation
+// - binary data support
+#define EXT_FRAMES
+
+// The maximum size of the message data
+#ifndef EXT_FRAMES
+#define XHDR_SIZE 0
+#define CHKSUM_SIZE 0
+#define MAX_CHUNK MAX_SIZE
+#define MAX_FRAME MAX_CHUNK
+#else
+#define XHDR_SIZE 1
+#define CHKSUM_SIZE 3
+#define MAX_CHUNK (MAX_SIZE-XHDR_SIZE-CHKSUM_SIZE)
+#define MAX_CHUNKS 9 // Max chunks in single data frame
+#define MAX_FRAME (MAX_CHUNK*MAX_CHUNKS)
+#ifndef BINARY_DATA_SUPPORT
+#define BINARY_DATA_SUPPORT
+#endif
+#endif
 
 // If defined echo all data received from peripheral back to it (for testing)
 // #define PEER_ECHO
@@ -133,10 +150,12 @@
 // Build version string
 //
 
-#ifndef BINARY_DATA_SUPPORT
-#define _DATA "T" // Text only, binary data not allowed
+#ifdef EXT_FRAMES
+#define _XDATA "X"
+#elif BINARY_DATA_SUPPORT
+#define _XDATA "B"
 #else
-#define _DATA "B" // Binary data allowed
+#define _XDATA ""
 #endif
 
 #ifdef PASSIVE_ONLY
@@ -159,12 +178,6 @@
 #define _RDONLY ""
 #endif
 
-#ifdef USE_CHKSUM
-#define _CHKSUM "C"
-#else
-#define _CHKSUM ""
-#endif
-
 #ifdef PEER_ECHO
 #define _ECHO "e"
 #else
@@ -177,5 +190,5 @@
 #define _UTIME ""
 #endif
 
-#define VARIANT _DATA _MODE _HIDDEN _RDONLY _CHKSUM _ECHO _UTIME
+#define VARIANT _XDATA _MODE _HIDDEN _RDONLY _ECHO _UTIME
 #define VERSION VMAJOR "." VMINOR "-" VARIANT
