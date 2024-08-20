@@ -155,7 +155,7 @@
 #elif BINARY_DATA_SUPPORT
 #define _XDATA "B"
 #else
-#define _XDATA ""
+#define _XDATA "T"
 #endif
 
 #ifdef PASSIVE_ONLY
