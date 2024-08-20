@@ -632,20 +632,21 @@ static void hw_init()
 
 #ifdef UART_BUFFER_SZ
   DataSerial.setRxBufferSize(UART_BUFFER_SZ);
+  DataSerial.setTxBufferSize(UART_BUFFER_SZ);
 #endif
 #ifdef HW_UART
   DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
 #if defined(UART_CTS_PIN) && defined(UART_RTS_PIN)
-  uart_set_pin(DATA_UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_RTS_PIN, UART_CTS_PIN);  
-  uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_CTS_RTS, UART_FIFO_LEN/2);
+  DataSerial.setPins(UART_RX_PIN, UART_TX_PIN, UART_CTS_PIN, UART_RTS_PIN);
+  DataSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_CTS_RTS);
 #else
 #ifdef UART_CTS_PIN
-  uart_set_pin(DATA_UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_CTS_PIN);  
-  uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_CTS, UART_FIFO_LEN/2);
+  DataSerial.setPins(UART_RX_PIN, UART_TX_PIN, UART_CTS_PIN, -1);
+  DataSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_CTS);
 #endif
 #ifdef UART_RTS_PIN
-  uart_set_pin(DATA_UART_NUM, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_RTS_PIN, UART_PIN_NO_CHANGE);
-  uart_set_hw_flow_ctrl(DATA_UART_NUM, UART_HW_FLOWCTRL_RTS, UART_FIFO_LEN/2);
+  DataSerial.setPins(UART_RX_PIN, UART_TX_PIN, -1, UART_RTS_PIN);
+  DataSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_RTS);
 #endif
 #endif
 #endif
