@@ -30,10 +30,10 @@ class TestMutliAdapter(MutliAdapter):
 		print('    ' + msg.decode())
 
 	def on_central_msg(self, msg):
-		print('[.] ' + msg.decode())
+		print('[.] %r' % msg)
 
 	def on_peer_msg(self, idx, msg):
-		print(('[%d] ' % idx) + msg.decode())
+		print('[%d] %r' % (idx, msg))
 
 if __name__ == '__main__':
 	port  = sys.argv[1]
