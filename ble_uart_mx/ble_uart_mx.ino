@@ -7,7 +7,7 @@
  Commands:
   '#C addr0 addr1 ..' - connect to peripherals with given addresses (up to 8)
   '#R'                - reset to idle state
- Commands will be disabled if AUTOCONNECT is defined
+ Connect command will be disabled if AUTOCONNECT is defined
 
  Status messages:
   ':I rev.vmaj.vmin' - idle, not connected
@@ -56,6 +56,7 @@
 #include <freertos/queue.h>
 
 #include "mx_config.h"
+#include "debug.h"
 
 #ifdef BINARY_DATA_SUPPORT
 #include "mx_encoding.h"
@@ -134,8 +135,6 @@ static inline void debug_msg(const char* msg)
   uart_end();
 #endif
 }
-
-static void fatal(const char* what);
 
 struct data_chunk {
   uint8_t* data;
@@ -509,7 +508,7 @@ static void reset_self()
   esp_restart();
 }
 
-static void fatal(const char* what)
+void fatal(const char* what)
 {
 #ifndef NO_DEBUG
   uart_begin();
@@ -855,22 +854,27 @@ static void process_msg(const char* str, size_t len)
 
 static void cli_process()
 {
-  const char* str = cli_buff.c_str();
+  size_t const len = cli_buff.length();
+  const char*  str = cli_buff.c_str();
+  const char*  end = str + len;
   const char* next = str;
-  for (;;) {
+
+  while (next < end) {
 #ifdef UART_BEGIN
-    const char* begin = strchr(next, UART_BEGIN);
+    const char* begin = (const char*)memchr(next, UART_BEGIN, len - (next - str));
     if (!begin)
       break;
     begin += 1;
+    BUG_ON(begin > end);
 #else
     const char* begin = next;
 #endif
-    char* tail = strchr(begin, UART_END);
+    char* tail = (char*)memchr(begin, UART_END, len - (begin - str));
     if (!tail)
       break;
     *tail = '\0';
     next = tail + 1;
+    BUG_ON(next > end);
     process_msg(begin, tail - begin);
   }
   cli_buff = cli_buff.substring(next - str);
