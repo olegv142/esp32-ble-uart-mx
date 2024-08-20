@@ -297,7 +297,7 @@ public:
 
   void onDisconnect(BLEClient *pclient) {
 #ifdef RESET_ON_DISCONNECT
-    fatal("Peer disconnected");
+    reset_self();
 #endif
     m_disconn_ts = millis();
     m_connected = false;
@@ -370,7 +370,7 @@ public:
 
     struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
     if (!ch.data)
-      fatal("No memory");
+      reset_self();
     memcpy(ch.data, pData, length);
     if (!xQueueSend(m_rx_queue, &ch, 0)) {
       free(ch.data);
@@ -490,7 +490,7 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
     uint8_t* const pData = pCharacteristic->getData();
     struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
     if (!ch.data)
-      fatal("No memory");
+      reset_self();
     memcpy(ch.data, pData, length);
     if (!xQueueSend(rx_queue, &ch, 0)) {
       free(ch.data);
