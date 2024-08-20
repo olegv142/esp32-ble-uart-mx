@@ -79,7 +79,8 @@
 
 // There is no flow control in USB serial port.
 // The default buffer size is 256 bytes which may be not enough.
-#define UART_BUFFER_SZ 4096
+#define UART_RX_BUFFER_SZ 4096
+#define UART_TX_BUFFER_SZ 4096
 
 // If defined reset itself on peripheral disconnection instead of reconnecting
 #define RESET_ON_DISCONNECT

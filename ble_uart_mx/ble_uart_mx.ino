@@ -630,9 +630,11 @@ static void hw_init()
   digitalWrite(CONNECTED_LED, HIGH);
 #endif
 
-#ifdef UART_BUFFER_SZ
-  DataSerial.setRxBufferSize(UART_BUFFER_SZ);
-  DataSerial.setTxBufferSize(UART_BUFFER_SZ);
+#ifdef UART_RX_BUFFER_SZ
+  DataSerial.setRxBufferSize(UART_RX_BUFFER_SZ);
+#endif
+#ifdef UART_TX_BUFFER_SZ
+  DataSerial.setTxBufferSize(UART_TX_BUFFER_SZ);
 #endif
 #ifdef HW_UART
   DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
