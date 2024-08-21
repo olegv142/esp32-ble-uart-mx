@@ -84,7 +84,7 @@ In case you are failed to flash ESP32 board from Arduino do the following:
 * proceed with flashing in Arduino
 
 ## Host API
-The host API implementation for python may be found in **python/ble_multi_adapter.py**. Currently only hardware serial link is supported. Note that USB CDC link typically receives some debug information during ESP32 boot so its useful mostly for testing and debugging (unless the ESP32 chip has another USB adapter as S3 for example).
+The host API implementation for python may be found in **python/ble_multi_adapter.py**. Currently only hardware serial link is supported. Note that USB CDC link typically receives some debug information during ESP32 boot so its useful mostly for testing and debugging (unless the ESP32 chip has another USB adapter as S3 for example). Yet USB CDC may be sufficient for applications that don't need to read from the adapter at all. Consider for example an application that need to send some telemetry information for connected central device. It may just open USB serial port and keep sending telemetry data packets to it prefixed by '>' symbol and terminated by new line symbol.
 
 ## Testing
 
