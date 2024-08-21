@@ -49,6 +49,7 @@
 #include <BLE2902.h>
 #include <esp_mac.h>
 #include <esp_task_wdt.h>
+#include <esp_gattc_api.h>
 #include <string.h>
 #include <malloc.h>
 #include <freertos/queue.h>
@@ -92,6 +93,8 @@ static String   cli_buff;
 static QueueHandle_t rx_queue;
 static unsigned      queue_full_cnt;
 static unsigned      queue_full_last;
+static unsigned      write_err_cnt;
+static unsigned      write_err_last;
 static bool          unknown_data_src;
 
 #ifdef TELL_UPTIME
@@ -294,6 +297,20 @@ static void uart_print_data(uint8_t const* data, size_t len, char tag)
 }
 #endif
 
+static void remote_write(BLERemoteCharacteristic* ch, uint8_t* data, size_t len)
+{
+  // This is the replacement of BLERemoteCharacteristic::writeValue method.
+  // The original implementation waits on semaphore which is silly since we are writing without response.
+  // Moreover, it has stupid bug when the semaphore is taken before write but not released on write error.
+  BLEClient * const clnt = ch->getRemoteService()->getClient();
+  if (ESP_OK != esp_ble_gattc_write_char(
+    clnt->getGattcIf(), clnt->getConnId(), ch->getHandle(), len, data,
+    ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE
+  ))
+    ++write_err_cnt;
+  taskYIELD();
+}
+
 class Peer : public BLEClientCallbacks
 {
 public:
@@ -386,10 +403,9 @@ public:
       pdata = chunk_buff;
       first = 0;
   #endif
-      m_remoteCharacteristic->writeValue(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE);
+      remote_write(m_remoteCharacteristic, pdata, XHDR_SIZE + chunk + CHKSUM_SIZE);
       tx_data += chunk;
       len -= chunk;
-      taskYIELD();
     }
   }
 
@@ -412,10 +428,8 @@ public:
   void receive(struct data_chunk const* chunk)
   {
 #ifdef ECHO
-    if (m_writable && is_connected()) {
-      m_remoteCharacteristic->writeValue(chunk->data, chunk->len);
-      taskYIELD();
-    }
+    if (m_writable && is_connected())
+      remote_write(m_remoteCharacteristic, chunk->data, chunk->len);
 #endif
 #ifdef EXT_FRAMES
     m_xrx.receive(chunk);
@@ -441,9 +455,9 @@ public:
     if (!uart_can_write())
       return true;
 
+#ifndef NO_DEBUG
     if (m_connected != m_was_connected) {
       m_was_connected = m_connected;
-#ifndef NO_DEBUG
       if (m_connected) {
         uart_begin();
         DataSerial.print("-peripheral [");
@@ -461,10 +475,8 @@ public:
         DataSerial.print(" disconnected");
         uart_end();
       }
-#endif
     }
     if (m_queue_full_cnt != m_queue_full_last) {
-#ifndef NO_DEBUG
       uart_begin();
       DataSerial.print("-rx queue [");
       DataSerial.print(m_tag);
@@ -472,9 +484,9 @@ public:
       DataSerial.print(m_queue_full_cnt - m_queue_full_last);
       DataSerial.print(" times");
       uart_end();
-#endif
       m_queue_full_last = m_queue_full_cnt;
     }
+#endif
     if (!m_connected && elapsed(m_disconn_ts, millis()) > 500) {
       connect();
       return true;
@@ -1013,17 +1025,26 @@ void loop()
     }
   }
 
-  if (queue_full_cnt != queue_full_last) {
 #ifndef NO_DEBUG
+  if (queue_full_cnt != queue_full_last) {
     if (uart_begin_if_can()) {
       DataSerial.print("-rx queue full ");
       DataSerial.print(queue_full_cnt - queue_full_last);
       DataSerial.print(" times");
       uart_end();
     }
-#endif
     queue_full_last = queue_full_cnt;
   }
+  if (write_err_cnt != write_err_last) {
+    if (uart_begin_if_can()) {
+      DataSerial.print("-write failed ");
+      DataSerial.print(write_err_cnt - write_err_last);
+      DataSerial.print(" times");
+      uart_end();
+    }
+    write_err_last = write_err_cnt;
+  }
+#endif
 
   if (unknown_data_src) {
     unknown_data_src = false;
