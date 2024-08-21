@@ -119,8 +119,6 @@ Another popular Chinese BLE adapter JDY-08 (https://github.com/olegv142/esp32-bl
 ## Known issues
 The main fundamental issue with BLE regarding data transmission is the lack of the flow control. To transmit the particular data fragment the peripheral issues notification which is absolutely asynchronous (aka 'fire and forget'). The BLE stack provides the possibility to notify synchronously but its slow and so rarely used. Without flow control the capacity of BLE link may be easily exhausted. This results in an increased number of lost/corrupted BLE characteristic updates, which manifests itself as lost/corrupted data frames. So pushing throughput to the limit is not recommended. The data rate should be limited by the sender. The best usage pattern is sending limited amount of data periodically.
 
-Another issue is UART buffer overflow at the receiver which may lead to code execution freezing while using CTS flow control. The root cause of this issue is unknown. It looks like a bug in UART implementation. The adapter is able to recover from such freeze due to watchdog which reset it after 20 seconds of main loop inactivity. To avoid this issue its recommended to use sufficiently large UART transmit buffer (UART_TX_BUFFER_SZ in configuration file) able to accommodate entire received data burst and / or don't use CTS flow control.
-
 ## Other experimental projects
 A bunch of experimental projects created mostly for testing during the work on this project are located in **simple** folder.
 

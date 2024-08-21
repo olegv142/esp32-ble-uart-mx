@@ -58,8 +58,6 @@
 #endif
 // The following defines may be used to configure hardware UART flow control.
 // CTS prevents overflow of the host receiving buffer. 
-// Note that using CTS flow control may result in permanent code execution freezing
-// for unknown reason. It looks like a bug in UART implementation.
 // #define UART_CTS_PIN 5
 // RTS prevents overflow of the esp32 receiving buffer.
 // Its safe to have it enabled even in case you don't actually use it.
