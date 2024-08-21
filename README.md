@@ -63,9 +63,9 @@ To be able to build this code examples add the following to Arduino Additional b
 ```
 https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
 ```
-Then go to Boards Manager and install **esp32 by Espressif Systems**. After that you can open **ble_uart_mx** project in Arduino and build it.
+Then go to Boards Manager and install **esp32 by Espressif Systems**. Open **ble_uart_mx** project in Arduino. Select **ESP32C3 Dev Module** if you have ESP32C3 Super Mini and enable **USB CDC On Boot**. After that you can build and flash the adapter code.
 
-The compilation options are placed onto the separate header **ble_uart_mx/mx_config.h**. With those options one can
+The compilation options are placed onto the separate header **ble_uart_mx/mx_config.h** which includes **ble_uart_mx/default_config.h**. With those options one can
 * choose device name
 * choose between USB CDC and hardware UART for communications
 * configure hardware UART parameters (pins, flow control)
@@ -75,7 +75,7 @@ The compilation options are placed onto the separate header **ble_uart_mx/mx_con
 * configure using extended data frames or binary data encoding
 * setup debug options (TELL_UPTIME, PEER_ECHO)
 
-Since configuration options are placed onto the separate file you may conveniently create you own file or set of files for various device variants.
+Since configuration options are placed onto the separate file you may conveniently create you own file instead of **default_config.h** or set of files for various device variants.
 
 In case you are failed to flash ESP32 board from Arduino do the following:
 * press BOOT button
@@ -117,9 +117,9 @@ The adapters may be used either to connect to the similar adapter or another BLE
 Another popular Chinese BLE adapter JDY-08 (https://github.com/olegv142/esp32-ble/blob/main/doc/JDY-08.pdf) may be used as peripheral device with **ble_uart_mx** adapter acting as central. Note though that it splits data stream onto chunks with up to 20 bytes each. An attempt to send more than 20 bytes to JDY-08 will fail.
 
 ## Known issues
-The main fundamental issue with BLE regarding data transmission is the lack of the flow control. To transmit the particular data fragment the peripheral issues notification which is absolutely asynchronous (aka 'fire and forget'). The BLE stack provides the possibility to notify synchronously but its slow and so rarely used. Without flow control the capacity of BLE link may be easily exhausted. So pushing throughput to the limit is not recommended. The data rate should be limited by the sender. The best usage pattern is sending limited amount of data periodically.
+The main fundamental issue with BLE regarding data transmission is the lack of the flow control. To transmit the particular data fragment the peripheral issues notification which is absolutely asynchronous (aka 'fire and forget'). The BLE stack provides the possibility to notify synchronously but its slow and so rarely used. Without flow control the capacity of BLE link may be easily exhausted. This results in an increased number of lost/corrupted BLE characteristic updates, which manifests itself as lost/corrupted data frames. So pushing throughput to the limit is not recommended. The data rate should be limited by the sender. The best usage pattern is sending limited amount of data periodically.
 
-The first symptom of exhausting BLE link capacity is loosing characteristic update notifications which manifests itself as data frames delivery failures. Another issue is UART buffer overflow which may lead to code execution freezing for unknown reason. The adapter is able to recover from such freeze due to watchdog which reset it after 20 seconds of main loop inactivity. So if you need to transmit large bursts of the data make sure the UART buffer is able to accommodate that burst at the receiver. The buffer size is declared as UART_BUFFER_SZ (4096 bytes by default) in the configuration file. You can adjust this size according to your expected data burst size. Be aware that binary data are encoded to base64 before placing them to serial buffer which increases data size by the factor of 4/3.
+Another issue is UART buffer overflow at the receiver which may lead to code execution freezing while using CTS flow control. The root cause of this issue is unknown. It looks like a bug in UART implementation. The adapter is able to recover from such freeze due to watchdog which reset it after 20 seconds of main loop inactivity. To avoid this issue its recommended to use sufficiently large UART transmit buffer (UART_TX_BUFFER_SZ in configuration file) able to accommodate entire received data burst and / or don't use CTS flow control.
 
 ## Other experimental projects
 A bunch of experimental projects created mostly for testing during the work on this project are located in **simple** folder.
