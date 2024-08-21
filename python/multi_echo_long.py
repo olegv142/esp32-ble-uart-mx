@@ -9,6 +9,7 @@ Author: Oleg Volkov
 """
 
 import sys
+import time
 import random
 from collections import defaultdict
 
@@ -19,7 +20,7 @@ from ble_multi_adapter import MutliAdapter
 random_size = True
 
 # The number of messages that should be sent at once
-tx_burst = 2
+tx_burst = 10
 
 # Use binary data or text
 binary_data = True
@@ -44,6 +45,7 @@ class EchoTest(MutliAdapter):
 		self.last_tx_sn = 0
 		self.last_rx_sn = None
 		self.msg_cnt = 0
+		self.byte_cnt = 0
 		self.conn_cnt = 0
 		self.errors = 0
 		self.lost = 0
@@ -93,6 +95,7 @@ class EchoTest(MutliAdapter):
 	def msg_received(self, msg):
 		m = msg[1:-1].split(data_delimiter)
 		self.msg_cnt += 1
+		self.byte_cnt += len(msg)
 		if len(m) != 3:
 			print(' corrupt delimiters', end='')
 			self.errors += 1
@@ -150,12 +153,14 @@ class EchoTest(MutliAdapter):
 		print()
 
 if __name__ == '__main__':
+	start = time.time()
 	with EchoTest(sys.argv[1], sys.argv[2].encode() if len(sys.argv) > 2 else None) as ad:
 		ad.reset()
 		try:
 			while True:
 				ad.poll()
 		except KeyboardInterrupt:
+			print('%u bytes received (%u/sec)' % (ad.byte_cnt, ad.byte_cnt / (time.time() - start)))
 			print('connected %u time(s)' % ad.conn_cnt)
 			print('%u messages, %u errors (%u lost, %u dup, %u reorder, %u corrupt), parse errors %u' % (
 				ad.msg_cnt, ad.errors, ad.lost, ad.dup, ad.reorder, ad.corrupt, ad.parse_errors
@@ -163,4 +168,3 @@ if __name__ == '__main__':
 			print('debug messages:')
 			for msg, cnt in ad.dbg_msgs.items():
 				print('%u: %s' % (cnt, msg))
-
