@@ -20,7 +20,7 @@ from ble_multi_adapter import MutliAdapter
 random_size = True
 
 # The number of messages that should be sent at once
-tx_burst = 10
+tx_burst = 5
 
 # Use binary data or text
 binary_data = True
