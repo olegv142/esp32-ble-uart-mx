@@ -49,8 +49,6 @@
 #include <BLE2902.h>
 #include <esp_mac.h>
 #include <esp_task_wdt.h>
-#include <esp_system.h>
-#include <driver/uart.h>
 #include <string.h>
 #include <malloc.h>
 #include <freertos/queue.h>
