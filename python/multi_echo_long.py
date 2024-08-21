@@ -18,8 +18,8 @@ from ble_multi_adapter import MutliAdapter
 # If false all messages will have maximum allowed size
 random_size = True
 
-# Use the following to decide how mane messages should be sent at once
-max_burst = 5000
+# The number of messages that should be sent at once
+tx_burst = 2
 
 # Use binary data or text
 binary_data = True
@@ -66,7 +66,7 @@ class EchoTest(MutliAdapter):
 	def send_msgs(self):
 		if self.max_frame is None:
 			return
-		for _ in range(max_burst // self.max_frame):
+		for _ in range(tx_burst):
 			self.send_msg()
 
 	def on_idle(self, version):
