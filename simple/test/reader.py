@@ -7,7 +7,7 @@ Author: Oleg Volkov
 import sys
 from serial import Serial, PARITY_EVEN
 
-com = Serial(sys.argv[1], baudrate=115200, parity=PARITY_EVEN, dsrdtr=True, timeout=.1)
+com = Serial(sys.argv[1], baudrate=921600, parity=PARITY_EVEN, rtscts=True, timeout=.1)
 while True:
 	rd = com.read(512)
 	if rd:

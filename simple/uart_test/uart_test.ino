@@ -1,4 +1,4 @@
-#define UART_BAUD_RATE 115200
+#define UART_BAUD_RATE 921600
 #define UART_MODE SERIAL_8E1
 #define UART_TX_PIN  7
 #define UART_RX_PIN  6
