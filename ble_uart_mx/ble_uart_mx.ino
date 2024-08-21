@@ -183,12 +183,11 @@ public:
     uint32_t chksum = h & XH_FIRST ? CHKSUM_INI : m_last_chksum;
     if (chunk->len <= XHDR_SIZE + CHKSUM_SIZE || chunk->len > MAX_SIZE) {
 #ifndef NO_DEBUG
-      if (uart_begin_if_can()) {
-        DataSerial.print("-invalid chunk size from [");
-        DataSerial.print(m_tag);
-        DataSerial.print("]");
-        uart_end();
-      }
+      uart_begin();
+      DataSerial.print("-invalid chunk size from [");
+      DataSerial.print(m_tag);
+      DataSerial.print("]");
+      uart_end();
 #endif
       goto skip;
     }
@@ -202,12 +201,11 @@ public:
     }
     if (!chksum_validate(chunk->data, chunk->len - CHKSUM_SIZE, &chksum)) {
 #ifndef NO_DEBUG
-      if (uart_begin_if_can()) {
-        DataSerial.print("-invalid checksum from [");
-        DataSerial.print(m_tag);
-        DataSerial.print("]");
-        uart_end();
-      }
+      uart_begin();
+      DataSerial.print("-invalid checksum from [");
+      DataSerial.print(m_tag);
+      DataSerial.print("]");
+      uart_end();
 #endif
       goto skip;
     }
@@ -221,12 +219,11 @@ public:
     return;
   skip_verbose:
 #ifdef VERBOSE_DEBUG
-    if (uart_begin_if_can()) {
-      DataSerial.print("-skip chunk from [");
-      DataSerial.print(m_tag);
-      DataSerial.print("]");
-      uart_end();
-    }
+    uart_begin();
+    DataSerial.print("-skip chunk from [");
+    DataSerial.print(m_tag);
+    DataSerial.print("]");
+    uart_end();
 #endif
   skip:
     free(chunk->data);
