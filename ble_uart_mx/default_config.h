@@ -76,11 +76,6 @@
 #define UART_END   '\n'
 #endif
 
-// There is no flow control in USB serial port.
-// The default buffer size is 256 bytes which may be not enough.
-#define UART_RX_BUFFER_SZ 4096
-#define UART_TX_BUFFER_SZ 4096
-
 // If defined reset itself on peripheral disconnection instead of reconnecting
 #define RESET_ON_DISCONNECT
 
@@ -138,6 +133,23 @@
 #ifndef BINARY_DATA_SUPPORT
 #define BINARY_DATA_SUPPORT
 #endif
+#endif
+
+#if defined (UART_CTS_PIN) && defined (UART_RTS_PIN)
+// With flow control enabled in both directions a live lock is possible when both
+// adapter and host are trying to transmit data while their receiving buffers are full.
+// Since they can't transmit and receive data simultaneously this results in deadlock.
+// With UART_TX_THROTTLE enabled the code makes sure there is enough space in transmit
+// buffer before writing data to serial port.
+#define UART_TX_THROTTLE
+#endif
+
+#define UART_RX_BUFFER_SZ 4096
+#define UART_TX_BUFF_RESERVE 512
+#ifndef UART_TX_THROTTLE
+#define UART_TX_BUFFER_SZ (UART_RX_BUFFER_SZ+UART_TX_BUFF_RESERVE)
+#else
+#define UART_TX_BUFFER_SZ (UART_RX_BUFFER_SZ+UART_TX_BUFF_RESERVE+2*MAX_FRAME)
 #endif
 
 // If defined echo all data received back to sender (for testing)

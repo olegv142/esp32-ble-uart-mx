@@ -98,11 +98,42 @@ static bool          unknown_data_src;
 static uint32_t last_uptime;
 #endif
 
+static inline bool uart_can_write_(size_t size)
+{
+#ifdef UART_TX_THROTTLE
+  return DataSerial.availableForWrite() >= size;
+#else
+  return true;
+#endif
+}
+
+static inline bool uart_can_write()
+{
+  return uart_can_write_(UART_TX_BUFF_RESERVE);
+}
+
+static inline bool uart_can_write_data()
+{
+#ifdef BINARY_DATA_SUPPORT
+  return uart_can_write_(UART_TX_BUFF_RESERVE+MAX_ENCODED_FRAME_LEN);
+#else
+  return uart_can_write_(UART_TX_BUFF_RESERVE+MAX_FRAME);
+#endif
+}
+
 static inline void uart_begin()
 {
 #ifdef UART_BEGIN
   DataSerial.print(UART_BEGIN);
 #endif
+}
+
+static inline bool uart_begin_if_can()
+{
+  if (!uart_can_write())
+    return false;
+  uart_begin();
+  return true;
 }
 
 static inline void uart_end()
@@ -128,9 +159,10 @@ static inline uint32_t elapsed(uint32_t from, uint32_t to)
 static inline void debug_msg(const char* msg)
 {
 #ifndef NO_DEBUG
-  uart_begin();
-  DataSerial.print(msg);
-  uart_end();
+  if (uart_begin_if_can()) {
+    DataSerial.print(msg);
+    uart_end();
+  }
 #endif
 }
 
@@ -151,11 +183,12 @@ public:
     uint32_t chksum = h & XH_FIRST ? CHKSUM_INI : m_last_chksum;
     if (chunk->len <= XHDR_SIZE + CHKSUM_SIZE || chunk->len > MAX_SIZE) {
 #ifndef NO_DEBUG
-      uart_begin();
-      DataSerial.print("-invalid chunk size from [");
-      DataSerial.print(m_tag);
-      DataSerial.print("]");
-      uart_end();
+      if (uart_begin_if_can()) {
+        DataSerial.print("-invalid chunk size from [");
+        DataSerial.print(m_tag);
+        DataSerial.print("]");
+        uart_end();
+      }
 #endif
       goto skip;
     }
@@ -169,11 +202,12 @@ public:
     }
     if (!chksum_validate(chunk->data, chunk->len - CHKSUM_SIZE, &chksum)) {
 #ifndef NO_DEBUG
-      uart_begin();
-      DataSerial.print("-invalid checksum from [");
-      DataSerial.print(m_tag);
-      DataSerial.print("]");
-      uart_end();
+      if (uart_begin_if_can()) {
+        DataSerial.print("-invalid checksum from [");
+        DataSerial.print(m_tag);
+        DataSerial.print("]");
+        uart_end();
+      }
 #endif
       goto skip;
     }
@@ -187,11 +221,12 @@ public:
     return;
   skip_verbose:
 #ifdef VERBOSE_DEBUG
-      uart_begin();
+    if (uart_begin_if_can()) {
       DataSerial.print("-skip chunk from [");
       DataSerial.print(m_tag);
       DataSerial.print("]");
       uart_end();
+    }
 #endif
   skip:
     free(chunk->data);
@@ -396,7 +431,7 @@ public:
   bool monitor()
   {
     struct data_chunk ch;
-    while (m_rx_queue && xQueueReceive(m_rx_queue, &ch, 0)) {
+    while (m_rx_queue && uart_can_write_data() && xQueueReceive(m_rx_queue, &ch, 0)) {
       if (ch.data) {
         receive(&ch);
       } else {
@@ -406,6 +441,9 @@ public:
 #endif
       }
     }
+    if (!uart_can_write())
+      return true;
+
     if (m_connected != m_was_connected) {
       m_was_connected = m_connected;
 #ifndef NO_DEBUG
@@ -509,11 +547,12 @@ static void reset_self()
 void fatal(const char* what)
 {
 #ifndef NO_DEBUG
-  uart_begin();
-  DataSerial.print("-fatal: ");
-  DataSerial.print(what);
-  uart_end();
-  delay(100); // give host a chance to read message
+  if (uart_begin_if_can()) {
+    DataSerial.print("-fatal: ");
+    DataSerial.print(what);
+    uart_end();
+    delay(100); // give host a chance to read message
+  }
 #endif
   reset_self();
 }
@@ -884,18 +923,20 @@ static void cli_process()
 #ifdef STATUS_REPORT_INTERVAL
 static inline void report_idle()
 {
-  uart_begin();
-  DataSerial.print(":I " VMAJOR "." VMINOR "-");
-  DataSerial.print(MAX_FRAME);
-  DataSerial.print("-" VARIANT);
-  uart_end();
+  if (uart_begin_if_can()) {
+    DataSerial.print(":I " VMAJOR "." VMINOR "-");
+    DataSerial.print(MAX_FRAME);
+    DataSerial.print("-" VARIANT);
+    uart_end();
+  }
 }
 
 static inline void report_connected()
 {
-  uart_begin();
-  DataSerial.print(":D");  
-  uart_end();
+  if (uart_begin_if_can()) {
+    DataSerial.print(":D");  
+    uart_end();
+  }
 }
 #endif
 
@@ -961,7 +1002,7 @@ void loop()
 #endif
 
   struct data_chunk ch;
-  while (xQueueReceive(rx_queue, &ch, 0)) {
+  while (uart_can_write_data() && xQueueReceive(rx_queue, &ch, 0)) {
     if (ch.data) {
       receive_from_central(&ch);
     } else {
@@ -977,11 +1018,12 @@ void loop()
 
   if (queue_full_cnt != queue_full_last) {
 #ifndef NO_DEBUG
-    uart_begin();
-    DataSerial.print("-rx queue full ");
-    DataSerial.print(queue_full_cnt - queue_full_last);
-    DataSerial.print(" times");
-    uart_end();
+    if (uart_begin_if_can()) {
+      DataSerial.print("-rx queue full ");
+      DataSerial.print(queue_full_cnt - queue_full_last);
+      DataSerial.print(" times");
+      uart_end();
+    }
 #endif
     queue_full_last = queue_full_cnt;
   }
