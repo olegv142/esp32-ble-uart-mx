@@ -18,7 +18,7 @@ class MutliAdapter:
 	start_byte = b'\1'
 	end_byte   = b'\0'
 	b64_tag    = b'\2'
-	dsrdtr     = True
+	rtscts     = True
 	timeout    = .01
 	drain_timeout = .5
 
@@ -40,7 +40,7 @@ class MutliAdapter:
 		self.com = Serial(self.port,
 			baudrate=MutliAdapter.baud_rate,
 			parity=MutliAdapter.parity,
-			dsrdtr=MutliAdapter.dsrdtr,
+			rtscts=MutliAdapter.rtscts,
 			timeout=MutliAdapter.timeout
 		)
 
