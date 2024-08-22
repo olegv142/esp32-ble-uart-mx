@@ -846,8 +846,10 @@ static void process_cmd(const char* cmd)
 
 static bool process_msg(const char* str, size_t len)
 {
-  if (!len)
-    fatal("Invalid message");
+  if (!len) {
+    debug_msg("-invalid message");
+    return true;
+  }
   switch (str[0]) {
     case '#':
       process_cmd(str + 1);
