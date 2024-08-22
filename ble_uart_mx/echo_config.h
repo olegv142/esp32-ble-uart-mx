@@ -56,9 +56,7 @@
 #else
 #define UART_MODE SERIAL_8E1
 #endif
-// The following defines may be used to configure hardware UART flow control.
-// CTS prevents overflow of the host receiving buffer. 
-// #define UART_CTS_PIN 5
+// The following define may be used to configure hardware UART flow control.
 // RTS prevents overflow of the esp32 receiving buffer.
 // Its safe to have it enabled even in case you don't actually use it.
 #define UART_RTS_PIN 4
@@ -128,29 +126,15 @@
 #define XHDR_SIZE 1
 #define CHKSUM_SIZE 3
 #define MAX_CHUNK (MAX_SIZE-XHDR_SIZE-CHKSUM_SIZE)
-#define MAX_CHUNKS 9 // Max chunks in extended data frame
+#define MAX_CHUNKS 9 // Max chunks in single data frame
 #define MAX_FRAME (MAX_CHUNK*MAX_CHUNKS)
 #ifndef BINARY_DATA_SUPPORT
 #define BINARY_DATA_SUPPORT
 #endif
 #endif
 
-#if defined (UART_CTS_PIN) && defined (UART_RTS_PIN)
-// With flow control enabled in both directions a live lock is possible when both
-// adapter and host are trying to transmit data while their receiving buffers are full.
-// Since they can't transmit and receive data simultaneously this results in deadlock.
-// With UART_TX_THROTTLE enabled the code makes sure there is enough space in transmit
-// buffer before writing data to serial port.
-#define UART_TX_THROTTLE
-#endif
-
-#define UART_RX_BUFFER_SZ 4096
-#define UART_TX_BUFF_RESERVE 512
-#ifndef UART_TX_THROTTLE
-#define UART_TX_BUFFER_SZ (UART_RX_BUFFER_SZ+UART_TX_BUFF_RESERVE)
-#else
-#define UART_TX_BUFFER_SZ (UART_RX_BUFFER_SZ+UART_TX_BUFF_RESERVE+2*MAX_FRAME)
-#endif
+#define UART_RX_BUFFER_SZ 1024
+#define UART_TX_BUFFER_SZ 4096
 
 // If defined echo all data received back to sender (for testing)
 #define ECHO

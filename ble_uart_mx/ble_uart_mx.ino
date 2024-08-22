@@ -95,48 +95,18 @@ static unsigned      queue_full_cnt;
 static unsigned      queue_full_last;
 static unsigned      write_err_cnt;
 static unsigned      write_err_last;
+static bool          write_throttling;
 static bool          unknown_data_src;
 
 #ifdef TELL_UPTIME
 static uint32_t last_uptime;
 #endif
 
-static inline bool uart_can_write_(size_t size)
-{
-#ifdef UART_TX_THROTTLE
-  return DataSerial.availableForWrite() >= size;
-#else
-  return true;
-#endif
-}
-
-static inline bool uart_can_write()
-{
-  return uart_can_write_(UART_TX_BUFF_RESERVE);
-}
-
-static inline bool uart_can_write_data()
-{
-#ifdef BINARY_DATA_SUPPORT
-  return uart_can_write_(UART_TX_BUFF_RESERVE+MAX_ENCODED_FRAME_LEN);
-#else
-  return uart_can_write_(UART_TX_BUFF_RESERVE+MAX_FRAME);
-#endif
-}
-
 static inline void uart_begin()
 {
 #ifdef UART_BEGIN
   DataSerial.print(UART_BEGIN);
 #endif
-}
-
-static inline bool uart_begin_if_can()
-{
-  if (!uart_can_write())
-    return false;
-  uart_begin();
-  return true;
 }
 
 static inline void uart_end()
@@ -162,10 +132,9 @@ static inline uint32_t elapsed(uint32_t from, uint32_t to)
 static inline void debug_msg(const char* msg)
 {
 #ifndef NO_DEBUG
-  if (uart_begin_if_can()) {
-    DataSerial.print(msg);
-    uart_end();
-  }
+  uart_begin();
+  DataSerial.print(msg);
+  uart_end();
 #endif
 }
 
@@ -297,7 +266,7 @@ static void uart_print_data(uint8_t const* data, size_t len, char tag)
 }
 #endif
 
-static void remote_write(BLERemoteCharacteristic* ch, uint8_t* data, size_t len)
+static bool remote_write(BLERemoteCharacteristic* ch, uint8_t* data, size_t len)
 {
   // This is the replacement of BLERemoteCharacteristic::writeValue method.
   // The original implementation waits on semaphore which is silly since we are writing without response.
@@ -306,9 +275,12 @@ static void remote_write(BLERemoteCharacteristic* ch, uint8_t* data, size_t len)
   if (ESP_OK != esp_ble_gattc_write_char(
     clnt->getGattcIf(), clnt->getConnId(), ch->getHandle(), len, data,
     ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE
-  ))
+  )) {
     ++write_err_cnt;
+    return false;
+  }
   taskYIELD();
+  return true;
 }
 
 class Peer : public BLEClientCallbacks
@@ -368,7 +340,7 @@ public:
 
   void connect();
 
-  void transmit(const char* data, size_t len)
+  bool transmit(const char* data, size_t len)
   {
     if (!m_writable)
       fatal("Peer is not writable");
@@ -403,10 +375,12 @@ public:
       pdata = chunk_buff;
       first = 0;
   #endif
-      remote_write(m_remoteCharacteristic, pdata, XHDR_SIZE + chunk + CHKSUM_SIZE);
+      if (!remote_write(m_remoteCharacteristic, pdata, XHDR_SIZE + chunk + CHKSUM_SIZE))
+        return false;
       tx_data += chunk;
       len -= chunk;
     }
+    return true;
   }
 
   bool notify_data(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length)
@@ -442,7 +416,7 @@ public:
   bool monitor()
   {
     struct data_chunk ch;
-    while (m_rx_queue && uart_can_write_data() && xQueueReceive(m_rx_queue, &ch, 0)) {
+    while (m_rx_queue && xQueueReceive(m_rx_queue, &ch, 0)) {
       if (ch.data) {
         receive(&ch);
       } else {
@@ -452,9 +426,6 @@ public:
 #endif
       }
     }
-    if (!uart_can_write())
-      return true;
-
 #ifndef NO_DEBUG
     if (m_connected != m_was_connected) {
       m_was_connected = m_connected;
@@ -489,9 +460,9 @@ public:
 #endif
     if (!m_connected && elapsed(m_disconn_ts, millis()) > 500) {
       connect();
-      return true;
+      return false;
     }
-    return false;
+    return true;
   }
 
   char const  m_tag;
@@ -556,12 +527,11 @@ static void reset_self()
 void fatal(const char* what)
 {
 #ifndef NO_DEBUG
-  if (uart_begin_if_can()) {
-    DataSerial.print("-fatal: ");
-    DataSerial.print(what);
-    uart_end();
-    delay(100); // give host a chance to read message
-  }
+  uart_begin();
+  DataSerial.print("-fatal: ");
+  DataSerial.print(what);
+  uart_end();
+  delay(100); // give host a chance to read message
 #endif
   reset_self();
 }
@@ -684,18 +654,9 @@ static void hw_init()
 #endif
 #ifdef HW_UART
   DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
-#if defined(UART_CTS_PIN) && defined(UART_RTS_PIN)
-  DataSerial.setPins(UART_RX_PIN, UART_TX_PIN, UART_CTS_PIN, UART_RTS_PIN);
-  DataSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_CTS_RTS);
-#else
-#ifdef UART_CTS_PIN
-  DataSerial.setPins(UART_RX_PIN, UART_TX_PIN, UART_CTS_PIN, -1);
-  DataSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_CTS);
-#endif
 #ifdef UART_RTS_PIN
   DataSerial.setPins(UART_RX_PIN, UART_TX_PIN, -1, UART_RTS_PIN);
   DataSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_RTS);
-#endif
 #endif
 #endif
   DataSerial.setTimeout(10);
@@ -836,13 +797,13 @@ static void transmit_to_central(const char* data, size_t len)
 }
 #endif
 
-static void transmit_to_peer(unsigned idx, const char* str, size_t len)
+static bool transmit_to_peer(unsigned idx, const char* str, size_t len)
 {
   if (idx >= MAX_PEERS || !peers[idx]) {
     debug_msg("-bad peripheral index");
-    return;
+    return true;
   }
-  peers[idx]->transmit(str, len);
+  return peers[idx]->transmit(str, len);
 }
 
 #ifndef AUTOCONNECT
@@ -883,30 +844,31 @@ static void process_cmd(const char* cmd)
   }
 }
 
-static void process_msg(const char* str, size_t len)
+static bool process_msg(const char* str, size_t len)
 {
   if (!len)
     fatal("Invalid message");
   switch (str[0]) {
     case '#':
       process_cmd(str + 1);
-      break;
+      return true;
 #ifndef HIDDEN
     case '>':
       transmit_to_central(str + 1, len - 1);
-      break;
+      return true;
 #endif
     default:
-      transmit_to_peer(str[0] - '0', str + 1, len - 1);
+      return transmit_to_peer(str[0] - '0', str + 1, len - 1);
   }
 }
 
-static void cli_process()
+static bool cli_process()
 {
   size_t const len = cli_buff.length();
   const char*  str = cli_buff.c_str();
   const char*  end = str + len;
   const char* next = str;
+  bool done = true;
 
   while (next < end) {
 #ifdef UART_BEGIN
@@ -922,37 +884,40 @@ static void cli_process()
     if (!tail)
       break;
     *tail = '\0';
+    if (!process_msg(begin, tail - begin)) {
+      *tail = UART_END;
+      done = false;
+      break;
+    }
     next = tail + 1;
     BUG_ON(next > end);
-    process_msg(begin, tail - begin);
   }
   cli_buff = cli_buff.substring(next - str);
+  return done;
 }
 
 #ifdef STATUS_REPORT_INTERVAL
 static inline void report_idle()
 {
-  if (uart_begin_if_can()) {
-    DataSerial.print(":I " VMAJOR "." VMINOR "-");
-    DataSerial.print(MAX_FRAME);
-    DataSerial.print("-" VARIANT);
-    uart_end();
-  }
+  uart_begin();
+  DataSerial.print(":I " VMAJOR "." VMINOR "-");
+  DataSerial.print(MAX_FRAME);
+  DataSerial.print("-" VARIANT);
+  uart_end();
 }
 
 static inline void report_connected()
 {
-  if (uart_begin_if_can()) {
-    DataSerial.print(":D");  
-    uart_end();
-  }
+  uart_begin();
+  DataSerial.print(":D");  
+  uart_end();
 }
 #endif
 
 static void monitor_peers()
 {
   for (unsigned i = 0; i < MAX_PEERS; ++i)
-    if (peers[i] && peers[i]->monitor())
+    if (peers[i] && !peers[i]->monitor())
       break;
 
 #ifdef STATUS_REPORT_INTERVAL
@@ -962,7 +927,7 @@ static void monitor_peers()
       last_status_ts = now;
       report_idle();
     }
-  } else if (is_connected()) {
+  } else if (is_connected() && !write_throttling) {
     if (elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
       last_status_ts = now;
       report_connected();
@@ -987,11 +952,16 @@ void receive_from_central(struct data_chunk const* chunk)
 
 void loop()
 {
-  String const received = DataSerial.readString();
-  if (received.length()) {
-    cli_buff += received;
-    cli_process();
+  bool rxed = false;
+  if (!write_throttling) {
+    String const received = DataSerial.readString();
+    if (received.length()) {
+      cli_buff += received;
+      rxed = true;
+    }
   }
+  if (rxed || write_throttling)
+    write_throttling = !cli_process();
 
 #ifndef HIDDEN
   if (start_advertising && elapsed(centr_disconn_ts, millis()) > 500) {
@@ -1011,7 +981,7 @@ void loop()
 #endif
 
   struct data_chunk ch;
-  while (uart_can_write_data() && xQueueReceive(rx_queue, &ch, 0)) {
+  while (xQueueReceive(rx_queue, &ch, 0)) {
     if (ch.data) {
       receive_from_central(&ch);
     } else {
@@ -1027,21 +997,19 @@ void loop()
 
 #ifndef NO_DEBUG
   if (queue_full_cnt != queue_full_last) {
-    if (uart_begin_if_can()) {
-      DataSerial.print("-rx queue full ");
-      DataSerial.print(queue_full_cnt - queue_full_last);
-      DataSerial.print(" times");
-      uart_end();
-    }
+    uart_begin();
+    DataSerial.print("-rx queue full ");
+    DataSerial.print(queue_full_cnt - queue_full_last);
+    DataSerial.print(" times");
+    uart_end();
     queue_full_last = queue_full_cnt;
   }
   if (write_err_cnt != write_err_last) {
-    if (uart_begin_if_can()) {
-      DataSerial.print("-write failed ");
-      DataSerial.print(write_err_cnt - write_err_last);
-      DataSerial.print(" times");
-      uart_end();
-    }
+    uart_begin();
+    DataSerial.print("-write failed ");
+    DataSerial.print(write_err_cnt - write_err_last);
+    DataSerial.print(" times");
+    uart_end();
     write_err_last = write_err_cnt;
   }
 #endif
@@ -1052,5 +1020,7 @@ void loop()
   }
 
   monitor_peers();
-  esp_task_wdt_reset();
+
+  if (!write_throttling)
+    esp_task_wdt_reset();
 }
