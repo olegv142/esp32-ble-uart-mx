@@ -140,11 +140,29 @@ static inline void uart_print(unsigned long val)
   uart_print(str);
 }
 
+static inline bool uart_can_write()
+{
+  return true;
+}
+
+static inline bool uart_can_write_data()
+{
+  return true;
+}
+
 static inline void uart_begin()
 {
 #ifdef UART_BEGIN
   uart_print(UART_BEGIN);
 #endif
+}
+
+static inline bool uart_begin_if_can()
+{
+  if (!uart_can_write())
+    return false;
+  uart_begin();
+  return true;
 }
 
 static inline void uart_end()
@@ -167,13 +185,16 @@ static inline uint32_t elapsed(uint32_t from, uint32_t to)
   return to < from ? 0 : to - from;
 }
 
-static inline void debug_msg(const char* msg)
+static inline bool debug_msg(const char* msg)
 {
 #ifndef NO_DEBUG
-  uart_begin();
-  uart_print(msg);
-  uart_end();
+  if (uart_begin_if_can()) {
+    uart_print(msg);
+    uart_end();
+    return true;
+  }
 #endif
+  return false;
 }
 
 struct data_chunk {
@@ -454,7 +475,7 @@ public:
   bool monitor()
   {
     struct data_chunk ch;
-    while (m_rx_queue && xQueueReceive(m_rx_queue, &ch, 0)) {
+    while (m_rx_queue && uart_can_write_data() && xQueueReceive(m_rx_queue, &ch, 0)) {
       if (ch.data) {
         receive(&ch);
       } else {
@@ -464,6 +485,8 @@ public:
 #endif
       }
     }
+    if (!uart_can_write())
+      return false;
 #ifndef NO_DEBUG
     if (m_connected != m_was_connected) {
       m_was_connected = m_connected;
@@ -565,11 +588,12 @@ static void reset_self()
 void fatal(const char* what)
 {
 #ifndef NO_DEBUG
-  uart_begin();
-  uart_print("-fatal: ");
-  uart_print(what);
-  uart_end();
-  delay(100); // give host a chance to read message
+  if (uart_begin_if_can()) {
+    uart_print("-fatal: ");
+    uart_print(what);
+    uart_end();
+    delay(100); // give host a chance to read message
+  }
 #endif
   reset_self();
 }
@@ -948,18 +972,20 @@ static bool cli_process()
 #ifdef STATUS_REPORT_INTERVAL
 static inline void report_idle()
 {
-  uart_begin();
-  uart_print(":I " VMAJOR "." VMINOR "-");
-  uart_print(MAX_FRAME);
-  uart_print("-" VARIANT);
-  uart_end();
+  if (uart_begin_if_can()) {
+    uart_print(":I " VMAJOR "." VMINOR "-");
+    uart_print(MAX_FRAME);
+    uart_print("-" VARIANT);
+    uart_end();
+  }
 }
 
 static inline void report_connected()
 {
-  uart_begin();
-  uart_print(":D");  
-  uart_end();
+  if (uart_begin_if_can()) {
+    uart_print(":D");  
+    uart_end();
+  }
 }
 #endif
 
@@ -1030,7 +1056,7 @@ void loop()
 #endif
 
   struct data_chunk ch;
-  while (xQueueReceive(rx_queue, &ch, 0)) {
+  while (uart_can_write_data() && xQueueReceive(rx_queue, &ch, 0)) {
     if (ch.data) {
       receive_from_central(&ch);
     } else {
@@ -1046,27 +1072,29 @@ void loop()
 
 #ifndef NO_DEBUG
   if (queue_full_cnt != queue_full_last) {
-    uart_begin();
-    uart_print("-rx queue full ");
-    uart_print(queue_full_cnt - queue_full_last);
-    uart_print(" times");
-    uart_end();
-    queue_full_last = queue_full_cnt;
+    if (uart_begin_if_can()) {
+      uart_print("-rx queue full ");
+      uart_print(queue_full_cnt - queue_full_last);
+      uart_print(" times");
+      uart_end();
+      queue_full_last = queue_full_cnt;
+    }
   }
   if (write_err_cnt != write_err_last) {
-    uart_begin();
-    uart_print("-write failed ");
-    uart_print(write_err_cnt - write_err_last);
-    uart_print(" times");
-    uart_end();
-    write_err_last = write_err_cnt;
+    if (uart_begin_if_can()) {
+      uart_print("-write failed ");
+      uart_print(write_err_cnt - write_err_last);
+      uart_print(" times");
+      uart_end();
+      write_err_last = write_err_cnt;
+    }
   }
-#endif
 
   if (unknown_data_src) {
-    unknown_data_src = false;
-    debug_msg("-got data from unknown source");
+    if (debug_msg("-got data from unknown source"))
+      unknown_data_src = false;
   }
+#endif
 
   monitor_peers();
 
