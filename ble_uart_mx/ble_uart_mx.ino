@@ -654,9 +654,18 @@ static void hw_init()
 #endif
 #ifdef HW_UART
   DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
+#if defined(UART_CTS_PIN) && defined(UART_RTS_PIN)
+  DataSerial.setPins(UART_RX_PIN, UART_TX_PIN, UART_CTS_PIN, UART_RTS_PIN);
+  DataSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_CTS_RTS);
+#else
+#ifdef UART_CTS_PIN
+  DataSerial.setPins(UART_RX_PIN, UART_TX_PIN, UART_CTS_PIN, -1);
+  DataSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_CTS);
+#endif
 #ifdef UART_RTS_PIN
   DataSerial.setPins(UART_RX_PIN, UART_TX_PIN, -1, UART_RTS_PIN);
   DataSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_RTS);
+#endif
 #endif
 #endif
   DataSerial.setTimeout(10);

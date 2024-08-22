@@ -56,7 +56,13 @@
 #else
 #define UART_MODE SERIAL_8E1
 #endif
-// The following define may be used to configure hardware UART flow control.
+// The following defines may be used to configure hardware UART flow control.
+// CTS prevents overflow of the host receiving buffer. Be ware that using both
+// CTS and RTS flow control may lead to deadlock when both adapter and the host
+// are blocked while writing to the serial link with their receiving buffers full.
+// The adapter is able to recover from such freeze due to watchdog which reset
+// it after 20 seconds of main loop inactivity.
+// #define UART_CTS_PIN 5
 // RTS prevents overflow of the esp32 receiving buffer.
 // Its safe to have it enabled even in case you don't actually use it.
 #define UART_RTS_PIN 4
@@ -133,7 +139,7 @@
 #endif
 #endif
 
-#define UART_RX_BUFFER_SZ ((1+MAX_FRAME/4096)*4096)
+#define UART_RX_BUFFER_SZ ((1+(MAX_FRAME+1024)/4096)*4096)
 #define UART_TX_BUFFER_SZ (2*UART_RX_BUFFER_SZ)
 
 // If defined echo all data received back to sender (for testing)
