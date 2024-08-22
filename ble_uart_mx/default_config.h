@@ -133,8 +133,8 @@
 #endif
 #endif
 
-#define UART_RX_BUFFER_SZ 1024
-#define UART_TX_BUFFER_SZ 4096
+#define UART_RX_BUFFER_SZ ((1+MAX_FRAME/4096)*4096)
+#define UART_TX_BUFFER_SZ (2*UART_RX_BUFFER_SZ)
 
 // If defined echo all data received back to sender (for testing)
 // #define ECHO
