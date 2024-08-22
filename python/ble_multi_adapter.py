@@ -43,6 +43,7 @@ class MutliAdapter:
 			rtscts=MutliAdapter.rtscts,
 			timeout=MutliAdapter.timeout
 		)
+		self.com.set_buffer_size(rx_size = 4*4096, tx_size = 4096)
 
 	def close(self):
 		if self.com:
