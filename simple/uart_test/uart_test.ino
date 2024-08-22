@@ -5,6 +5,8 @@
 #define UART_CTS_PIN 5
 #define UART_RTS_PIN 4
 
+// #define TX_RANDOM
+
 static char tx_buff[2048];
 
 void setup()
@@ -23,7 +25,11 @@ void setup()
 void loop()
 {
   static unsigned loop_cnt;
+#ifdef TX_RANDOM
   Serial1.write(tx_buff, random(1, sizeof(tx_buff) + 1));
+#else
+  Serial1.write(tx_buff, sizeof(tx_buff));
+#endif
   Serial.print('.');
   if (++loop_cnt % 128 == 0)
     Serial.println();
