@@ -75,6 +75,10 @@ static uint32_t           last_characteristic_error;
 #define MAX_PEERS 8
 #endif
 
+#ifndef UART_TIMEOUT
+#define UART_TIMEOUT 10
+#endif
+
 class Peer;
 static Peer*    peers[MAX_PEERS];
 static unsigned npeers;
@@ -685,7 +689,7 @@ static void hw_init()
 #endif
 #endif
 #endif
-  DataSerial.setTimeout(10);
+  DataSerial.setTimeout(UART_TIMEOUT);
 
   Serial.begin(UART_BAUD_RATE);
 }
@@ -1063,5 +1067,5 @@ void loop()
   if (!write_throttling)
     esp_task_wdt_reset();
   else
-    delay(10);
+    delay(UART_TIMEOUT);
 }
