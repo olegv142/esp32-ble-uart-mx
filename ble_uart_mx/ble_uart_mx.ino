@@ -102,54 +102,16 @@ static bool          unknown_data_src;
 static uint32_t last_uptime;
 #endif
 
-static inline void uart_write(const char* str, size_t len)
-{
-  DataSerial.write(str, len);
-}
-
-static inline void uart_print(const char* str)
-{
-  uart_write(str, strlen(str));
-}
-
-static inline void uart_print(char c)
-{
-  uart_write(&c, 1);
-}
-
-static inline void uart_print(String const& str)
-{
-  uart_write(str.c_str(), str.length());
-}
-
-static inline void uart_print(int val)
-{
-  String str(val);
-  uart_print(str);
-}
-
-static inline void uart_print(unsigned val)
-{
-  String str(val);
-  uart_print(str);
-}
-
-static inline void uart_print(unsigned long val)
-{
-  String str(val);
-  uart_print(str);
-}
-
 static inline void uart_begin()
 {
 #ifdef UART_BEGIN
-  uart_print(UART_BEGIN);
+  DataSerial.print(UART_BEGIN);
 #endif
 }
 
 static inline void uart_end()
 {
-  uart_print(UART_END);
+  DataSerial.print(UART_END);
 }
 
 static inline bool is_idle()
@@ -171,7 +133,7 @@ static inline void debug_msg(const char* msg)
 {
 #ifndef NO_DEBUG
   uart_begin();
-  uart_print(msg);
+  DataSerial.print(msg);
   uart_end();
 #endif
 }
@@ -194,9 +156,9 @@ public:
     if (chunk->len <= XHDR_SIZE + CHKSUM_SIZE || chunk->len > MAX_SIZE) {
 #ifndef NO_DEBUG
       uart_begin();
-      uart_print("-invalid chunk size from [");
-      uart_print(m_tag);
-      uart_print("]");
+      DataSerial.print("-invalid chunk size from [");
+      DataSerial.print(m_tag);
+      DataSerial.print("]");
       uart_end();
 #endif
       goto skip;
@@ -212,9 +174,9 @@ public:
     if (!chksum_validate(chunk->data, chunk->len - CHKSUM_SIZE, &chksum)) {
 #ifndef NO_DEBUG
       uart_begin();
-      uart_print("-invalid checksum from [");
-      uart_print(m_tag);
-      uart_print("]");
+      DataSerial.print("-invalid checksum from [");
+      DataSerial.print(m_tag);
+      DataSerial.print("]");
       uart_end();
 #endif
       goto skip;
@@ -230,9 +192,9 @@ public:
   skip_verbose:
 #ifdef VERBOSE_DEBUG
     uart_begin();
-    uart_print("-skip chunk from [");
-    uart_print(m_tag);
-    uart_print("]");
+    DataSerial.print("-skip chunk from [");
+    DataSerial.print(m_tag);
+    DataSerial.print("]");
     uart_end();
 #endif
   skip:
@@ -252,9 +214,9 @@ private:
     uint8_t const is_binary = m_chunks[0].data[0] & XH_BINARY;
     char enc_buff[MAX_ENCODED_CHUNK_LEN];
     uart_begin();
-    uart_print(m_tag);
+    DataSerial.print(m_tag);
     if (is_binary)
-      uart_print(ENCODED_DATA_START_TAG);
+      DataSerial.print(ENCODED_DATA_START_TAG);
     for (int i = 0; i <= m_last_chunk; ++i) {
       size_t len = m_chunks[i].len - XHDR_SIZE - CHKSUM_SIZE;
       const uint8_t* const pchunk = m_chunks[i].data + XHDR_SIZE;
@@ -263,7 +225,7 @@ private:
         len = encode(pchunk, len, enc_buff);
         out_data = enc_buff;
       }
-      uart_write(out_data, len);
+      DataSerial.write(out_data, len);
     }
     uart_end();
     reset();
@@ -298,8 +260,8 @@ static void uart_print_data(uint8_t const* data, size_t len, char tag)
   }
 #endif
   uart_begin();
-  uart_print(tag);
-  uart_write(out_data, len);
+  DataSerial.print(tag);
+  DataSerial.write(out_data, len);
   uart_end();
 }
 #endif
@@ -364,15 +326,15 @@ public:
   void report_connecting() {
 #ifdef STATUS_REPORT_INTERVAL
     uart_begin();
-    uart_print(":C");
-    uart_print(m_tag);
+    DataSerial.print(":C");
+    DataSerial.print(m_tag);
     uart_end();
 #endif
   }
 
   void notify_connected() {
     uart_begin();
-    uart_print(m_tag);
+    DataSerial.print(m_tag);
     uart_end();
   }
 
@@ -469,29 +431,29 @@ public:
       m_was_connected = m_connected;
       if (m_connected) {
         uart_begin();
-        uart_print("-peripheral [");
-        uart_print(m_tag);
-        uart_print("] ");
-        uart_print(m_addr);
-        uart_print(" connected");
+        DataSerial.print("-peripheral [");
+        DataSerial.print(m_tag);
+        DataSerial.print("] ");
+        DataSerial.print(m_addr);
+        DataSerial.print(" connected");
         uart_end();
       } else {
         uart_begin();
-        uart_print("-peripheral [");
-        uart_print(m_tag);
-        uart_print("] ");
-        uart_print(m_addr);
-        uart_print(" disconnected");
+        DataSerial.print("-peripheral [");
+        DataSerial.print(m_tag);
+        DataSerial.print("] ");
+        DataSerial.print(m_addr);
+        DataSerial.print(" disconnected");
         uart_end();
       }
     }
     if (m_queue_full_cnt != m_queue_full_last) {
       uart_begin();
-      uart_print("-rx queue [");
-      uart_print(m_tag);
-      uart_print("] full ");
-      uart_print(m_queue_full_cnt - m_queue_full_last);
-      uart_print(" times");
+      DataSerial.print("-rx queue [");
+      DataSerial.print(m_tag);
+      DataSerial.print("] full ");
+      DataSerial.print(m_queue_full_cnt - m_queue_full_last);
+      DataSerial.print(" times");
       uart_end();
       m_queue_full_last = m_queue_full_cnt;
     }
@@ -566,8 +528,8 @@ void fatal(const char* what)
 {
 #ifndef NO_DEBUG
   uart_begin();
-  uart_print("-fatal: ");
-  uart_print(what);
+  DataSerial.print("-fatal: ");
+  DataSerial.print(what);
   uart_end();
   delay(100); // give host a chance to read message
 #endif
@@ -747,8 +709,8 @@ void Peer::connect()
 
 #ifndef NO_DEBUG
   uart_begin();
-  uart_print("-connecting to ");
-  uart_print(m_addr);
+  DataSerial.print("-connecting to ");
+  DataSerial.print(m_addr);
   uart_end();
 #endif
 
@@ -784,16 +746,16 @@ void Peer::connect()
 
 #ifndef NO_DEBUG
   uart_begin();
-  uart_print("-connected to ");
-  uart_print(m_addr);
-  uart_print(" in ");
-  uart_print(millis() - start);
-  uart_print(" msec");
+  DataSerial.print("-connected to ");
+  DataSerial.print(m_addr);
+  DataSerial.print(" in ");
+  DataSerial.print(millis() - start);
+  DataSerial.print(" msec");
   if (m_writable)
-    uart_print(", writable");
+    DataSerial.print(", writable");
 #ifdef RESET_ON_DISCONNECT
-  uart_print(", rssi=");
-  uart_print(m_Client->getRssi());
+  DataSerial.print(", rssi=");
+  DataSerial.print(m_Client->getRssi());
 #endif
   uart_end();
 #endif
@@ -949,16 +911,16 @@ static bool cli_process()
 static inline void report_idle()
 {
   uart_begin();
-  uart_print(":I " VMAJOR "." VMINOR "-");
-  uart_print(MAX_FRAME);
-  uart_print("-" VARIANT);
+  DataSerial.print(":I " VMAJOR "." VMINOR "-");
+  DataSerial.print(MAX_FRAME);
+  DataSerial.print("-" VARIANT);
   uart_end();
 }
 
 static inline void report_connected()
 {
   uart_begin();
-  uart_print(":D");  
+  DataSerial.print(":D");  
   uart_end();
 }
 #endif
@@ -1036,7 +998,7 @@ void loop()
     } else {
       // Output stream start tag
       uart_begin();
-      uart_print('<');
+      DataSerial.print('<');
       uart_end();
 #ifdef EXT_FRAMES
       centr_xrx.reset();
@@ -1047,17 +1009,17 @@ void loop()
 #ifndef NO_DEBUG
   if (queue_full_cnt != queue_full_last) {
     uart_begin();
-    uart_print("-rx queue full ");
-    uart_print(queue_full_cnt - queue_full_last);
-    uart_print(" times");
+    DataSerial.print("-rx queue full ");
+    DataSerial.print(queue_full_cnt - queue_full_last);
+    DataSerial.print(" times");
     uart_end();
     queue_full_last = queue_full_cnt;
   }
   if (write_err_cnt != write_err_last) {
     uart_begin();
-    uart_print("-write failed ");
-    uart_print(write_err_cnt - write_err_last);
-    uart_print(" times");
+    DataSerial.print("-write failed ");
+    DataSerial.print(write_err_cnt - write_err_last);
+    DataSerial.print(" times");
     uart_end();
     write_err_last = write_err_cnt;
   }
