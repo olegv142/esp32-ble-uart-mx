@@ -111,8 +111,8 @@ class TestStream:
 			self.corrupt += 1
 
 	def print_stat(self, prefix):
-		print('%s%u bytes received (%u/sec)' % (prefix, self.byte_cnt, self.byte_cnt / (time.time() - self.created_ts)))
 		print('%sconnected %u time(s)' % (prefix, self.conn_cnt))
+		print('%s%u bytes received (%u/sec)' % (prefix, self.byte_cnt, self.byte_cnt / (time.time() - self.created_ts)))
 		print('%s%u messages, %u errors (%u lost, %u dup, %u reorder, %u corrupt)' % (
 				prefix, self.msg_cnt, self.errors, self.lost, self.dup, self.reorder, self.corrupt
 			))
