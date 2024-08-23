@@ -35,12 +35,9 @@ def random_bytes(len):
 		 random.randrange(0, 255) if binary_data else random.randrange(ord('0'), ord('z')+1) for _ in range(len)
 	))
 
-class EchoTest(MutliAdapter):
-
-	def __init__(self, port, target=None):
-		super().__init__(port)
-		self.target = target
-		self.max_frame = None
+class TestStream:
+	def __init__(self):
+		self.created_ts = time.time()
 		self.started = False
 		self.last_tx_sn = 0
 		self.last_rx_sn = None
@@ -52,45 +49,13 @@ class EchoTest(MutliAdapter):
 		self.dup = 0
 		self.reorder = 0
 		self.corrupt = 0
-		self.dbg_msgs = defaultdict(int)
 
-	def send_msg(self):
+	def mk_msg(self, max_frame):
 		self.last_tx_sn += 1
 		sn = b'%u' % self.last_tx_sn
-		max_data_size = (self.max_frame - len(sn) - 4) // 2 # takes into account separators (sn#data#data)
+		max_data_size = (max_frame - len(sn) - 4) // 2 # takes into account separators (sn#data#data)
 		data = random_bytes(max_data_size if not random_size else random.randrange(1, max_data_size+1))
-		msg = b'(' + sn + data_delimiter + data + data_delimiter + data + b')'
-		if self.target is None:
-			self.send_data(msg, binary_data)
-		else:
-			self.send_data_to(0, msg, binary_data)
-
-	def send_msgs(self):
-		if self.max_frame is None:
-			return
-		for _ in range(tx_burst):
-			self.send_msg()
-
-	def on_idle(self, version):
-		try:
-			v = version.split(b'-')
-			self.max_frame = int(v[1])
-		except:
-			print('bad version: %s', version)
-			return
-		if self.target is None:
-			self.send_msgs()
-		else:
-			print('Idle, version ' + version.decode())
-			self.connect([self.target])
-
-	def on_connected(self):
-		self.send_msgs()
-
-	def on_debug_msg(self, msg):
-		str = msg.decode()
-		print('    ' + str)
-		self.dbg_msgs[str] += 1
+		return b'(' + sn + data_delimiter + data + data_delimiter + data + b')'
 
 	def msg_received(self, msg):
 		m = msg[1:-1].split(data_delimiter)
@@ -140,17 +105,74 @@ class EchoTest(MutliAdapter):
 			self.errors += 1
 			self.corrupt += 1
 
+	def print_stat(self):
+		print('%u bytes received (%u/sec)' % (self.byte_cnt, self.byte_cnt / (time.time() - self.created_ts)))
+		print('connected %u time(s)' % self.conn_cnt)
+		print('%u messages, %u errors (%u lost, %u dup, %u reorder, %u corrupt)' % (
+				self.msg_cnt, self.errors, self.lost, self.dup, self.reorder, self.corrupt
+			))
+
+class EchoTest(MutliAdapter):
+
+	def __init__(self, port, target=None):
+		super().__init__(port)
+		self.target = target
+		self.max_frame = None
+		self.dbg_msgs = defaultdict(int)
+		self.stream = TestStream()
+
+	def send_msg(self):
+		msg = self.stream.mk_msg(self.max_frame)
+		if self.target is None:
+			self.send_data(msg, binary_data)
+		else:
+			self.send_data_to(0, msg, binary_data)
+
+	def send_msgs(self):
+		if self.max_frame is None:
+			return
+		for _ in range(tx_burst):
+			self.send_msg()
+
+	def on_idle(self, version):
+		try:
+			v = version.split(b'-')
+			self.max_frame = int(v[1])
+		except:
+			print('bad version: %s', version)
+			return
+		if self.target is None:
+			self.send_msgs()
+		else:
+			print('Idle, version ' + version.decode())
+			self.connect([self.target])
+
+	def on_connected(self):
+		self.send_msgs()
+
+	def on_debug_msg(self, msg):
+		str = msg.decode()
+		print('    ' + str)
+		self.dbg_msgs[str] += 1
+
 	def on_central_msg(self, msg):
 		print('[.] %r' % msg, end='')
 		if self.target is None:
-			self.chunk_received(msg)
+			self.stream.chunk_received(msg)
 		print()
 
 	def on_peer_msg(self, idx, msg):
 		print('[%d] %r' % (idx, msg), end='')
 		if self.target is not None:
-			self.chunk_received(msg)
+			self.stream.chunk_received(msg)
 		print()
+
+	def print_stat(self):
+		self.stream.print_stat()
+		print('parse errors: %u' % self.parse_errors)
+		print('debug messages:')
+		for msg, cnt in ad.dbg_msgs.items():
+			print('%u: %s' % (cnt, msg))
 
 if __name__ == '__main__':
 	start = time.time()
@@ -160,11 +182,4 @@ if __name__ == '__main__':
 			while True:
 				ad.poll()
 		except KeyboardInterrupt:
-			print('%u bytes received (%u/sec)' % (ad.byte_cnt, ad.byte_cnt / (time.time() - start)))
-			print('connected %u time(s)' % ad.conn_cnt)
-			print('%u messages, %u errors (%u lost, %u dup, %u reorder, %u corrupt), parse errors %u' % (
-				ad.msg_cnt, ad.errors, ad.lost, ad.dup, ad.reorder, ad.corrupt, ad.parse_errors
-			))
-			print('debug messages:')
-			for msg, cnt in ad.dbg_msgs.items():
-				print('%u: %s' % (cnt, msg))
+			ad.print_stat()
