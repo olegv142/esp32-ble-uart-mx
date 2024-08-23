@@ -20,10 +20,13 @@ from ble_multi_adapter import MutliAdapter
 random_size = True
 
 # The number of messages that should be sent at once
-tx_burst = 5
+tx_burst = 1
 
 # Use binary data or text
 binary_data = True
+
+# Limit maximum message size
+max_size = 240
 
 if binary_data:
 	data_delimiter = b'\xff'
@@ -51,6 +54,8 @@ class TestStream:
 		self.corrupt = 0
 
 	def mk_msg(self, max_frame):
+		if max_size is not None and max_frame > max_size:
+			max_frame = max_size
 		self.last_tx_sn += 1
 		sn = b'%u' % self.last_tx_sn
 		max_data_size = (max_frame - len(sn) - 4) // 2 # takes into account separators (sn#data#data)
@@ -105,34 +110,43 @@ class TestStream:
 			self.errors += 1
 			self.corrupt += 1
 
-	def print_stat(self):
-		print('%u bytes received (%u/sec)' % (self.byte_cnt, self.byte_cnt / (time.time() - self.created_ts)))
-		print('connected %u time(s)' % self.conn_cnt)
-		print('%u messages, %u errors (%u lost, %u dup, %u reorder, %u corrupt)' % (
-				self.msg_cnt, self.errors, self.lost, self.dup, self.reorder, self.corrupt
+	def print_stat(self, prefix):
+		print('%s%u bytes received (%u/sec)' % (prefix, self.byte_cnt, self.byte_cnt / (time.time() - self.created_ts)))
+		print('%sconnected %u time(s)' % (prefix, self.conn_cnt))
+		print('%s%u messages, %u errors (%u lost, %u dup, %u reorder, %u corrupt)' % (
+				prefix, self.msg_cnt, self.errors, self.lost, self.dup, self.reorder, self.corrupt
 			))
 
 class EchoTest(MutliAdapter):
 
-	def __init__(self, port, target=None):
+	def __init__(self, port, targets = None, active = None, peripheral = None):
 		super().__init__(port)
-		self.target = target
+		ntargets = len(targets)
+		if active is None:
+			active = range(ntargets)
+		assert len(active) <= ntargets
+		if peripheral is None:
+			peripheral = not targets
+		self.targets = targets
+		self.active = active
+		self.peripheral = peripheral
 		self.max_frame = None
 		self.dbg_msgs = defaultdict(int)
-		self.stream = TestStream()
+		self.pstream = TestStream() if peripheral else None
+		self.tstream = [TestStream() for _ in targets]
 
-	def send_msg(self):
-		msg = self.stream.mk_msg(self.max_frame)
-		if self.target is None:
-			self.send_data(msg, binary_data)
-		else:
-			self.send_data_to(0, msg, binary_data)
+	def send_msg(self, connected):
+		if self.pstream is not None:
+			self.send_data(self.pstream.mk_msg(self.max_frame), binary_data)
+		if connected:
+			for i in self.active:
+				self.send_data_to(i, self.tstream[i].mk_msg(self.max_frame), binary_data)
 
-	def send_msgs(self):
+	def send_msgs(self, connected):
 		if self.max_frame is None:
 			return
 		for _ in range(tx_burst):
-			self.send_msg()
+			self.send_msg(connected)
 
 	def on_idle(self, version):
 		try:
@@ -141,14 +155,13 @@ class EchoTest(MutliAdapter):
 		except:
 			print('bad version: %s', version)
 			return
-		if self.target is None:
-			self.send_msgs()
-		else:
+		self.send_msgs(False)
+		if self.targets:
 			print('Idle, version ' + version.decode())
-			self.connect([self.target])
+			self.connect(self.targets)
 
 	def on_connected(self):
-		self.send_msgs()
+		self.send_msgs(True)
 
 	def on_debug_msg(self, msg):
 		str = msg.decode()
@@ -157,26 +170,41 @@ class EchoTest(MutliAdapter):
 
 	def on_central_msg(self, msg):
 		print('[.] %r' % msg, end='')
-		if self.target is None:
-			self.stream.chunk_received(msg)
+		if self.pstream:
+			self.pstream.chunk_received(msg)
 		print()
 
 	def on_peer_msg(self, idx, msg):
 		print('[%d] %r' % (idx, msg), end='')
-		if self.target is not None:
-			self.stream.chunk_received(msg)
+		if 0 <= idx < len(self.tstream):
+			self.tstream[idx].chunk_received(msg)
 		print()
 
 	def print_stat(self):
-		self.stream.print_stat()
+		hline = '-' * 64
+		print(hline)
+		if self.pstream:
+			self.pstream.print_stat("[.] ")
+			print(hline)
+		for i in range(len(targets)):
+			self.tstream[i].print_stat("[%d] " % i)
+			print(hline)
 		print('parse errors: %u' % self.parse_errors)
 		print('debug messages:')
 		for msg, cnt in ad.dbg_msgs.items():
 			print('%u: %s' % (cnt, msg))
 
 if __name__ == '__main__':
-	start = time.time()
-	with EchoTest(sys.argv[1], sys.argv[2].encode() if len(sys.argv) > 2 else None) as ad:
+	start = time.time()	
+	if first_only := '--first-only' in sys.argv:
+		sys.argv.remove('--first-only')
+	if last_only := '--last-only' in sys.argv:
+		sys.argv.remove('--last-only')
+	if peripheral := '--peripheral' in sys.argv:
+		sys.argv.remove('--peripheral')
+	targets = [addr.encode() for addr in sys.argv[2:]]
+	active = [0] if first_only else [len(targets)-1] if last_only else None
+	with EchoTest(sys.argv[1], targets, active, True if peripheral else None) as ad:
 		ad.reset()
 		try:
 			while True:
