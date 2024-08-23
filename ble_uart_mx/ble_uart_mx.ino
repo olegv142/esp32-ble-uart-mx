@@ -531,6 +531,10 @@ void fatal(const char* what)
   DataSerial.print("-fatal: ");
   DataSerial.print(what);
   uart_end();
+#ifdef HW_UART // Duplicate msg to other uart
+  Serial.print("-fatal: ");
+  Serial.println(what);
+#endif
   delay(100); // give host a chance to read message
 #endif
   reset_self();
@@ -1023,12 +1027,11 @@ void loop()
     uart_end();
     write_err_last = write_err_cnt;
   }
-#endif
-
   if (unknown_data_src) {
-    unknown_data_src = false;
     debug_msg("-got data from unknown source");
+    unknown_data_src = false;
   }
+#endif
 
   monitor_peers();
 
