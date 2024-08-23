@@ -68,6 +68,7 @@
 
 #ifndef HIDDEN
 static BLECharacteristic* pCharacteristic;
+static uint32_t           last_characteristic_error;
 #endif
 
 #ifndef MAX_PEERS
@@ -80,8 +81,13 @@ static unsigned npeers;
 static int      connected_peers;
 static int      connected_centrals;
 
+#ifndef HIDDEN
 static bool     start_advertising = true;
 static uint32_t centr_disconn_ts;
+#ifdef EXT_FRAMES
+static uint8_t  centr_tx_sn;
+#endif
+#endif
 
 #ifdef STATUS_REPORT_INTERVAL
 static uint32_t last_status_ts;
@@ -95,6 +101,8 @@ static unsigned      queue_full_cnt;
 static unsigned      queue_full_last;
 static unsigned      write_err_cnt;
 static unsigned      write_err_last;
+static unsigned      notify_err_cnt;
+static unsigned      notify_err_last;
 static bool          write_throttling;
 static bool          unknown_data_src;
 
@@ -239,7 +247,6 @@ private:
 };
 
 static XFrameReceiver centr_xrx('<');
-static uint8_t        centr_tx_sn;
 #endif
 
 #ifdef BINARY_DATA_SUPPORT
@@ -484,6 +491,7 @@ public:
 #endif
 };
 
+#ifndef HIDDEN
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       struct data_chunk ch = {.data = nullptr, .len = 0};
@@ -517,7 +525,12 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
     pCharacteristic->notify();
 #endif
   }
+  void onStatus(BLECharacteristic * ch, Status s, uint32_t code) {
+    if (ch == pCharacteristic && s == Status::ERROR_GATT)
+      last_characteristic_error = code;
+  }
 };
+#endif
 
 static void reset_self()
 {
@@ -766,7 +779,7 @@ void Peer::connect()
 }
 
 #ifndef HIDDEN
-static void transmit_to_central(const char* data, size_t len)
+static bool transmit_to_central(const char* data, size_t len)
 {
   uint8_t* tx_data = (uint8_t*)data;
 #ifdef BINARY_DATA_SUPPORT
@@ -783,7 +796,6 @@ static void transmit_to_central(const char* data, size_t len)
     fatal("No data to transmit");
   if (len > MAX_FRAME) {
     fatal("Data size exceeds limit");
-    return;
   }
 #ifdef EXT_FRAMES
   uint8_t first = 1, last;
@@ -801,12 +813,18 @@ static void transmit_to_central(const char* data, size_t len)
     pdata = chunk_buff;
     first = 0;
 #endif
+    last_characteristic_error = 0;
     pCharacteristic->setValue(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE);
     pCharacteristic->notify();
+    if (last_characteristic_error) {
+      ++notify_err_cnt;
+      return false;
+    }
     tx_data += chunk;
     len -= chunk;
     taskYIELD();
   }
+  return true;
 }
 #endif
 
@@ -869,8 +887,7 @@ static bool process_msg(const char* str, size_t len)
       return true;
 #ifndef HIDDEN
     case '>':
-      transmit_to_central(str + 1, len - 1);
-      return true;
+      return transmit_to_central(str + 1, len - 1);
 #endif
     default:
       return transmit_to_peer(str[0] - '0', str + 1, len - 1);
@@ -955,7 +972,7 @@ static void monitor_peers()
 #endif
 }
 
-void receive_from_central(struct data_chunk const* chunk)
+static void receive_from_central(struct data_chunk const* chunk)
 {
 #ifdef EXT_FRAMES
   centr_xrx.receive(chunk);
@@ -1027,6 +1044,14 @@ void loop()
     uart_end();
     write_err_last = write_err_cnt;
   }
+  if (notify_err_cnt != notify_err_last) {
+    uart_begin();
+    DataSerial.print("-notify failed ");
+    DataSerial.print(notify_err_cnt - notify_err_last);
+    DataSerial.print(" times");
+    uart_end();
+    notify_err_last = notify_err_cnt;
+  }
   if (unknown_data_src) {
     debug_msg("-got data from unknown source");
     unknown_data_src = false;
@@ -1037,4 +1062,6 @@ void loop()
 
   if (!write_throttling)
     esp_task_wdt_reset();
+  else
+    delay(10);
 }
