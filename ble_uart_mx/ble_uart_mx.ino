@@ -326,9 +326,6 @@ public:
   }
 
   void onDisconnect(BLEClient *pclient) {
-#ifdef RESET_ON_DISCONNECT
-    reset_self();
-#endif
     m_disconn_ts = millis();
     m_connected = false;
     --connected_peers;
@@ -456,6 +453,9 @@ public:
         DataSerial.print(m_addr);
         DataSerial.print(" disconnected");
         uart_end();
+#ifdef RESET_ON_DISCONNECT
+        fatal("Disconnected");
+#endif
       }
     }
     if (m_queue_full_cnt != m_queue_full_last) {
