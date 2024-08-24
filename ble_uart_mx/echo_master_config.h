@@ -106,8 +106,9 @@
 #endif
 
 #ifndef HIDDEN
-// Broadcast uptime every second to connected central (for testing)
-// #define TELL_UPTIME
+// Broadcast millisecond uptime to connected central (for testing) if defined
+// The value defined is broadcast period in milliseconds
+// #define TELL_UPTIME 20
 #endif
 
 // The maximum allowed size of the BLE characteristic

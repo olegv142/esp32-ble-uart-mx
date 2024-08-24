@@ -110,10 +110,6 @@ static unsigned      notify_err_last;
 static bool          write_throttling;
 static bool          unknown_data_src;
 
-#ifdef TELL_UPTIME
-static uint32_t last_uptime;
-#endif
-
 static inline void uart_begin()
 {
 #ifdef UART_BEGIN
@@ -976,6 +972,26 @@ static void monitor_peers()
 #endif
 }
 
+#ifdef TELL_UPTIME
+static void tell_uptime()
+{
+  static uint32_t last_uptime;
+  static uint32_t last_uptime_sn;
+  uint32_t const uptime = millis();
+  if (uptime >= last_uptime + TELL_UPTIME) {
+    last_uptime = uptime;
+    String msg(++last_uptime_sn);
+    msg += "#";
+    msg += uptime;
+    msg += "#";
+    msg += BLEDevice::getAddress().toString();
+    msg += "#";
+    msg += dev_name;
+    transmit_to_central(msg.c_str(), msg.length());
+  }
+}
+#endif
+
 static void receive_from_central(struct data_chunk const* chunk)
 {
 #ifdef EXT_FRAMES
@@ -1008,12 +1024,7 @@ void loop()
 #endif
 
 #ifdef TELL_UPTIME
-  uint32_t const uptime = millis() / 1000;
-  if (uptime != last_uptime) {
-    last_uptime = uptime;
-    String msg(uptime);
-    transmit_to_central(msg.c_str(), msg.length());
-  }
+  tell_uptime();
 #endif
 
   struct data_chunk ch;
