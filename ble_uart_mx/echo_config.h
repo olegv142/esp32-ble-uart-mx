@@ -74,6 +74,10 @@
 #define DATA_UART_NUM UART_NUM_1
 #define UART_BEGIN '\1'
 #define UART_END   '\0'
+#ifdef UART_RTS_PIN
+// Throttle UART receiving if congestion detected
+#define UART_THROTTLE
+#endif
 #else
 // Using USB CDC
 #define DataSerial Serial
@@ -155,7 +159,7 @@
 
 #ifdef EXT_FRAMES
 #define _XDATA "X"
-#elif BINARY_DATA_SUPPORT
+#elif defined(BINARY_DATA_SUPPORT)
 #define _XDATA "B"
 #else
 #define _XDATA "T"

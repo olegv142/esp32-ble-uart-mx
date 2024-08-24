@@ -88,9 +88,6 @@ static int      connected_centrals;
 #ifndef HIDDEN
 static bool     start_advertising = true;
 static uint32_t centr_disconn_ts;
-#ifdef EXT_FRAMES
-static uint8_t  centr_tx_sn;
-#endif
 #endif
 
 #ifdef STATUS_REPORT_INTERVAL
@@ -101,14 +98,20 @@ static String   dev_name(DEV_NAME);
 static String   cli_buff;
 
 static QueueHandle_t rx_queue;
-static unsigned      queue_full_cnt;
-static unsigned      queue_full_last;
-static unsigned      write_err_cnt;
-static unsigned      write_err_last;
-static unsigned      notify_err_cnt;
-static unsigned      notify_err_last;
-static bool          write_throttling;
-static bool          unknown_data_src;
+
+struct err_count {
+  unsigned cnt;
+  unsigned last;
+  err_count() : cnt(0), last(0) {}
+};
+
+static struct err_count queue_full;
+static struct err_count write_err;
+static struct err_count notify_err;
+static struct err_count parse_err;
+
+static bool   is_congested;
+static bool   unknown_data_src;
 
 static inline void uart_begin()
 {
@@ -176,7 +179,7 @@ public:
         goto skip_verbose;
       if (m_next_sn != (h & XH_SN_MASK))
         goto skip_verbose;
-      if (m_last_chunk + 2 >= MAX_CHUNKS && !(h & XH_LAST))
+      if (m_last_chunk + 1 >= MAX_CHUNKS)
         goto skip_verbose;
     }
     if (!chksum_validate(chunk->data, chunk->len - CHKSUM_SIZE, &chksum)) {
@@ -249,9 +252,50 @@ private:
 static XFrameReceiver centr_xrx('<');
 #endif
 
+static bool transmit_frame(const char* data, size_t len, bool (*chunk_tx)(uint8_t* chunk, size_t sz, void* ctx), void* ctx)
+{
+  uint8_t* tx_data = (uint8_t*)data;
 #ifdef BINARY_DATA_SUPPORT
-static uint8_t        tx_buff[MAX_FRAME];
+  static uint8_t tx_buff[MAX_FRAME];
+  uint8_t binary = 0;
+  if (len && (binary = (data[0] == ENCODED_DATA_START_TAG))) {
+    if (len > 1 + MAX_ENCODED_FRAME_LEN)
+      fatal("Encoded data size exceeds limit");
+    if ((len % 4) != 1)
+      fatal("Invalid encoded data size");
+    len = decode(data + 1, len - 1, tx_data = tx_buff);
+  }
 #endif
+
+  if (!len)
+    fatal("Bad data to transmit");
+  if (len > MAX_FRAME)
+    fatal("Data size exceeds limit");
+
+#ifdef EXT_FRAMES
+  static uint8_t tx_sn;
+  uint8_t first = 1, last;
+  uint32_t chksum = CHKSUM_INI;
+#endif
+  while (len) {
+    size_t chunk = len;
+    uint8_t* pdata = tx_data;
+#ifdef EXT_FRAMES
+    if (!(last = (chunk <= MAX_CHUNK)))
+      chunk = MAX_CHUNK;
+    uint8_t chunk_buff[MAX_SIZE] = {mk_xframe_hdr(++tx_sn, binary, first, last)};
+    chksum = chksum_up(chunk_buff[0], chksum);
+    chksum = chksum_copy(tx_data, chunk, chunk_buff + 1, chksum);
+    pdata = chunk_buff;
+    first = 0;
+#endif
+    if (!chunk_tx(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE, ctx))
+      return false;
+    tx_data += chunk;
+    len -= chunk;
+  }
+  return true;
+}
 
 #ifndef EXT_FRAMES
 static void uart_print_data(uint8_t const* data, size_t len, char tag)
@@ -283,11 +327,16 @@ static bool remote_write(BLERemoteCharacteristic* ch, uint8_t* data, size_t len)
     clnt->getGattcIf(), clnt->getConnId(), ch->getHandle(), len, data,
     ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE
   )) {
-    ++write_err_cnt;
+    ++write_err.cnt;
     return false;
   }
   taskYIELD();
   return true;
+}
+
+static bool transmit_chunk(uint8_t* pdata, size_t sz, void* ctx)
+{
+  return remote_write((BLERemoteCharacteristic*)ctx, pdata, sz);
 }
 
 class Peer : public BLEClientCallbacks
@@ -302,10 +351,7 @@ public:
     , m_disconn_ts(0)
     , m_Client(nullptr)
     , m_remoteCharacteristic(nullptr)
-    , m_tx_sn(0)
     , m_rx_queue(0)
-    , m_queue_full_cnt(0)
-    , m_queue_full_last(0)
 #ifdef EXT_FRAMES
     , m_xrx('0' + idx)
 #endif
@@ -316,7 +362,7 @@ public:
     // post connected event to receive queue
     struct data_chunk ch = {.data = nullptr, .len = 0};
     if (!xQueueSend(m_rx_queue, &ch, 0))
-      ++m_queue_full_cnt;
+      ++m_queue_full.cnt;
     m_connected = true;
     ++connected_peers;
   }
@@ -348,43 +394,7 @@ public:
   {
     if (!m_writable)
       fatal("Peer is not writable");
-    uint8_t* tx_data = (uint8_t*)data;
-  #ifdef BINARY_DATA_SUPPORT
-    uint8_t binary = 0;
-    if (len && (binary = (data[0] == ENCODED_DATA_START_TAG))) {
-      if (len > 1 + MAX_ENCODED_FRAME_LEN)
-        fatal("Encoded data size exceeds limit");
-      if ((len % 4) != 1)
-        fatal("Invalid encoded data size");
-      len = decode(data + 1, len - 1, tx_data = tx_buff);
-    }
-  #endif
-    if (!len)
-      fatal("No data to transmit");
-    if (len > MAX_FRAME)
-      fatal("Data size exceeds limit");
-  #ifdef EXT_FRAMES
-    uint8_t first = 1, last;
-    uint32_t chksum = CHKSUM_INI;
-  #endif
-    while (len) {
-      size_t chunk = len;
-      uint8_t* pdata = tx_data;
-  #ifdef EXT_FRAMES
-      if (!(last = (chunk <= MAX_CHUNK)))
-        chunk = MAX_CHUNK;
-      uint8_t chunk_buff[MAX_SIZE] = {mk_xframe_hdr(++m_tx_sn, binary, first, last)};
-      chksum = chksum_up(chunk_buff[0], chksum);
-      chksum = chksum_copy(tx_data, chunk, chunk_buff + 1, chksum);
-      pdata = chunk_buff;
-      first = 0;
-  #endif
-      if (!remote_write(m_remoteCharacteristic, pdata, XHDR_SIZE + chunk + CHKSUM_SIZE))
-        return false;
-      tx_data += chunk;
-      len -= chunk;
-    }
-    return true;
+    return transmit_frame(data, len, transmit_chunk, m_remoteCharacteristic);
   }
 
   bool notify_data(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length)
@@ -398,7 +408,7 @@ public:
     memcpy(ch.data, pData, length);
     if (!xQueueSend(m_rx_queue, &ch, 0)) {
       free(ch.data);
-      ++m_queue_full_cnt;
+      ++m_queue_full.cnt;
     }
     return true;
   }
@@ -454,15 +464,15 @@ public:
 #endif
       }
     }
-    if (m_queue_full_cnt != m_queue_full_last) {
+    if (m_queue_full.cnt != m_queue_full.last) {
       uart_begin();
       DataSerial.print("-rx queue [");
       DataSerial.print(m_tag);
       DataSerial.print("] full ");
-      DataSerial.print(m_queue_full_cnt - m_queue_full_last);
+      DataSerial.print(m_queue_full.cnt - m_queue_full.last);
       DataSerial.print(" times");
       uart_end();
-      m_queue_full_last = m_queue_full_cnt;
+      m_queue_full.last = m_queue_full.cnt;
     }
 #endif
     if (!m_connected && elapsed(m_disconn_ts, millis()) > 500) {
@@ -482,10 +492,8 @@ public:
   BLEClient*  m_Client;
   BLERemoteCharacteristic* m_remoteCharacteristic;
 
-  uint8_t       m_tx_sn;
-  QueueHandle_t m_rx_queue;
-  unsigned      m_queue_full_cnt;
-  unsigned      m_queue_full_last;
+  QueueHandle_t    m_rx_queue;
+  struct err_count m_queue_full;
 #ifdef EXT_FRAMES
   XFrameReceiver m_xrx;
 #endif
@@ -496,7 +504,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       struct data_chunk ch = {.data = nullptr, .len = 0};
       if (!xQueueSend(rx_queue, &ch, 0))
-        ++queue_full_cnt;
+        ++queue_full.cnt;
       ++connected_centrals;
     };
 
@@ -518,7 +526,7 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
     memcpy(ch.data, pData, length);
     if (!xQueueSend(rx_queue, &ch, 0)) {
       free(ch.data);
-      ++queue_full_cnt;
+      ++queue_full.cnt;
     }
 #ifdef ECHO
     pCharacteristic->setValue(pData, length);
@@ -779,52 +787,22 @@ void Peer::connect()
 }
 
 #ifndef HIDDEN
+static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
+{
+  last_characteristic_error = 0;
+  pCharacteristic->setValue(pdata, sz);
+  pCharacteristic->notify();
+  if (last_characteristic_error) {
+    ++notify_err.cnt;
+    return false;
+  }
+  taskYIELD();
+  return true;
+}
+
 static bool transmit_to_central(const char* data, size_t len)
 {
-  uint8_t* tx_data = (uint8_t*)data;
-#ifdef BINARY_DATA_SUPPORT
-  uint8_t binary = 0;
-  if (len && (binary = (data[0] == ENCODED_DATA_START_TAG))) {
-    if (len > 1 + MAX_ENCODED_FRAME_LEN)
-      fatal("Encoded data size exceeds limit");
-    if ((len % 4) != 1)
-      fatal("Invalid encoded data size");
-    len = decode(data + 1, len - 1, tx_data = tx_buff);
-  }
-#endif
-  if (!len)
-    fatal("No data to transmit");
-  if (len > MAX_FRAME) {
-    fatal("Data size exceeds limit");
-  }
-#ifdef EXT_FRAMES
-  uint8_t first = 1, last;
-  uint32_t chksum = CHKSUM_INI;
-#endif
-  while (len) {
-    size_t chunk = len;
-    uint8_t* pdata = tx_data;
-#ifdef EXT_FRAMES
-    if (!(last = (chunk <= MAX_CHUNK)))
-      chunk = MAX_CHUNK;
-    uint8_t chunk_buff[MAX_SIZE] = {mk_xframe_hdr(++centr_tx_sn, binary, first, last)};
-    chksum = chksum_up(chunk_buff[0], chksum);
-    chksum = chksum_copy(tx_data, chunk, chunk_buff + 1, chksum);
-    pdata = chunk_buff;
-    first = 0;
-#endif
-    last_characteristic_error = 0;
-    pCharacteristic->setValue(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE);
-    pCharacteristic->notify();
-    if (last_characteristic_error) {
-      ++notify_err_cnt;
-      return false;
-    }
-    tx_data += chunk;
-    len -= chunk;
-    taskYIELD();
-  }
-  return true;
+  return transmit_frame(data, len, transmit_chunk_to_central, nullptr);
 }
 #endif
 
@@ -897,32 +875,48 @@ static bool process_msg(const char* str, size_t len)
 static bool cli_process()
 {
   size_t const len = cli_buff.length();
-  const char*  str = cli_buff.c_str();
-  const char*  end = str + len;
-  const char* next = str;
+  const char  *str = cli_buff.c_str();
+  const char  *next = str, *end = str + len;
   bool done = true;
 
-  while (next < end) {
 #ifdef UART_BEGIN
-    const char* begin = (const char*)memchr(next, UART_BEGIN, len - (next - str));
-    if (!begin)
-      break;
-    begin += 1;
-    BUG_ON(begin > end);
+  const char* begin = (const char*)memchr(str, UART_BEGIN, len);
+  if (begin && begin != str)
+    ++parse_err.cnt;
 #else
-    const char* begin = next;
+  const char* begin = str;
 #endif
-    char* tail = (char*)memchr(begin, UART_END, len - (begin - str));
+  while (begin && begin < end)
+  {
+    char* const tail = (char*)memchr(begin, UART_END, len - (begin - str));
     if (!tail)
       break;
+    BUG_ON(tail >= end);
+#ifdef UART_BEGIN
+    begin += 1;
+    char* next_begin;
+    for (;;) {
+      next_begin = (char*)memchr(begin, UART_BEGIN, len - (begin - str));
+      if (next_begin && next_begin < tail) {
+        begin = next_begin + 1;
+        ++parse_err.cnt;
+      } else
+        break;
+    }
+#endif
     *tail = '\0';
+    next = tail + 1;
     if (!process_msg(begin, tail - begin)) {
-      *tail = UART_END;
       done = false;
       break;
     }
-    next = tail + 1;
-    BUG_ON(next > end);
+#ifdef UART_BEGIN
+    begin = next_begin;
+    if (begin && begin != next)
+      ++parse_err.cnt;
+#else
+    begin = next;
+#endif
   }
   cli_buff = cli_buff.substring(next - str);
   return done;
@@ -959,7 +953,7 @@ static void monitor_peers()
       last_status_ts = now;
       report_idle();
     }
-  } else if (is_connected() && !write_throttling) {
+  } else if (is_connected() && !is_congested) {
     if (elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
       last_status_ts = now;
       report_connected();
@@ -1002,18 +996,45 @@ static void receive_from_central(struct data_chunk const* chunk)
 #endif
 }
 
+#ifndef NO_DEBUG
+static void chk_error_cnt(struct err_count* e, const char* msg)
+{
+  if (e->cnt != e->last) {
+    uart_begin();
+    DataSerial.print(msg);
+    DataSerial.print(e->cnt - e->last);
+    DataSerial.print(" times");
+    uart_end();
+    e->last = e->cnt;
+  }
+}
+
+static void chk_error_flag(bool* flag, const char* msg)
+{
+  if (*flag) {
+    debug_msg(msg);
+    *flag = false;
+  }
+}
+#endif
+
 void loop()
 {
-  bool rxed = false;
-  if (!write_throttling) {
-    String const received = DataSerial.readString();
-    if (received.length()) {
-      cli_buff += received;
-      rxed = true;
+#ifdef UART_THROTTLE
+  bool const can_receive = !is_congested;
+#else
+  bool const can_receive = true;
+#endif
+  bool received = false;
+  if (can_receive) {
+    String const rx = DataSerial.readString();
+    if (rx.length()) {
+      cli_buff += rx;
+      received = true;
     }
   }
-  if (rxed || write_throttling)
-    write_throttling = !cli_process();
+  if (received || is_congested)
+    is_congested = !cli_process();
 
 #ifndef HIDDEN
   if (start_advertising && elapsed(centr_disconn_ts, millis()) > 500) {
@@ -1043,40 +1064,19 @@ void loop()
   }
 
 #ifndef NO_DEBUG
-  if (queue_full_cnt != queue_full_last) {
-    uart_begin();
-    DataSerial.print("-rx queue full ");
-    DataSerial.print(queue_full_cnt - queue_full_last);
-    DataSerial.print(" times");
-    uart_end();
-    queue_full_last = queue_full_cnt;
-  }
-  if (write_err_cnt != write_err_last) {
-    uart_begin();
-    DataSerial.print("-write failed ");
-    DataSerial.print(write_err_cnt - write_err_last);
-    DataSerial.print(" times");
-    uart_end();
-    write_err_last = write_err_cnt;
-  }
-  if (notify_err_cnt != notify_err_last) {
-    uart_begin();
-    DataSerial.print("-notify failed ");
-    DataSerial.print(notify_err_cnt - notify_err_last);
-    DataSerial.print(" times");
-    uart_end();
-    notify_err_last = notify_err_cnt;
-  }
-  if (unknown_data_src) {
-    debug_msg("-got data from unknown source");
-    unknown_data_src = false;
-  }
+  chk_error_cnt(&queue_full, "-rx queue full ");
+  chk_error_cnt(&write_err,  "-write failed ");
+  chk_error_cnt(&notify_err, "-notify failed ");
+  chk_error_cnt(&parse_err,  "-parse error ");
+  chk_error_flag(&unknown_data_src, "-got data from unknown source");
 #endif
 
   monitor_peers();
 
-  if (!write_throttling)
+  if (!is_congested)
     esp_task_wdt_reset();
+#ifdef UART_THROTTLE
   else
     delay(UART_TIMEOUT);
+#endif
 }
