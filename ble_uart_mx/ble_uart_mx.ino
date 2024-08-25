@@ -330,26 +330,14 @@ static void uart_print_data(uint8_t const* data, size_t len, char tag)
 }
 #endif
 
-static bool remote_write(BLERemoteCharacteristic* ch, uint8_t* data, size_t len)
+static bool remote_write_(BLERemoteCharacteristic* ch, uint8_t* data, size_t len, bool with_response)
 {
-  // This is the replacement of BLERemoteCharacteristic::writeValue method.
-  // The original implementation waits on semaphore which is silly since we are writing without response.
-  // Moreover, it has stupid bug when the semaphore is taken before write but not released on write error.
   BLEClient * const clnt = ch->getRemoteService()->getClient();
-  if (ESP_OK != esp_ble_gattc_write_char(
+  return ESP_OK == esp_ble_gattc_write_char(
     clnt->getGattcIf(), clnt->getConnId(), ch->getHandle(), len, data,
-    ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE
-  )) {
-    ++write_err.cnt;
-    return false;
-  }
-  taskYIELD();
-  return true;
-}
-
-static bool transmit_chunk(uint8_t* pdata, size_t sz, void* ctx)
-{
-  return remote_write((BLERemoteCharacteristic*)ctx, pdata, sz);
+    with_response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP,
+    ESP_GATT_AUTH_REQ_NONE
+  );
 }
 
 class Peer : public BLEClientCallbacks
@@ -364,18 +352,22 @@ public:
     , m_disconn_ts(0)
     , m_Client(nullptr)
     , m_remoteCharacteristic(nullptr)
+    , m_wr_sem(xSemaphoreCreateBinary())
     , m_rx_queue(0)
 #ifdef EXT_FRAMES
     , m_xrx('0' + idx)
 #endif
   {
+    xSemaphoreGive(m_wr_sem);
   }
 
   void onConnect(BLEClient *pclient) {
     // post connected event to receive queue
     struct data_chunk ch = {.data = nullptr, .len = 0};
-    if (!xQueueSend(m_rx_queue, &ch, 0))
+    if (!xQueueSend(m_rx_queue, &ch, 0)) {
       ++m_queue_full.cnt;
+      is_congested = true;
+    }
     m_connected = true;
     ++connected_peers;
   }
@@ -384,6 +376,7 @@ public:
     m_disconn_ts = millis();
     m_connected = false;
     --connected_peers;
+    xSemaphoreGive(m_wr_sem);
   }
 
   void report_connecting() {
@@ -403,11 +396,60 @@ public:
 
   void connect();
 
+  bool remote_write(uint8_t* data, size_t len)
+  {
+    // This is the replacement of BLERemoteCharacteristic::writeValue method.
+    // The original implementation has stupid bug when the semaphore is taken
+    // before write but not released on write error.
+#ifdef FAST_WRITES
+    // Wait previous writes completion
+    const bool wait = false;
+    // Write without response. Its faster but writing to multiple connections may trigger
+    // disconnection due to some bug in BLE stack.
+    const bool with_response = false;
+#else
+    const bool wait = true;
+    const bool with_response = true;
+#endif
+    if (wait)
+      xSemaphoreTake(m_wr_sem, portMAX_DELAY);
+    if (!m_connected) {
+      if (wait)
+        xSemaphoreGive(m_wr_sem);
+      debug_msg("-write to unconnected peer skipped");
+      return true;
+    }
+    if (!remote_write_(m_remoteCharacteristic, data, len, with_response))
+    {
+      // failed due to congestion
+      if (wait)
+        xSemaphoreGive(m_wr_sem);
+      ++write_err.cnt;
+      return false;
+    }
+    taskYIELD();
+    return true;
+  }
+
+  bool on_gattc_evt(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param)
+  {
+    if (gattc_if != m_Client->getGattcIf())
+      return false;
+    if (event == ESP_GATTC_WRITE_CHAR_EVT)
+      xSemaphoreGive(m_wr_sem);
+    return true;
+  }
+
+  static bool transmit_chunk(uint8_t* pdata, size_t sz, void* ctx)
+  {
+    return ((Peer*)ctx)->remote_write(pdata, sz);
+  }
+
   bool transmit(const char* data, size_t len)
   {
     if (!m_writable)
       fatal("Peer is not writable");
-    return transmit_frame(data, len, transmit_chunk, m_remoteCharacteristic);
+    return transmit_frame(data, len, transmit_chunk, this);
   }
 
   bool notify_data(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length)
@@ -422,6 +464,7 @@ public:
     if (!xQueueSend(m_rx_queue, &ch, 0)) {
       free(ch.data);
       ++m_queue_full.cnt;
+      is_congested = true;
     }
     return true;
   }
@@ -430,7 +473,7 @@ public:
   {
 #ifdef ECHO
     if (m_writable && is_connected())
-      remote_write(m_remoteCharacteristic, chunk->data, chunk->len);
+      remote_write_(m_remoteCharacteristic, chunk->data, chunk->len, false);
 #endif
 #ifdef EXT_FRAMES
     m_xrx.receive(chunk);
@@ -453,30 +496,25 @@ public:
 #endif
       }
     }
-#ifndef NO_DEBUG
     if (m_connected != m_was_connected) {
       m_was_connected = m_connected;
+      String msg("-peripheral [");
+      msg += m_tag;
+      msg += "] ";
+      msg += m_addr;
       if (m_connected) {
-        uart_begin();
-        DataSerial.print("-peripheral [");
-        DataSerial.print(m_tag);
-        DataSerial.print("] ");
-        DataSerial.print(m_addr);
-        DataSerial.print(" connected");
-        uart_end();
+        msg += " connected";
+        debug_msg(msg.c_str());
       } else {
-        uart_begin();
-        DataSerial.print("-peripheral [");
-        DataSerial.print(m_tag);
-        DataSerial.print("] ");
-        DataSerial.print(m_addr);
-        DataSerial.print(" disconnected");
-        uart_end();
+        msg += " disconnected";
 #ifdef RESET_ON_DISCONNECT
-        fatal("Disconnected");
+        fatal(msg.c_str());
+#else
+        debug_msg(msg.c_str());
 #endif
       }
     }
+#ifndef NO_DEBUG
     if (m_queue_full.cnt != m_queue_full.last) {
       uart_begin();
       DataSerial.print("-rx queue [");
@@ -504,9 +542,9 @@ public:
 
   BLEClient*  m_Client;
   BLERemoteCharacteristic* m_remoteCharacteristic;
-
-  QueueHandle_t    m_rx_queue;
-  struct err_count m_queue_full;
+  SemaphoreHandle_t        m_wr_sem;
+  QueueHandle_t            m_rx_queue;
+  struct err_count         m_queue_full;
 #ifdef EXT_FRAMES
   XFrameReceiver m_xrx;
 #endif
@@ -516,8 +554,10 @@ public:
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       struct data_chunk ch = {.data = nullptr, .len = 0};
-      if (!xQueueSend(rx_queue, &ch, 0))
+      if (!xQueueSend(rx_queue, &ch, 0)) {
         ++queue_full.cnt;
+        is_congested = true;
+      }
       ++connected_centrals;
     };
 
@@ -540,6 +580,7 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
     if (!xQueueSend(rx_queue, &ch, 0)) {
       free(ch.data);
       ++queue_full.cnt;
+      is_congested = true;
     }
 #ifdef ECHO
     pCharacteristic->setValue(pData, length);
@@ -565,12 +606,12 @@ void fatal(const char* what)
   DataSerial.print("-fatal: ");
   DataSerial.print(what);
   uart_end();
+#endif
 #ifdef HW_UART // Duplicate msg to other uart
   Serial.print("-fatal: ");
   Serial.println(what);
 #endif
   delay(100); // give host a chance to read message
-#endif
   reset_self();
 }
 
@@ -628,11 +669,23 @@ static void setup_tx_power()
 #endif
 }
 
+#ifndef FAST_WRITES
+static void bt_gattc_event_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param)
+{
+  for (unsigned i = 0; i < MAX_PEERS; ++i)
+    if (peers[i] && peers[i]->on_gattc_evt(event, gattc_if, param))
+      return;
+}
+#endif
+
 static void bt_device_init()
 {
   // Create the BLE Device
   init_dev_name();
   BLEDevice::init(dev_name);
+#ifndef FAST_WRITES
+  BLEDevice::setCustomGattcHandler(bt_gattc_event_cb);
+#endif
   BLEDevice::setMTU(MAX_SIZE+3);
   setup_tx_power();
   rx_queue = xQueueCreate(RX_QUEUE, sizeof(struct data_chunk));

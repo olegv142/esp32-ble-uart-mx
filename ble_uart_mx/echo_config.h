@@ -109,6 +109,17 @@
 #endif
 #endif
 
+// If defined the adapter will use writes without response to send data to peripheral devices.
+// It gives up to 4 times faster write rate. The downside is that its not suited for
+// transmitting data to multiple connections due to some bugs in BLE stack. So use
+// fast writes for point-to-point links only.
+// #define FAST_WRITES
+
+#ifdef FAST_WRITES
+// Only one connection to peripheral device is allowed in fast write mode.
+#define MAX_PEERS 1
+#endif
+
 #ifndef HIDDEN
 // Broadcast millisecond uptime to connected central (for testing) if defined
 // The value defined is broadcast period in milliseconds
@@ -144,7 +155,8 @@
 #endif
 #endif
 
-#define UART_RX_BUFFER_SZ ((1+(MAX_FRAME+1024)/4096)*4096)
+#define MAX_BURST 1 // How many messages may be submitted at once
+#define UART_RX_BUFFER_SZ ((1+(MAX_FRAME*MAX_BURST+2048)/4096)*4096)
 #define UART_TX_BUFFER_SZ (2*UART_RX_BUFFER_SZ)
 
 // If defined echo all data received back to sender (for testing)
@@ -165,6 +177,12 @@
 #define _XDATA "T"
 #endif
 
+#ifdef FAST_WRITES
+#define _FAST "F"
+#else
+#define _FAST ""
+#endif
+
 #ifdef PASSIVE_ONLY
 #define _MODE "P"
 #elif defined(AUTOCONNECT)
@@ -174,15 +192,11 @@
 #endif
 
 #ifdef HIDDEN
-#define _HIDDEN "H"
+#define _ACCESS "H"
+#elif !defined(WRITABLE)
+#define _ACCESS "R"
 #else
-#define _HIDDEN ""
-#endif
-
-#ifndef WRITABLE
-#define _RDONLY "R"
-#else
-#define _RDONLY ""
+#define _ACCESS ""
 #endif
 
 #ifdef ECHO
@@ -197,4 +211,4 @@
 #define _UTIME ""
 #endif
 
-#define VARIANT _XDATA _MODE _HIDDEN _RDONLY _ECHO _UTIME
+#define VARIANT _XDATA _FAST _MODE _ACCESS _ECHO _UTIME
