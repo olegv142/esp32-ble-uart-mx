@@ -733,6 +733,7 @@ void Peer::connect()
   report_connecting();
 
 #ifndef NO_DEBUG
+  uint32_t const start = millis();
   uart_begin();
   DataSerial.print("-connecting to ");
   DataSerial.print(m_addr);
@@ -749,7 +750,6 @@ void Peer::connect()
       fatal("No memory");
   }
 
-  uint32_t const start = millis();
   m_Client->connect(m_addr);
   m_Client->setMTU(MAX_SIZE+3);  // Request increased MTU from server (default is 23 otherwise)
 
