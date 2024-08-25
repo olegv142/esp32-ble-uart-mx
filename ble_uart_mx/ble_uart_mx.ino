@@ -252,6 +252,8 @@ private:
 static XFrameReceiver centr_xrx('<');
 #endif
 
+// Optionally split frame onto fragments and transmit it by calling provided callback.
+// Returns false if callback returns false which means BLE stack congestion detected.
 static bool transmit_frame(const char* data, size_t len, bool (*chunk_tx)(uint8_t* chunk, size_t sz, void* ctx), void* ctx)
 {
   uint8_t* tx_data = (uint8_t*)data;
@@ -259,18 +261,29 @@ static bool transmit_frame(const char* data, size_t len, bool (*chunk_tx)(uint8_
   static uint8_t tx_buff[MAX_FRAME];
   uint8_t binary = 0;
   if (len && (binary = (data[0] == ENCODED_DATA_START_TAG))) {
-    if (len > 1 + MAX_ENCODED_FRAME_LEN)
-      fatal("Encoded data size exceeds limit");
-    if ((len % 4) != 1)
-      fatal("Invalid encoded data size");
+    if (len > 1 + MAX_ENCODED_FRAME_LEN) {
+      // All such errors may be due to uart buffer overflow while not using RTS
+      // flow control. So just print debug message and return true.
+      // Note that returning false means BLE stack congestion.
+      debug_msg("-encoded data size exceeds limit");
+      return true;
+    }
+    if ((len % 4) != 1) {
+      debug_msg("-invalid encoded data size");
+      return true;
+    }
     len = decode(data + 1, len - 1, tx_data = tx_buff);
   }
 #endif
 
-  if (!len)
-    fatal("Bad data to transmit");
-  if (len > MAX_FRAME)
-    fatal("Data size exceeds limit");
+  if (!len) {
+    debug_msg("-bad data to transmit");
+    return true;
+  }
+  if (len > MAX_FRAME) {
+    debug_msg("-data size exceeds limit");
+    return true;
+  }
 
 #ifdef EXT_FRAMES
   static uint8_t tx_sn;
