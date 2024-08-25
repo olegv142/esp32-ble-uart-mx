@@ -20,13 +20,13 @@ from ble_multi_adapter import MutliAdapter
 random_size = True
 
 # The number of messages that should be sent at once
-tx_burst = 1
+tx_burst = 10
 
 # Use binary data or text
 binary_data = True
 
 # Limit maximum message size
-max_size = 240
+max_size = None
 
 if binary_data:
 	data_delimiter = b'\xff'
@@ -41,17 +41,17 @@ def random_bytes(len):
 class TestStream:
 	def __init__(self):
 		self.created_ts = time.time()
-		self.started = False
+		self.is_started = False
 		self.last_tx_sn = 0
 		self.last_rx_sn = None
 		self.msg_cnt = 0
 		self.byte_cnt = 0
 		self.conn_cnt = 0
-		self.errors = 0
-		self.lost = 0
-		self.dup = 0
-		self.reorder = 0
-		self.corrupt = 0
+		self.valid_cnt = 0
+		self.lost_cnt = 0
+		self.dup_cnt = 0
+		self.reorder_cnt = 0
+		self.corrupt_cnt = 0
 
 	def mk_msg(self, max_frame):
 		if max_size is not None and max_frame > max_size:
@@ -68,53 +68,51 @@ class TestStream:
 		self.byte_cnt += len(msg)
 		if len(m) != 3:
 			print(' corrupt delimiters', end='')
-			self.errors += 1
-			self.corrupt += 1
-			return
+			self.corrupt_cnt += 1
+			return False
 		try:
 			sn = int(m[0])
 		except ValueError:
 			print(' corrupt sn', end='')
-			self.errors += 1
-			self.corrupt += 1
-			return
-		if m[1] != m[2]:
+			self.corrupt_cnt += 1
+			return False
+		if not (valid := (m[1] == m[2])):
 			print(' corrupt data', end='')
-			self.errors += 1
-			self.corrupt += 1
+			self.corrupt_cnt += 1
 		if self.last_rx_sn is not None and sn != self.last_rx_sn + 1:
 			print(' bad sn: %u %u' % (self.last_rx_sn, sn), end='')
-			self.errors += 1
 			if sn > self.last_rx_sn + 1:
-				self.lost += 1
+				self.lost_cnt += sn - self.last_rx_sn - 1
 			elif sn == self.last_rx_sn:
-				self.dup += 1
+				self.dup_cnt += 1
+				return False
 			else:
-				self.reorder += 1
-				return
+				self.reorder_cnt += 1
+				return False
 		self.last_rx_sn = sn
+		return valid
 
 	def chunk_received(self, msg):
 		if not msg:
 			# stream start tag
-			self.started = True
+			self.is_started = True
 			self.last_rx_sn = None
 			self.conn_cnt += 1
 			return
-		if not self.started:
+		if not self.is_started:
 			return
 		if msg[:1] == b'(' and msg[-1:] == b')':
-			self.msg_received(msg)
+			if self.msg_received(msg):
+				self.valid_cnt += 1
 		else:
 			print(' corrupt brackets', end='')
-			self.errors += 1
-			self.corrupt += 1
+			self.corrupt_cnt += 1
 
 	def print_stat(self, prefix):
 		print('%sconnected %u time(s)' % (prefix, self.conn_cnt))
-		print('%s%u bytes received (%u/sec)' % (prefix, self.byte_cnt, self.byte_cnt / (time.time() - self.created_ts)))
-		print('%s%u messages, %u errors (%u lost, %u dup, %u reorder, %u corrupt)' % (
-				prefix, self.msg_cnt, self.errors, self.lost, self.dup, self.reorder, self.corrupt
+		print('%s%u msgs sent, %u received (%u bytes, %u/sec)' % (prefix, self.last_tx_sn, self.msg_cnt, self.byte_cnt, self.byte_cnt / (time.time() - self.created_ts)))
+		print('%s%u valid, %u lost, %u dup, %u reorder, %u corrupt)' % (
+				prefix, self.valid_cnt, self.lost_cnt, self.dup_cnt, self.reorder_cnt, self.corrupt_cnt
 			))
 
 class EchoTest(MutliAdapter):
