@@ -71,14 +71,6 @@ static BLECharacteristic* pCharacteristic;
 static uint32_t           last_characteristic_error;
 #endif
 
-#ifndef MAX_PEERS
-#define MAX_PEERS 8
-#endif
-
-#ifndef UART_TIMEOUT
-#define UART_TIMEOUT 10
-#endif
-
 class Peer;
 static Peer*    peers[MAX_PEERS];
 static unsigned npeers;
