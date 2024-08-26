@@ -63,8 +63,11 @@ class TestStream:
 		return b'(' + sn + data_delimiter + data + data_delimiter + data + b')'
 
 	def msg_received(self, msg):
+		if msg[:1] != b'(' or msg[-1:] != b')':
+			print(' corrupt brackets', end='')
+			self.corrupt_cnt += 1
+			return False
 		m = msg[1:-1].split(data_delimiter)
-		self.msg_cnt += 1
 		self.byte_cnt += len(msg)
 		if len(m) != 3:
 			print(' corrupt delimiters', end='')
@@ -101,12 +104,9 @@ class TestStream:
 			return
 		if not self.is_started:
 			return
-		if msg[:1] == b'(' and msg[-1:] == b')':
-			if self.msg_received(msg):
-				self.valid_cnt += 1
-		else:
-			print(' corrupt brackets', end='')
-			self.corrupt_cnt += 1
+		self.msg_cnt += 1
+		if self.msg_received(msg):
+			self.valid_cnt += 1
 
 	def print_stat(self, prefix):
 		print('%sconnected %u time(s)' % (prefix, self.conn_cnt))
