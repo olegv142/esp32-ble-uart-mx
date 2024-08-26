@@ -19,6 +19,18 @@
 #define UART_TIMEOUT 10
 #endif
 
+#ifndef CONGESTION_DELAY
+#define CONGESTION_DELAY 10
+#endif
+
+#ifndef RX_QUEUE
+#define RX_QUEUE 64
+#endif
+
+#ifndef TX_QUEUE
+#define TX_QUEUE 8
+#endif
+
 //
 // Build version string
 //
