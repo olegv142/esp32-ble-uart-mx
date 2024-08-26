@@ -246,7 +246,12 @@ static XFrameReceiver centr_xrx('<');
 
 // Optionally split frame onto fragments and transmit it by calling provided callback.
 // Returns false if callback returns false which means BLE stack congestion detected.
-static bool transmit_frame(const char* data, size_t len, bool (*chunk_tx)(uint8_t* chunk, size_t sz, void* ctx), void* ctx)
+static bool transmit_frame(
+    const char* data, size_t len,
+    uint8_t* (*get_chunk)(size_t sz, void* ctx),
+    bool (*tx_chunk)(uint8_t* chunk, size_t sz, void* ctx),
+    void* ctx
+  )
 {
   uint8_t* tx_data = (uint8_t*)data;
 #ifdef BINARY_DATA_SUPPORT
@@ -288,18 +293,36 @@ static bool transmit_frame(const char* data, size_t len, bool (*chunk_tx)(uint8_
 #ifdef EXT_FRAMES
     if (!(last = (chunk <= MAX_CHUNK)))
       chunk = MAX_CHUNK;
-    uint8_t chunk_buff[MAX_SIZE] = {mk_xframe_hdr(++tx_sn, binary, first, last)};
+    uint8_t* const chunk_buff = get_chunk(XHDR_SIZE + chunk + CHKSUM_SIZE, ctx);
+    if (!chunk_buff)
+      return false;
+    chunk_buff[0] = mk_xframe_hdr(++tx_sn, binary, first, last);
     chksum = chksum_up(chunk_buff[0], chksum);
     chksum = chksum_copy(tx_data, chunk, chunk_buff + 1, chksum);
     pdata = chunk_buff;
     first = 0;
+#else
+    if (get_chunk) {
+      uint8_t* const chunk_buff = get_chunk(chunk, ctx);
+      if (!chunk_buff)
+        return false;
+      memcpy(chunk_buff, pdata, chunk);
+      pdata = chunk_buff;
+    }
 #endif
-    if (!chunk_tx(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE, ctx))
+    if (!tx_chunk(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE, ctx))
       return false;
     tx_data += chunk;
     len -= chunk;
   }
   return true;
+}
+
+static uint8_t* get_chunk_buff(size_t sz, void* ctx)
+{
+  static uint8_t buff[MAX_SIZE];
+  BUG_ON(sz > MAX_SIZE);
+  return buff;
 }
 
 #ifndef EXT_FRAMES
@@ -335,6 +358,13 @@ static bool remote_write_(BLERemoteCharacteristic* ch, uint8_t* data, size_t len
 class Peer : public BLEClientCallbacks
 {
 public:
+#ifndef FAST_WRITES
+  void write_worker();
+
+  static void write_worker_(void* ctx) {
+    ((Peer*)ctx)->write_worker();
+  }
+#endif
   Peer(unsigned idx, String const& addr)
     : m_tag('0' + idx)
     , m_addr(addr)
@@ -344,12 +374,22 @@ public:
     , m_disconn_ts(0)
     , m_Client(nullptr)
     , m_remoteCharacteristic(nullptr)
+#ifndef FAST_WRITES
+    , m_wr_task(nullptr)
+    , m_wr_queue(xRingbufferCreateNoSplit(MAX_SIZE, TX_QUEUE * MAX_CHUNKS))
+#endif
     , m_wr_sem(xSemaphoreCreateBinary())
     , m_rx_queue(0)
 #ifdef EXT_FRAMES
     , m_xrx('0' + idx)
 #endif
   {
+#ifndef FAST_WRITES
+    xTaskCreate(write_worker_, "write_worker", 4096, this, tskIDLE_PRIORITY, &m_wr_task);
+    BUG_ON(!m_wr_task);
+    BUG_ON(!m_wr_queue);
+#endif
+    BUG_ON(!m_wr_sem);
     xSemaphoreGive(m_wr_sem);
   }
 
@@ -408,7 +448,6 @@ public:
     if (!m_connected) {
       if (wait)
         xSemaphoreGive(m_wr_sem);
-      debug_msg("-write to unconnected peer skipped");
       return true;
     }
     if (!remote_write_(m_remoteCharacteristic, data, len, with_response))
@@ -432,16 +471,52 @@ public:
     return true;
   }
 
-  static bool transmit_chunk(uint8_t* pdata, size_t sz, void* ctx)
+  static bool transmit_chunk_fast(uint8_t* pdata, size_t sz, void* ctx)
   {
     return ((Peer*)ctx)->remote_write(pdata, sz);
   }
+
+#ifndef FAST_WRITES
+  uint8_t* alloc_chunk_queued(size_t sz)
+  {
+    void* pchunk = nullptr;
+    BaseType_t const res = xRingbufferSendAcquire(m_wr_queue, &pchunk, sz, pdMS_TO_TICKS(CONGESTION_DELAY));
+    if (res != pdTRUE)
+      return nullptr;
+    return (uint8_t*)pchunk;
+  }
+
+  bool transmit_chunk_queued(uint8_t* chunk, size_t sz)
+  {
+    BaseType_t const res = xRingbufferSendComplete(m_wr_queue, chunk);
+    BUG_ON(res != pdTRUE);
+    return true;
+  }
+
+  static uint8_t* alloc_chunk_queued_(size_t sz, void* ctx)
+  {
+    return ((Peer*)ctx)->alloc_chunk_queued(sz);
+  }
+
+  static bool transmit_chunk_queued_(uint8_t* chunk, size_t sz, void* ctx)
+  {
+    return ((Peer*)ctx)->transmit_chunk_queued(chunk, sz);
+  }
+#endif
 
   bool transmit(const char* data, size_t len)
   {
     if (!m_writable)
       fatal("Peer is not writable");
-    return transmit_frame(data, len, transmit_chunk, this);
+#ifdef FAST_WRITES
+#ifdef EXT_FRAMES
+    return transmit_frame(data, len, get_chunk_buff, transmit_chunk_fast, this);
+#else
+    return transmit_frame(data, len, nullptr, transmit_chunk_fast, this);
+#endif
+#else
+    return transmit_frame(data, len, alloc_chunk_queued_, transmit_chunk_queued_, this);
+#endif
   }
 
   bool notify_data(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length)
@@ -534,6 +609,10 @@ public:
 
   BLEClient*  m_Client;
   BLERemoteCharacteristic* m_remoteCharacteristic;
+#ifndef FAST_WRITES
+  TaskHandle_t             m_wr_task;
+  RingbufHandle_t          m_wr_queue;
+#endif
   SemaphoreHandle_t        m_wr_sem;
   QueueHandle_t            m_rx_queue;
   struct err_count         m_queue_full;
@@ -844,6 +923,24 @@ void Peer::connect()
 #endif
 }
 
+#ifndef FAST_WRITES
+void Peer::write_worker()
+{
+  for (;;) {
+    size_t size = 0;
+    uint8_t *data = (uint8_t*)xRingbufferReceive(m_wr_queue, &size, portMAX_DELAY);
+    if (!data || !size)
+      continue;
+    BUG_ON(size > MAX_SIZE);
+    while (!remote_write(data, size)) {
+      is_congested = true;
+      vTaskDelay(pdMS_TO_TICKS(CONGESTION_DELAY));
+    }
+    vRingbufferReturnItem(m_wr_queue, data);
+  }
+}
+#endif
+
 #ifndef HIDDEN
 static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
 {
@@ -860,7 +957,11 @@ static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
 
 static bool transmit_to_central(const char* data, size_t len)
 {
-  return transmit_frame(data, len, transmit_chunk_to_central, nullptr);
+#ifdef EXT_FRAMES
+  return transmit_frame(data, len, get_chunk_buff, transmit_chunk_to_central, nullptr);
+#else
+  return transmit_frame(data, len, nullptr, transmit_chunk_to_central, nullptr);
+#endif
 }
 #endif
 
@@ -1135,6 +1236,6 @@ void loop()
     esp_task_wdt_reset();
 #ifdef UART_THROTTLE
   else
-    delay(UART_TIMEOUT);
+    delay(CONGESTION_DELAY);
 #endif
 }

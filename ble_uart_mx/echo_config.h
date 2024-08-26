@@ -162,6 +162,3 @@
 // If defined echo all data received back to sender (for testing)
 #define ECHO
 
-// Receive queue length
-#define RX_QUEUE 64
-
