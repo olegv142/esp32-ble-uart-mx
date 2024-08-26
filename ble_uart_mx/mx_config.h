@@ -67,3 +67,11 @@
 #define STR(arg) STR_(arg)
 
 #define VARIANT STR(MAX_PEERS) _XDATA _FAST _MODE _ACCESS _ECHO _UTIME
+
+#if defined(HIDDEN) && defined(PASSIVE_ONLY)
+#error "Defining HIDDEN and PASSIVE_ONLY at the same time makes adapter unusable"
+#endif
+
+#if !defined(HIDDEN) && !defined(PASSIVE_ONLY)
+#warning "Dual role adapter is not recommended for production. Define either HIDDEN or PASSIVE_ONLY to restrict it to one role."
+#endif
