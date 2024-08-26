@@ -87,7 +87,10 @@ static uint32_t last_status_ts;
 #endif
 
 static String   dev_name(DEV_NAME);
-static String   cli_buff;
+
+#define CLI_BUFF_SZ UART_RX_BUFFER_SZ
+static uint8_t   cli_buff[CLI_BUFF_SZ];
+static size_t    cli_buff_data_sz;
 
 static QueueHandle_t rx_queue;
 
@@ -771,12 +774,8 @@ static void hw_init()
   digitalWrite(CONNECTED_LED, HIGH);
 #endif
 
-#ifdef UART_RX_BUFFER_SZ
   DataSerial.setRxBufferSize(UART_RX_BUFFER_SZ);
-#endif
-#ifdef UART_TX_BUFFER_SZ
   DataSerial.setTxBufferSize(UART_TX_BUFFER_SZ);
-#endif
 #ifdef HW_UART
   DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
 #if defined(UART_CTS_PIN) && defined(UART_RTS_PIN)
@@ -994,8 +993,8 @@ static bool process_msg(const char* str, size_t len)
 
 static bool cli_process()
 {
-  size_t const len = cli_buff.length();
-  const char  *str = cli_buff.c_str();
+  size_t const len = cli_buff_data_sz;
+  const char  *str = (const char*)cli_buff;
   const char  *next = str, *end = str + len;
   bool done = true;
 
@@ -1038,7 +1037,7 @@ static bool cli_process()
     begin = next;
 #endif
   }
-  cli_buff = cli_buff.substring(next - str);
+  memmove(cli_buff, next, cli_buff_data_sz = end - next);
   return done;
 }
 
@@ -1138,6 +1137,23 @@ static void chk_error_flag(bool* flag, const char* msg)
 }
 #endif
 
+static bool cli_receive()
+{
+  size_t avail = DataSerial.available();
+  if (cli_buff_data_sz + avail > CLI_BUFF_SZ) {
+    avail = CLI_BUFF_SZ - cli_buff_data_sz;
+    BUG_ON(!avail);
+  }
+  if (!avail)
+    return false;
+  size_t const sz = DataSerial.read(cli_buff + cli_buff_data_sz, avail);
+  BUG_ON(sz > avail);
+  if (!sz)
+    return false;
+  cli_buff_data_sz += sz;
+  return true;
+}
+
 void loop()
 {
 #ifdef UART_THROTTLE
@@ -1146,13 +1162,8 @@ void loop()
   bool const can_receive = true;
 #endif
   bool received = false;
-  if (can_receive) {
-    String const rx = DataSerial.readString();
-    if (rx.length()) {
-      cli_buff += rx;
-      received = true;
-    }
-  }
+  if (can_receive)
+    received = cli_receive();
   if (received || is_congested)
     is_congested = !cli_process();
 
