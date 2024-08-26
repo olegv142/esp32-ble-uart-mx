@@ -5,8 +5,6 @@
 // #include "echo_config.h"
 // #include "echo_master_config.h"
 
-#include "util.h"
-
 //
 // Miscellaneous settings
 //
@@ -43,12 +41,6 @@
 #define _XDATA "T"
 #endif
 
-#ifdef FAST_WRITES
-#define _FAST "F"
-#else
-#define _FAST ""
-#endif
-
 #ifdef PASSIVE_ONLY
 #define _MODE "P"
 #elif defined(AUTOCONNECT)
@@ -77,12 +69,8 @@
 #define _UTIME ""
 #endif
 
-#define VARIANT STRINGIZE(MAX_PEERS) _XDATA _FAST _MODE _ACCESS _ECHO _UTIME
+#define VARIANT _XDATA _MODE _ACCESS _ECHO _UTIME
 
 #if defined(HIDDEN) && defined(PASSIVE_ONLY)
 #error "Defining HIDDEN and PASSIVE_ONLY at the same time makes adapter unusable"
-#endif
-
-#if !defined(HIDDEN) && !defined(PASSIVE_ONLY)
-#warning "Dual role adapter is not recommended for production. Define either HIDDEN or PASSIVE_ONLY to restrict it to one role."
 #endif

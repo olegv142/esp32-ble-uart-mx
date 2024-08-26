@@ -318,12 +318,14 @@ static bool transmit_frame(
   return true;
 }
 
+#ifdef EXT_FRAMES
 static uint8_t* get_chunk_buff(size_t sz, void* ctx)
 {
   static uint8_t buff[MAX_SIZE];
   BUG_ON(sz > MAX_SIZE);
   return buff;
 }
+#endif
 
 #ifndef EXT_FRAMES
 static void uart_print_data(uint8_t const* data, size_t len, char tag)
@@ -358,13 +360,12 @@ static bool remote_write_(BLERemoteCharacteristic* ch, uint8_t* data, size_t len
 class Peer : public BLEClientCallbacks
 {
 public:
-#ifndef FAST_WRITES
   void write_worker();
 
   static void write_worker_(void* ctx) {
     ((Peer*)ctx)->write_worker();
   }
-#endif
+
   Peer(unsigned idx, String const& addr)
     : m_tag('0' + idx)
     , m_addr(addr)
@@ -374,21 +375,18 @@ public:
     , m_disconn_ts(0)
     , m_Client(nullptr)
     , m_remoteCharacteristic(nullptr)
-#ifndef FAST_WRITES
     , m_wr_task(nullptr)
     , m_wr_queue(xRingbufferCreateNoSplit(MAX_SIZE, TX_QUEUE * MAX_CHUNKS))
-#endif
     , m_wr_sem(xSemaphoreCreateBinary())
     , m_rx_queue(0)
 #ifdef EXT_FRAMES
     , m_xrx('0' + idx)
 #endif
   {
-#ifndef FAST_WRITES
-    xTaskCreate(write_worker_, "write_worker", 4096, this, tskIDLE_PRIORITY, &m_wr_task);
+    BaseType_t const rc = xTaskCreate(write_worker_, "write_worker", 4096, this, tskIDLE_PRIORITY, &m_wr_task);
+    BUG_ON(rc != pdPASS);
     BUG_ON(!m_wr_task);
     BUG_ON(!m_wr_queue);
-#endif
     BUG_ON(!m_wr_sem);
     xSemaphoreGive(m_wr_sem);
   }
@@ -430,31 +428,15 @@ public:
 
   bool remote_write(uint8_t* data, size_t len)
   {
-    // This is the replacement of BLERemoteCharacteristic::writeValue method.
-    // The original implementation has stupid bug when the semaphore is taken
-    // before write but not released on write error.
-#ifdef FAST_WRITES
-    // Wait previous writes completion
-    const bool wait = false;
-    // Write without response. Its faster but writing to multiple connections may trigger
-    // disconnection due to some bug in BLE stack.
-    const bool with_response = false;
-#else
-    const bool wait = true;
-    const bool with_response = true;
-#endif
-    if (wait)
-      xSemaphoreTake(m_wr_sem, portMAX_DELAY);
+    xSemaphoreTake(m_wr_sem, portMAX_DELAY);
     if (!m_connected) {
-      if (wait)
-        xSemaphoreGive(m_wr_sem);
+      xSemaphoreGive(m_wr_sem);
       return true;
     }
-    if (!remote_write_(m_remoteCharacteristic, data, len, with_response))
+    if (!remote_write_(m_remoteCharacteristic, data, len, true))
     {
       // failed due to congestion
-      if (wait)
-        xSemaphoreGive(m_wr_sem);
+      xSemaphoreGive(m_wr_sem);
       ++write_err.cnt;
       return false;
     }
@@ -476,7 +458,6 @@ public:
     return ((Peer*)ctx)->remote_write(pdata, sz);
   }
 
-#ifndef FAST_WRITES
   uint8_t* alloc_chunk_queued(size_t sz)
   {
     void* pchunk = nullptr;
@@ -502,21 +483,12 @@ public:
   {
     return ((Peer*)ctx)->transmit_chunk_queued(chunk, sz);
   }
-#endif
 
   bool transmit(const char* data, size_t len)
   {
     if (!m_writable)
       fatal("Peer is not writable");
-#ifdef FAST_WRITES
-#ifdef EXT_FRAMES
-    return transmit_frame(data, len, get_chunk_buff, transmit_chunk_fast, this);
-#else
-    return transmit_frame(data, len, nullptr, transmit_chunk_fast, this);
-#endif
-#else
     return transmit_frame(data, len, alloc_chunk_queued_, transmit_chunk_queued_, this);
-#endif
   }
 
   bool notify_data(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length)
@@ -609,10 +581,8 @@ public:
 
   BLEClient*  m_Client;
   BLERemoteCharacteristic* m_remoteCharacteristic;
-#ifndef FAST_WRITES
   TaskHandle_t             m_wr_task;
   RingbufHandle_t          m_wr_queue;
-#endif
   SemaphoreHandle_t        m_wr_sem;
   QueueHandle_t            m_rx_queue;
   struct err_count         m_queue_full;
@@ -740,23 +710,19 @@ static void setup_tx_power()
 #endif
 }
 
-#ifndef FAST_WRITES
 static void bt_gattc_event_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param)
 {
   for (unsigned i = 0; i < MAX_PEERS; ++i)
     if (peers[i] && peers[i]->on_gattc_evt(event, gattc_if, param))
       return;
 }
-#endif
 
 static void bt_device_init()
 {
   // Create the BLE Device
   init_dev_name();
   BLEDevice::init(dev_name);
-#ifndef FAST_WRITES
   BLEDevice::setCustomGattcHandler(bt_gattc_event_cb);
-#endif
   BLEDevice::setMTU(MAX_SIZE+3);
   setup_tx_power();
   rx_queue = xQueueCreate(RX_QUEUE, sizeof(struct data_chunk));
@@ -923,7 +889,6 @@ void Peer::connect()
 #endif
 }
 
-#ifndef FAST_WRITES
 void Peer::write_worker()
 {
   for (;;) {
@@ -939,7 +904,6 @@ void Peer::write_worker()
     vRingbufferReturnItem(m_wr_queue, data);
   }
 }
-#endif
 
 #ifndef HIDDEN
 static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)

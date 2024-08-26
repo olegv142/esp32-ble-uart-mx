@@ -109,17 +109,6 @@
 #endif
 #endif
 
-// If defined the adapter will use writes without response to send data to peripheral devices.
-// It gives up to 4 times faster write rate. The downside is that its not suited for
-// transmitting data to multiple connections due to some bugs in BLE stack. So use
-// fast writes for point-to-point links only.
-// #define FAST_WRITES
-
-#ifdef FAST_WRITES
-// Only one connection to peripheral device is allowed in fast write mode.
-#define MAX_PEERS 1
-#endif
-
 #ifndef HIDDEN
 // Broadcast millisecond uptime to connected central (for testing) if defined
 // The value defined is broadcast period in milliseconds
@@ -142,13 +131,14 @@
 #ifndef EXT_FRAMES
 #define XHDR_SIZE 0
 #define CHKSUM_SIZE 0
+#define MAX_CHUNKS 1
 #define MAX_CHUNK MAX_SIZE
 #define MAX_FRAME MAX_CHUNK
 #else
 #define XHDR_SIZE 1
 #define CHKSUM_SIZE 3
-#define MAX_CHUNK (MAX_SIZE-XHDR_SIZE-CHKSUM_SIZE)
 #define MAX_CHUNKS 9 // Max chunks in single data frame
+#define MAX_CHUNK (MAX_SIZE-XHDR_SIZE-CHKSUM_SIZE)
 #define MAX_FRAME (MAX_CHUNK*MAX_CHUNKS)
 #ifndef BINARY_DATA_SUPPORT
 #define BINARY_DATA_SUPPORT
