@@ -1,8 +1,3 @@
-"""
-BLE multi adapter (ble_uart_mx) host interface
-
-Author: Oleg Volkov
-"""
 
 import sys
 import time
