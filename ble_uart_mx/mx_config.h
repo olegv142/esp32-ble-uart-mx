@@ -10,7 +10,9 @@
 //
 
 #ifndef MAX_PEERS
-#define MAX_PEERS 8
+#define MAX_PEERS 4
+#elif (MAX_PEERS > 4)
+#error "The number of connections exceeded BLE stack implementation limit"
 #endif
 
 #ifndef UART_TIMEOUT
