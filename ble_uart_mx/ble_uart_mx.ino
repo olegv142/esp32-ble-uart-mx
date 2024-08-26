@@ -318,7 +318,7 @@ static bool transmit_frame(
   return true;
 }
 
-#ifdef EXT_FRAMES
+#if defined(EXT_FRAMES) && !defined(HIDDEN)
 static uint8_t* get_chunk_buff(size_t sz, void* ctx)
 {
   static uint8_t buff[MAX_SIZE];
@@ -360,37 +360,6 @@ static bool remote_write_(BLERemoteCharacteristic* ch, uint8_t* data, size_t len
 class Peer : public BLEClientCallbacks
 {
 public:
-  void write_worker();
-
-  static void write_worker_(void* ctx) {
-    ((Peer*)ctx)->write_worker();
-  }
-
-  Peer(unsigned idx, String const& addr)
-    : m_tag('0' + idx)
-    , m_addr(addr)
-    , m_writable(false)
-    , m_connected(false)
-    , m_was_connected(false)
-    , m_disconn_ts(0)
-    , m_Client(nullptr)
-    , m_remoteCharacteristic(nullptr)
-    , m_wr_task(nullptr)
-    , m_wr_queue(xRingbufferCreateNoSplit(MAX_SIZE, TX_QUEUE * MAX_CHUNKS))
-    , m_wr_sem(xSemaphoreCreateBinary())
-    , m_rx_queue(0)
-#ifdef EXT_FRAMES
-    , m_xrx('0' + idx)
-#endif
-  {
-    BaseType_t const rc = xTaskCreate(write_worker_, "write_worker", 4096, this, tskIDLE_PRIORITY, &m_wr_task);
-    BUG_ON(rc != pdPASS);
-    BUG_ON(!m_wr_task);
-    BUG_ON(!m_wr_queue);
-    BUG_ON(!m_wr_sem);
-    xSemaphoreGive(m_wr_sem);
-  }
-
   void onConnect(BLEClient *pclient) {
     // post connected event to receive queue
     struct data_chunk ch = {.data = nullptr, .len = 0};
@@ -572,6 +541,38 @@ public:
     return true;
   }
 
+  void write_worker();
+
+  static void write_worker_(void* ctx) {
+    ((Peer*)ctx)->write_worker();
+  }
+
+  Peer(unsigned idx, String const& addr)
+    : m_tag('0' + idx)
+    , m_addr(addr)
+    , m_writable(false)
+    , m_connected(false)
+    , m_was_connected(false)
+    , m_disconn_ts(0)
+    , m_Client(nullptr)
+    , m_remoteCharacteristic(nullptr)
+    , m_wr_task(nullptr)
+    , m_wr_queue(xRingbufferCreateNoSplit(MAX_SIZE, TX_QUEUE * MAX_CHUNKS))
+    , m_wr_sem(xSemaphoreCreateBinary())
+    , m_rx_queue(0)
+#ifdef EXT_FRAMES
+    , m_xrx('0' + idx)
+#endif
+  {
+    BaseType_t const rc = xTaskCreate(write_worker_, "write_worker", 4096, this, tskIDLE_PRIORITY, &m_wr_task);
+    BUG_ON(rc != pdPASS);
+    BUG_ON(!m_wr_task);
+    BUG_ON(!m_wr_queue);
+    BUG_ON(!m_wr_sem);
+    xSemaphoreGive(m_wr_sem);
+  }
+
+private:
   char const  m_tag;
   String      m_addr;
   bool        m_writable;
