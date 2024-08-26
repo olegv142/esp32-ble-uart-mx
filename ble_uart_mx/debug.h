@@ -1,9 +1,7 @@
 #pragma once
 
-void fatal(const char* what);
+#include "util.h"
 
-#define STRINGIZE(x) STRINGIZE2(x)
-#define STRINGIZE2(x) #x
-#define LINE_STRING STRINGIZE(__LINE__)
+void fatal(const char* what);
 
 #define BUG_ON(cond) do { if (cond) fatal("BUG at " LINE_STRING); } while (0)

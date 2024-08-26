@@ -5,6 +5,8 @@
 // #include "echo_config.h"
 // #include "echo_master_config.h"
 
+#include "util.h"
+
 //
 // Miscellaneous settings
 //
@@ -63,10 +65,7 @@
 #define _UTIME ""
 #endif
 
-#define STR_(arg) #arg
-#define STR(arg) STR_(arg)
-
-#define VARIANT STR(MAX_PEERS) _XDATA _FAST _MODE _ACCESS _ECHO _UTIME
+#define VARIANT STRINGIZE(MAX_PEERS) _XDATA _FAST _MODE _ACCESS _ECHO _UTIME
 
 #if defined(HIDDEN) && defined(PASSIVE_ONLY)
 #error "Defining HIDDEN and PASSIVE_ONLY at the same time makes adapter unusable"
