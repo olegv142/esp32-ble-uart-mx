@@ -84,9 +84,6 @@
 #define UART_END   '\n'
 #endif
 
-// If defined reset itself on peripheral disconnection instead of reconnecting
-#define RESET_ON_DISCONNECT
-
 // Undefine to keep default power level
 #define TX_PW_BOOST ESP_PWR_LVL_P21
 

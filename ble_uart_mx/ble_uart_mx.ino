@@ -515,11 +515,7 @@ public:
         debug_msg(msg.c_str());
       } else {
         msg += " disconnected";
-#ifdef RESET_ON_DISCONNECT
         fatal(msg.c_str());
-#else
-        debug_msg(msg.c_str());
-#endif
       }
     }
 #ifndef NO_DEBUG
