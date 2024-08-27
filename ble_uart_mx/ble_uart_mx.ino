@@ -469,7 +469,7 @@ public:
   uint8_t* alloc_chunk_queued(size_t sz)
   {
     void* pchunk = nullptr;
-    BaseType_t const res = xRingbufferSendAcquire(m_wr_queue, &pchunk, sz, 0);//pdMS_TO_TICKS(CONGESTION_DELAY));
+    BaseType_t const res = xRingbufferSendAcquire(m_wr_queue, &pchunk, sz, pdMS_TO_TICKS(CONGESTION_DELAY));
     if (res != pdTRUE) {
       ++m_tx_queue_full.cnt;
       return nullptr;
