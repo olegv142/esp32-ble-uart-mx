@@ -36,5 +36,5 @@ if __name__ == '__main__':
 	with Echo(port, peers) as ad:
 		ad.reset()
 		while True:
-			ad.poll()
+			ad.communicate()
 

@@ -144,7 +144,8 @@ class EchoTest(MutliAdapter):
 		if self.max_frame is None:
 			return
 		for _ in range(tx_burst):
-			self.send_msg(connected)
+			if not self.is_congested():
+				self.send_msg(connected)
 
 	def on_idle(self, version):
 		try:
@@ -206,6 +207,6 @@ if __name__ == '__main__':
 		ad.reset()
 		try:
 			while True:
-				ad.poll()
+				ad.communicate()
 		except KeyboardInterrupt:
 			ad.print_stat()

@@ -13,20 +13,21 @@ use_parity = True
 
 class MutliAdapter:
 	"""BLE multi-adapter interface class"""
-	baud_rate  = 115200
-	parity     = PARITY_EVEN if use_parity else PARITY_NONE
-	start_byte = b'\1'
-	end_byte   = b'\0'
-	b64_tag    = b'\2'
-	rtscts     = True
-	timeout    = .01
-	drain_timeout = .5
+	baud_rate   = 115200
+	parity      = PARITY_EVEN if use_parity else PARITY_NONE
+	start_byte  = b'\1'
+	end_byte    = b'\0'
+	b64_tag     = b'\2'
+	rtscts      = True
+	timeout     = .01
+	congest_thr = 16
 
 	def __init__(self, port):
 		self.port    = port
 		self.com     = None
 		self.rx_buff = b''
 		self.parse_errors = 0
+		self.tx_queue = []
 
 	def __enter__(self):
 		self.open()
@@ -50,12 +51,21 @@ class MutliAdapter:
 			self.com.close()
 			self.com = None
 
+	def is_congested(self):
+		return len(self.tx_queue) > MutliAdapter.congest_thr
+
+	def write_msg(self, msg):
+		"""Write message to the adapter"""
+		self.com.write(msg)
+
 	def send_cmd(self, cmd):
 		"""Send command to the adapter"""
-		self.com.write(MutliAdapter.start_byte + b'#' + cmd + MutliAdapter.end_byte)
+		self.tx_queue.append(MutliAdapter.start_byte + b'#' + cmd + MutliAdapter.end_byte)
 
 	def reset(self):
-		self.send_cmd(b'R')
+		"""Reset adapter"""
+		self.tx_queue = []
+		self.write_msg(MutliAdapter.start_byte + b'#R' + MutliAdapter.end_byte)
 
 	def connect(self, peers):
 		self.send_cmd(b'C' + b' '.join(peers))
@@ -64,17 +74,27 @@ class MutliAdapter:
 		"""Send data to connected central"""
 		if binary:
 			data = MutliAdapter.b64_tag + base64.b64encode(data)
-		self.com.write(MutliAdapter.start_byte + b'>' + data + MutliAdapter.end_byte)
+		self.tx_queue.append(MutliAdapter.start_byte + b'>' + data + MutliAdapter.end_byte)
 
 	def send_data_to(self, idx, data, binary=False):
 		"""Send data to peer given its index"""
 		if binary:
 			data = MutliAdapter.b64_tag + base64.b64encode(data)
-		self.com.write(MutliAdapter.start_byte + (b'0'[0] + idx).to_bytes(1, byteorder='big') + data + MutliAdapter.end_byte)
+		self.tx_queue.append(MutliAdapter.start_byte + (b'0'[0] + idx).to_bytes(1, byteorder='big') + data + MutliAdapter.end_byte)
 
-	def poll(self):
-		if rx_bytes := self.com.read(4096):
+	def receive(self):
+		"""Receive from adapter"""
+		while rx_bytes := self.com.read(4096):
 			self.process_rx(rx_bytes)
+
+	def communicate(self):
+		"""Communicate with adapter"""
+		self.receive()
+		tx_queue = self.tx_queue
+		self.tx_queue = []
+		for msg in tx_queue:
+			self.write_msg(msg)
+			self.receive()
 
 	def process_rx(self, rx_bytes):
 		self.rx_buff += rx_bytes

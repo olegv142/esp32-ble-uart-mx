@@ -42,6 +42,6 @@ if __name__ == '__main__':
 		ad.reset()
 		try:
 			while True:
-				ad.poll()
+				ad.communicate()
 		except KeyboardInterrupt:
 			print('%u parse errors' % ad.parse_errors)

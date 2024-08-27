@@ -26,5 +26,5 @@ if __name__ == '__main__':
 	with Echo(sys.argv[1]) as ad:
 		ad.reset()
 		while True:
-			ad.poll()
+			ad.communicate()
 
