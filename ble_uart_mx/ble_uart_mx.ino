@@ -100,7 +100,7 @@ struct err_count {
   err_count() : cnt(0), last(0) {}
 };
 
-static struct err_count queue_full;
+static struct err_count rx_queue_full;
 static struct err_count write_err;
 static struct err_count notify_err;
 static struct err_count parse_err;
@@ -143,6 +143,42 @@ static inline void debug_msg(const char* msg)
   uart_end();
 #endif
 }
+
+#ifndef NO_DEBUG
+static void chk_error_cnt(struct err_count* e, const char* msg)
+{
+  if (e->cnt != e->last) {
+    uart_begin();
+    DataSerial.print(msg);
+    DataSerial.print(e->cnt - e->last);
+    DataSerial.print(" times");
+    uart_end();
+    e->last = e->cnt;
+  }
+}
+
+static void chk_error_cnt2(struct err_count* e, const char* pref, char tag, const char* suff)
+{
+  if (e->cnt != e->last) {
+    uart_begin();
+    DataSerial.print(pref);
+    DataSerial.print(tag);
+    DataSerial.print(suff);
+    DataSerial.print(e->cnt - e->last);
+    DataSerial.print(" times");
+    uart_end();
+    e->last = e->cnt;
+  }
+}
+
+static void chk_error_flag(bool* flag, const char* msg)
+{
+  if (*flag) {
+    debug_msg(msg);
+    *flag = false;
+  }
+}
+#endif
 
 struct data_chunk {
   uint8_t* data;
@@ -367,7 +403,7 @@ public:
     // post connected event to receive queue
     struct data_chunk ch = {.data = nullptr, .len = 0};
     if (!xQueueSend(m_rx_queue, &ch, 0)) {
-      ++m_queue_full.cnt;
+      ++m_rx_queue_full.cnt;
       is_congested = true;
     }
     m_connected = true;
@@ -433,9 +469,11 @@ public:
   uint8_t* alloc_chunk_queued(size_t sz)
   {
     void* pchunk = nullptr;
-    BaseType_t const res = xRingbufferSendAcquire(m_wr_queue, &pchunk, sz, pdMS_TO_TICKS(CONGESTION_DELAY));
-    if (res != pdTRUE)
+    BaseType_t const res = xRingbufferSendAcquire(m_wr_queue, &pchunk, sz, 0);//pdMS_TO_TICKS(CONGESTION_DELAY));
+    if (res != pdTRUE) {
+      ++m_tx_queue_full.cnt;
       return nullptr;
+    }
     return (uint8_t*)pchunk;
   }
 
@@ -474,7 +512,7 @@ public:
     memcpy(ch.data, pData, length);
     if (!xQueueSend(m_rx_queue, &ch, 0)) {
       free(ch.data);
-      ++m_queue_full.cnt;
+      ++m_rx_queue_full.cnt;
       is_congested = true;
     }
     return true;
@@ -522,15 +560,9 @@ public:
       }
     }
 #ifndef NO_DEBUG
-    if (m_queue_full.cnt != m_queue_full.last) {
-      uart_begin();
-      DataSerial.print("-rx queue [");
-      DataSerial.print(m_tag);
-      DataSerial.print("] full ");
-      DataSerial.print(m_queue_full.cnt - m_queue_full.last);
-      DataSerial.print(" times");
-      uart_end();
-      m_queue_full.last = m_queue_full.cnt;
+    if (!is_congested) {
+      chk_error_cnt2(&m_rx_queue_full, "-rx queue [", m_tag, "] full ");
+      chk_error_cnt2(&m_tx_queue_full, "-tx queue [", m_tag, "] full ");
     }
 #endif
     if (!m_connected && elapsed(m_disconn_ts, millis()) > 500) {
@@ -585,7 +617,8 @@ private:
   RingbufHandle_t          m_wr_queue;
   SemaphoreHandle_t        m_wr_sem;
   QueueHandle_t            m_rx_queue;
-  struct err_count         m_queue_full;
+  struct err_count         m_rx_queue_full;
+  struct err_count         m_tx_queue_full;
 #ifdef EXT_FRAMES
   XFrameReceiver m_xrx;
 #endif
@@ -596,7 +629,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       struct data_chunk ch = {.data = nullptr, .len = 0};
       if (!xQueueSend(rx_queue, &ch, 0)) {
-        ++queue_full.cnt;
+        ++rx_queue_full.cnt;
         is_congested = true;
       }
       ++connected_centrals;
@@ -620,7 +653,7 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
     memcpy(ch.data, pData, length);
     if (!xQueueSend(rx_queue, &ch, 0)) {
       free(ch.data);
-      ++queue_full.cnt;
+      ++rx_queue_full.cnt;
       is_congested = true;
     }
 #ifdef ECHO
@@ -1115,28 +1148,6 @@ static void receive_from_central(struct data_chunk const* chunk)
 #endif
 }
 
-#ifndef NO_DEBUG
-static void chk_error_cnt(struct err_count* e, const char* msg)
-{
-  if (e->cnt != e->last) {
-    uart_begin();
-    DataSerial.print(msg);
-    DataSerial.print(e->cnt - e->last);
-    DataSerial.print(" times");
-    uart_end();
-    e->last = e->cnt;
-  }
-}
-
-static void chk_error_flag(bool* flag, const char* msg)
-{
-  if (*flag) {
-    debug_msg(msg);
-    *flag = false;
-  }
-}
-#endif
-
 static bool cli_receive()
 {
   size_t avail = DataSerial.available();
@@ -1156,14 +1167,7 @@ static bool cli_receive()
 
 void loop()
 {
-#ifdef UART_THROTTLE
-  bool const can_receive = !is_congested;
-#else
-  bool const can_receive = true;
-#endif
-  bool received = false;
-  if (can_receive)
-    received = cli_receive();
+  bool received = cli_receive();
   if (received || is_congested)
     is_congested = !cli_process();
 
@@ -1195,11 +1199,13 @@ void loop()
   }
 
 #ifndef NO_DEBUG
-  chk_error_cnt(&queue_full, "-rx queue full ");
-  chk_error_cnt(&write_err,  "-write failed ");
-  chk_error_cnt(&notify_err, "-notify failed ");
-  chk_error_cnt(&parse_err,  "-parse error ");
-  chk_error_flag(&unknown_data_src, "-got data from unknown source");
+  if (!is_congested) {
+    chk_error_cnt(&rx_queue_full, "-rx queue full ");
+    chk_error_cnt(&write_err,  "-write failed ");
+    chk_error_cnt(&notify_err, "-notify failed ");
+    chk_error_cnt(&parse_err,  "-parse error ");
+    chk_error_flag(&unknown_data_src, "-got data from unknown source");
+  }
 #endif
 
   monitor_peers();
