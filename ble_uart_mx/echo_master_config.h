@@ -95,9 +95,10 @@
 #define AUTOCONNECT
 #ifdef AUTOCONNECT
 // Peer device address to connect to
+#define PEER_ADDR    "DC:54:75:EE:0C:95"
 //#define PEER_ADDR    "EC:DA:3B:BB:CE:02"
 //#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
-#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
+//#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
 //#define PEER_ADDR3   "34:B7:DA:FB:58:E2"
 #endif
 #endif

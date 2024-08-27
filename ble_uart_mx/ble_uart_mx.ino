@@ -322,9 +322,12 @@ static bool transmit_frame(
   }
 
 #ifdef EXT_FRAMES
-  static uint8_t tx_sn;
-  uint8_t first = 1, last;
+  static uint8_t last_frame_sn;
+  static uint8_t last_chunk_sn;
+  uint8_t tx_sn = last_frame_sn;
+  bool incomplete = (last_chunk_sn != last_frame_sn);
   uint32_t chksum = CHKSUM_INI;
+  uint8_t first = 1, last;
 #endif
   while (len) {
     size_t chunk = len;
@@ -332,13 +335,19 @@ static bool transmit_frame(
 #ifdef EXT_FRAMES
     if (!(last = (chunk <= MAX_CHUNK)))
       chunk = MAX_CHUNK;
-    uint8_t* const chunk_buff = get_chunk(XHDR_SIZE + chunk + CHKSUM_SIZE, ctx);
-    if (!chunk_buff)
-      return false;
-    chunk_buff[0] = mk_xframe_hdr(++tx_sn, binary, first, last);
-    chksum = chksum_up(chunk_buff[0], chksum);
-    chksum = chksum_copy(tx_data, chunk, chunk_buff + 1, chksum);
-    pdata = chunk_buff;
+    uint8_t const chunk_hdr = mk_xframe_hdr(++tx_sn, binary, first, last);
+    chksum = chksum_up(chunk_hdr, chksum);
+    if (!incomplete) {
+      uint8_t* const chunk_buff = get_chunk(XHDR_SIZE + chunk + CHKSUM_SIZE, ctx);
+      if (!chunk_buff)
+        return false;
+      chunk_buff[0] = chunk_hdr;
+      chksum = chksum_copy(tx_data, chunk, chunk_buff + 1, chksum);
+      pdata = chunk_buff;
+    } else {
+      chksum = chksum_update(tx_data, chunk, chksum);
+      pdata = nullptr;
+    }
     first = 0;
 #else
     if (get_chunk) {
@@ -349,11 +358,20 @@ static bool transmit_frame(
       pdata = chunk_buff;
     }
 #endif
-    if (!tx_chunk(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE, ctx))
+    if (pdata && !tx_chunk(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE, ctx))
       return false;
     tx_data += chunk;
     len -= chunk;
+#ifdef EXT_FRAMES
+    if (!incomplete)
+      last_chunk_sn = tx_sn;
+    else if (last_chunk_sn == tx_sn)
+      incomplete = false;
   }
+  last_frame_sn = tx_sn;
+#else
+  }
+#endif
   return true;
 }
 
@@ -1055,11 +1073,11 @@ static bool cli_process()
     }
 #endif
     *tail = '\0';
-    next = tail + 1;
     if (!process_msg(begin, tail - begin)) {
       done = false;
       break;
     }
+    next = tail + 1;
 #ifdef UART_BEGIN
     begin = next_begin;
     if (begin && begin != next)
@@ -1151,7 +1169,6 @@ static bool cli_receive()
   size_t avail = DataSerial.available();
   if (cli_buff_data_sz + avail > CLI_BUFF_SZ) {
     avail = CLI_BUFF_SZ - cli_buff_data_sz;
-    BUG_ON(!avail);
   }
   if (!avail)
     return false;

@@ -10,6 +10,11 @@ static inline uint32_t chksum_up(uint8_t byte, uint32_t hash)
     return fnv1a_up(byte, hash);
 }
 
+static inline uint32_t chksum_update(uint8_t const * data, size_t len, uint32_t ini_chksum)
+{
+  return fnv1a_(data, len, ini_chksum);
+}
+
 // Copy data to the buffer and append checksum
 static inline uint32_t chksum_copy(uint8_t const * data, size_t len, uint8_t * out_buff, uint32_t ini_chksum)
 {
