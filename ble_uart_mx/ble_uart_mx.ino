@@ -560,10 +560,8 @@ public:
       }
     }
 #ifndef NO_DEBUG
-    if (!is_congested) {
-      chk_error_cnt2(&m_rx_queue_full, "-rx queue [", m_tag, "] full ");
-      chk_error_cnt2(&m_tx_queue_full, "-tx queue [", m_tag, "] full ");
-    }
+    chk_error_cnt2(&m_rx_queue_full, "-rx queue [", m_tag, "] full ");
+    chk_error_cnt2(&m_tx_queue_full, "-tx queue [", m_tag, "] full ");
 #endif
     if (!m_connected && elapsed(m_disconn_ts, millis()) > 500) {
       connect();
@@ -1199,13 +1197,11 @@ void loop()
   }
 
 #ifndef NO_DEBUG
-  if (!is_congested) {
-    chk_error_cnt(&rx_queue_full, "-rx queue full ");
-    chk_error_cnt(&write_err,  "-write failed ");
-    chk_error_cnt(&notify_err, "-notify failed ");
-    chk_error_cnt(&parse_err,  "-parse error ");
-    chk_error_flag(&unknown_data_src, "-got data from unknown source");
-  }
+  chk_error_cnt(&rx_queue_full, "-rx queue full ");
+  chk_error_cnt(&write_err,  "-write failed ");
+  chk_error_cnt(&notify_err, "-notify failed ");
+  chk_error_cnt(&parse_err,  "-parse error ");
+  chk_error_flag(&unknown_data_src, "-got data from unknown source");
 #endif
 
   monitor_peers();
