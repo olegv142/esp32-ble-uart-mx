@@ -429,7 +429,6 @@ public:
   }
 
   void onDisconnect(BLEClient *pclient) {
-    m_disconn_ts = millis();
     m_connected = false;
     --connected_peers;
     xSemaphoreGive(m_wr_sem);
@@ -581,7 +580,7 @@ public:
     chk_error_cnt2(&m_rx_queue_full, "-rx queue [", m_tag, "] full ");
     chk_error_cnt2(&m_tx_queue_full, "-tx queue [", m_tag, "] full ");
 #endif
-    if (!m_connected && elapsed(m_disconn_ts, millis()) > 500) {
+    if (!m_connected) {
       connect();
       return false;
     }
@@ -600,7 +599,6 @@ public:
     , m_writable(false)
     , m_connected(false)
     , m_was_connected(false)
-    , m_disconn_ts(0)
     , m_Client(nullptr)
     , m_remoteCharacteristic(nullptr)
     , m_wr_task(nullptr)
@@ -625,7 +623,6 @@ private:
   bool        m_writable;
   bool        m_connected;
   bool        m_was_connected;
-  uint32_t    m_disconn_ts;
 
   BLEClient*  m_Client;
   BLERemoteCharacteristic* m_remoteCharacteristic;
