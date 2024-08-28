@@ -4,6 +4,7 @@
 // .. for example
 // #include "echo_config.h"
 // #include "echo_master_config.h"
+// #include "uptime_config.h"
 
 //
 // Miscellaneous settings
