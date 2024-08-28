@@ -41,7 +41,7 @@
 
 // If HW_UART is defined the hardware serial port will be used for communications.
 // Otherwise the USB virtual serial port will be utilized.
-#define HW_UART
+// #define HW_UART
 
 #define UART_BAUD_RATE 115200
 

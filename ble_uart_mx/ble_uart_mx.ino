@@ -87,6 +87,7 @@ static uint32_t last_status_ts;
 #endif
 
 static String   dev_name(DEV_NAME);
+static String   dev_addr;
 
 #define CLI_BUFF_SZ UART_RX_BUFFER_SZ
 static uint8_t   cli_buff[CLI_BUFF_SZ];
@@ -821,6 +822,16 @@ static void bt_device_start()
   pAdvertising->setScanResponse(true);
   pAdvertising->addServiceUUID(SERVICE_UUID);
 #endif
+  dev_addr = BLEDevice::getAddress().toString();
+#ifndef NO_DEBUG
+  uart_begin();
+  DataSerial.print("-BT device ");
+  DataSerial.print(dev_name);
+  DataSerial.print(" at ");
+  DataSerial.print(dev_addr);
+  DataSerial.print(" started");  
+  uart_end();
+#endif
 }
 
 static void hw_init()
@@ -1173,7 +1184,7 @@ static void tell_uptime()
     msg += "#";
     msg += uptime;
     msg += "#";
-    msg += BLEDevice::getAddress().toString();
+    msg += dev_addr;
     msg += "#";
     msg += dev_name;
     transmit_to_central(msg.c_str(), msg.length());
