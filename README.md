@@ -74,7 +74,7 @@ The compilation options are placed onto the separate header **ble_uart_mx/mx_con
 * configure device behavior, for example disable discovery
 * configure auto-connecting on startup
 * configure using extended data frames or binary data encoding
-* setup debug options (TELL_UPTIME, PEER_ECHO)
+* setup debug options (TELL_UPTIME, ECHO)
 
 Since configuration options are placed onto the separate file you may conveniently create you own file instead of **default_config.h** or set of files for various device variants.
 
@@ -90,7 +90,7 @@ The host API implementation for python may be found in **python/ble_multi_adapte
 ## Testing
 
 ### The hard way
-There are pair of test scripts **multi_echo.py** and **multi_echo_long.py** in **python** folder sending packets to other side that is expected to echo them back. One may use PEER_ECHO compilation option to echo data right on the device or use **central_echo.py** script for that purpose.
+There are pair of test scripts **multi_echo.py** and **multi_echo_long.py** in **python** folder sending packets to other side that is expected to echo them back. One may use ECHO compilation option to echo data right on the device or use **central_echo.py** script for that purpose.
 
 ### The quick way
 If you have only one ESP32 module and want to test **ble_uart_mx** adapter do the following:
