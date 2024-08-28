@@ -127,7 +127,7 @@ static inline bool is_idle()
 
 static inline bool is_connected()
 {
-  return !is_idle() && connected_peers >= npeers;
+  return npeers && connected_peers >= npeers;
 }
 
 static inline uint32_t elapsed(uint32_t from, uint32_t to)
@@ -425,12 +425,10 @@ public:
       is_congested = true;
     }
     m_connected = true;
-    ++connected_peers;
   }
 
   void onDisconnect(BLEClient *pclient) {
     m_connected = false;
-    --connected_peers;
     xSemaphoreGive(m_wr_sem);
   }
 
@@ -450,6 +448,7 @@ public:
   }
 
   void connect();
+  void subscribe();
 
   bool remote_write(uint8_t* data, size_t len)
   {
@@ -551,17 +550,6 @@ public:
 
   bool monitor()
   {
-    struct data_chunk ch;
-    while (m_rx_queue && xQueueReceive(m_rx_queue, &ch, 0)) {
-      if (ch.data) {
-        receive(&ch);
-      } else {
-        notify_connected();
-#ifdef EXT_FRAMES
-        m_xrx.reset();
-#endif
-      }
-    }
     if (m_connected != m_was_connected) {
       m_was_connected = m_connected;
       String msg("-peripheral [");
@@ -569,20 +557,40 @@ public:
       msg += "] ";
       msg += m_addr;
       if (m_connected) {
+        ++connected_peers;
         msg += " connected";
         debug_msg(msg.c_str());
       } else {
+        --connected_peers;
         msg += " disconnected";
         fatal(msg.c_str());
       }
     }
-#ifndef NO_DEBUG
-    chk_error_cnt2(&m_rx_queue_full, "-rx queue [", m_tag, "] full ");
-    chk_error_cnt2(&m_tx_queue_full, "-tx queue [", m_tag, "] full ");
-#endif
     if (!m_connected) {
       connect();
       return false;
+    }
+    if (is_connected()) {
+      // Make sure all connected before going further
+      if (!m_subscribed) {
+        subscribe();
+        return false;
+      }
+      struct data_chunk ch;
+      while (m_rx_queue && xQueueReceive(m_rx_queue, &ch, 0)) {
+        if (ch.data) {
+          receive(&ch);
+        } else {
+          notify_connected();
+#ifdef EXT_FRAMES
+          m_xrx.reset();
+#endif
+        }
+      }
+#ifndef NO_DEBUG
+      chk_error_cnt2(&m_rx_queue_full, "-rx queue [", m_tag, "] full ");
+      chk_error_cnt2(&m_tx_queue_full, "-tx queue [", m_tag, "] full ");
+#endif
     }
     return true;
   }
@@ -598,6 +606,7 @@ public:
     , m_addr(addr)
     , m_writable(false)
     , m_connected(false)
+    , m_subscribed(false)
     , m_was_connected(false)
     , m_Client(nullptr)
     , m_remoteCharacteristic(nullptr)
@@ -622,6 +631,7 @@ private:
   String      m_addr;
   bool        m_writable;
   bool        m_connected;
+  bool        m_subscribed;
   bool        m_was_connected;
 
   BLEClient*  m_Client;
@@ -907,10 +917,7 @@ void Peer::connect()
   m_remoteCharacteristic = pRemoteService->getCharacteristic(CHARACTERISTIC_UUID_TX);
   if (!m_remoteCharacteristic)
     fatal("Failed to find our characteristic UUID");
-  // Subscribe to updates
-  if (m_remoteCharacteristic->canNotify())
-    m_remoteCharacteristic->registerForNotify(peerNotifyCallback);
-  else
+  if (!m_remoteCharacteristic->canNotify())
     fatal("Notification not supported by the server");
   m_writable = m_remoteCharacteristic->canWrite();
 
@@ -923,10 +930,33 @@ void Peer::connect()
   DataSerial.print(" msec");
   if (m_writable)
     DataSerial.print(", writable");
-#ifdef RESET_ON_DISCONNECT
   DataSerial.print(", rssi=");
   DataSerial.print(m_Client->getRssi());
+  uart_end();
 #endif
+}
+
+void Peer::subscribe()
+{
+#ifndef NO_DEBUG
+  uint32_t const start = millis();
+  uart_begin();
+  DataSerial.print("-subscribing to ");
+  DataSerial.print(m_addr);
+  uart_end();
+#endif
+
+  // Subscribe to updates
+  m_remoteCharacteristic->registerForNotify(peerNotifyCallback);
+  m_subscribed = true;
+
+#ifndef NO_DEBUG
+  uart_begin();
+  DataSerial.print("-subscribed to ");
+  DataSerial.print(m_addr);
+  DataSerial.print(" in ");
+  DataSerial.print(millis() - start);
+  DataSerial.print(" msec");
   uart_end();
 #endif
 }
@@ -1126,7 +1156,7 @@ static void monitor_peers()
   }
 #endif
 #ifdef CONNECTED_LED
-  bool const conn_led = (is_idle() && connected_centrals) || is_connected();
+  bool const conn_led = (!npeers && connected_centrals) || is_connected();
   digitalWrite(CONNECTED_LED, conn_led ? LOW : HIGH);
 #endif
 }
