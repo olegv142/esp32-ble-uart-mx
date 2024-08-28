@@ -53,6 +53,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <freertos/queue.h>
+#include <esp_cpu.h>
 
 #include "mx_config.h"
 #include "debug.h"
@@ -829,7 +830,8 @@ static void bt_device_start()
   DataSerial.print(dev_name);
   DataSerial.print(" at ");
   DataSerial.print(dev_addr);
-  DataSerial.print(" started");  
+  DataSerial.print(" started, CPU freq ");  
+  DataSerial.print(getCpuFrequencyMhz());
   uart_end();
 #endif
 }
