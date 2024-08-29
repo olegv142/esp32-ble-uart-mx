@@ -34,7 +34,7 @@
 #endif
 
 #ifndef RX_QUEUE
-#define RX_QUEUE 64
+#define RX_QUEUE 32
 #endif
 
 #ifndef TX_QUEUE
