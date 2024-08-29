@@ -111,22 +111,11 @@
 // - binary data support
 #define EXT_FRAMES
 
-// The maximum size of the message data
 #ifndef EXT_FRAMES
-#define XHDR_SIZE 0
-#define CHKSUM_SIZE 0
 #define MAX_CHUNKS 1
-#define MAX_CHUNK MAX_SIZE
-#define MAX_FRAME MAX_CHUNK
 #else
-#define XHDR_SIZE 1
-#define CHKSUM_SIZE 3
-#define MAX_CHUNKS 9 // Max chunks in single data frame
-#define MAX_CHUNK (MAX_SIZE-XHDR_SIZE-CHKSUM_SIZE)
-#define MAX_FRAME (MAX_CHUNK*MAX_CHUNKS)
-#ifndef BINARY_DATA_SUPPORT
-#define BINARY_DATA_SUPPORT
-#endif
+// Max chunks in single data frame
+#define MAX_CHUNKS 9
 #endif
 
 // How many messages may be submitted at once
