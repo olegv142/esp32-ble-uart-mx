@@ -1082,7 +1082,7 @@ static void process_cmd(const char* cmd)
       cmd_connect(cmd + 1);
       break;
 #endif
-#ifdef HIDDEN
+#if defined(HIDDEN) && !defined(CENTRAL_ONLY)
     case 'A':
       enable_advertising = true;
       break;

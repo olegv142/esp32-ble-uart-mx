@@ -81,6 +81,12 @@
 #define TX_QUEUE 4
 #endif
 
+#ifdef CENTRAL_ONLY
+#ifndef HIDDEN
+#define HIDDEN
+#endif
+#endif
+
 //
 // Build version string
 //
@@ -101,10 +107,12 @@
 #define _MODE ""
 #endif
 
-#ifdef HIDDEN
-#define _ACCESS "H"
+#ifdef CENTRAL_ONLY
+#define _ADVERT "C"
+#elif defined(HIDDEN)
+#define _ADVERT "H"
 #else
-#define _ACCESS ""
+#define _ADVERT ""
 #endif
 
 #ifndef WRITABLE
@@ -125,4 +133,4 @@
 #define _UTIME ""
 #endif
 
-#define VARIANT _XDATA _MODE _ACCESS _RDONLY _ECHO _UTIME
+#define VARIANT _XDATA _MODE _ADVERT _RDONLY _ECHO _UTIME

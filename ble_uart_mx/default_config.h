@@ -11,8 +11,12 @@
 #define DEV_NAME_SUFF_LEN  6
 
 // If defined the device will not advertise so central will be unable to connect to it.
-// The connections to peers may be created though.
+// The connections to peers may be created though. The #A command will unhide device and
+// start advertising unless CENTRAL_ONLY is defined
 // #define HIDDEN
+
+// If defined the device will be hidden without the possibility to unhide it
+// #define CENTRAL_ONLY
 
 // If defined the connected central may write to this device
 #define WRITABLE
