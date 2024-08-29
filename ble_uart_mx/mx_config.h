@@ -25,6 +25,16 @@
 #error "The number of connections exceeded BLE stack implementation limit"
 #endif
 
+#ifdef TX_BOOST
+#if (CONFIG_IDF_TARGET_ESP32)
+#define TX_PW_BOOST ESP_PWR_LVL_P9
+#elif (CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2)
+#define TX_PW_BOOST ESP_PWR_LVL_P20
+#else
+#define TX_PW_BOOST ESP_PWR_LVL_P21
+#endif
+#endif
+
 #define UART_RX_BUFFER_SZ ((1+(MAX_FRAME*MAX_BURST+2048)/4096)*4096)
 #define UART_TX_BUFFER_SZ (4*UART_RX_BUFFER_SZ)
 

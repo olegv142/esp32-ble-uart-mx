@@ -83,14 +83,8 @@
 #define UART_END   '\n'
 #endif
 
-// Undefine TX_PW_BOOST to keep default power level
-#if (CONFIG_IDF_TARGET_ESP32)
-#define TX_PW_BOOST ESP_PWR_LVL_P9
-#elif (CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2)
-#define TX_PW_BOOST ESP_PWR_LVL_P20
-#else
-#define TX_PW_BOOST ESP_PWR_LVL_P21
-#endif
+// If define increase transmitter power up to the maximum
+#define TX_BOOST
 
 // If defined creating connections to other peripherals will be disabled
 #define PASSIVE_ONLY
