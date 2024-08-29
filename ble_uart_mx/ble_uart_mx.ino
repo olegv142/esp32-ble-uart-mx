@@ -54,6 +54,7 @@
 #include <malloc.h>
 #include <freertos/queue.h>
 #include <esp_cpu.h>
+#include <Esp.h>
 
 #include "mx_config.h"
 #include "debug.h"
@@ -830,8 +831,13 @@ static void bt_device_start()
   DataSerial.print(dev_name);
   DataSerial.print(" at ");
   DataSerial.print(dev_addr);
-  DataSerial.print(" started, CPU freq ");  
+  DataSerial.print(" on ");
+  DataSerial.print(ESP.getChipModel());
+  DataSerial.print(" ");
   DataSerial.print(getCpuFrequencyMhz());
+  DataSerial.print("MHz ");
+  DataSerial.print(ESP.getFreeHeap());
+  DataSerial.print(" bytes free");
   uart_end();
 #endif
 }
@@ -969,7 +975,9 @@ void Peer::subscribe()
   DataSerial.print(m_addr);
   DataSerial.print(" in ");
   DataSerial.print(millis() - start);
-  DataSerial.print(" msec");
+  DataSerial.print(" msec, ");
+  DataSerial.print(ESP.getFreeHeap());
+  DataSerial.print(" bytes free");
   uart_end();
 #endif
 }
