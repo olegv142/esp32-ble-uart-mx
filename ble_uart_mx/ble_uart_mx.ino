@@ -736,6 +736,15 @@ static void add_peer(unsigned idx, String const& addr)
     fatal("Peer already exist");
   peers[idx] = new Peer(idx, addr);
   ++npeers;
+#ifndef NO_DEBUG
+  uart_begin();
+  DataSerial.print("-connection [");
+  DataSerial.print(idx);
+  DataSerial.print("] initialized, ");
+  DataSerial.print(ESP.getFreeHeap());
+  DataSerial.print(" bytes free");
+  uart_end();
+#endif
 }
 #endif
 
