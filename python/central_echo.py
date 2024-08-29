@@ -15,7 +15,7 @@ class Echo(MutliAdapter):
 		super().__init__(port)
 		self.peers = peers
 
-	def on_idle(self, version):
+	def on_idle(self, hidden, version):
 		print('Idle, version ' + version.decode())
 		self.connect(self.peers)
 

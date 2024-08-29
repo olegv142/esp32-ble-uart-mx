@@ -15,7 +15,7 @@ class TestMutliAdapter(MutliAdapter):
 		super().__init__(port)
 		self.peers = peers
 
-	def on_idle(self, version):
+	def on_idle(self, hidden, version):
 		print('Idle, version ' + version.decode())
 		if self.peers:
 			self.connect(self.peers)

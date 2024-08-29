@@ -132,7 +132,10 @@ class MutliAdapter:
 	def on_status_msg(self, msg):
 		tag = msg[:1]
 		if tag == b'I':
-			self.on_idle(msg[1:].strip())
+			if msg[1:2] == b'h':
+				self.on_idle(True, msg[2:].strip())
+			else:
+				self.on_idle(False, msg[1:].strip())
 		elif tag == b'C':
 			self.on_connecting(msg[1] - b'0'[0])
 		elif tag == b'D':
@@ -158,7 +161,7 @@ class MutliAdapter:
 				return
 		self.on_peer_msg(idx, msg)
 
-	def on_idle(self, version):
+	def on_idle(self, hidden, version):
 		pass
 
 	def on_connecting(self, idx):

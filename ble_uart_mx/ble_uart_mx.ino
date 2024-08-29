@@ -11,7 +11,7 @@
  Connect command will be disabled if AUTOCONNECT is defined
 
  Status messages:
-  ':I rev.vmaj.vmin' - idle, not connected
+  ':I[h] vmaj.vmin-maxframe-variant' - idle, not connected, 'h' if hidden
   ':Cn'      - connecting to the n-th peripheral
   ':D'       - all peripherals connected, data receiving
   Status messages will be disabled if STATUS_REPORT_INTERVAL is undefined
@@ -1163,7 +1163,10 @@ static bool cli_process()
 static inline void report_idle()
 {
   uart_begin();
-  DataSerial.print(":I " VMAJOR "." VMINOR "-");
+  if (enable_advertising)
+    DataSerial.print(":I " VMAJOR "." VMINOR "-");
+  else
+    DataSerial.print(":Ih " VMAJOR "." VMINOR "-");
   DataSerial.print(MAX_FRAME);
   DataSerial.print("-" VARIANT);
   uart_end();

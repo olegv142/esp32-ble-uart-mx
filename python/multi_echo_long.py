@@ -147,7 +147,7 @@ class EchoTest(MutliAdapter):
 			if not self.is_congested():
 				self.send_msg(connected)
 
-	def on_idle(self, version):
+	def on_idle(self, hidden, version):
 		try:
 			v = version.split(b'-')
 			self.max_frame = int(v[1])

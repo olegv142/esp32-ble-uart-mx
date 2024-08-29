@@ -29,7 +29,7 @@ class EchoTest(MutliAdapter):
 		self.last_tx_sn += 1
 		self.send_data(b'%u#' % self.last_tx_sn)
 
-	def on_idle(self, version):
+	def on_idle(self, hidden, version):
 		for _ in range(EchoTest.burst_len):
 			self.send_msg()
 
