@@ -16,8 +16,14 @@
 
 static inline bool is_data_binary(uint8_t const * data, size_t len) {
   for (size_t i = 0; i < len; ++i)
-    if (data[i] <= (uint8_t)ENCODED_DATA_START_TAG)
+    switch (data[i]) {
+    case UART_END:
+#ifdef UART_BEGIN
+    case UART_BEGIN:
+#endif
+    case ENCODED_DATA_START_TAG:
       return true;
+    }
   return false;
 }
 
