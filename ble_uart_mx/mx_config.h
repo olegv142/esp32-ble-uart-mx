@@ -25,6 +25,9 @@
 #error "The number of connections exceeded BLE stack implementation limit"
 #endif
 
+#define UART_RX_BUFFER_SZ ((1+(MAX_FRAME*MAX_BURST+2048)/4096)*4096)
+#define UART_TX_BUFFER_SZ (4*UART_RX_BUFFER_SZ)
+
 #ifndef UART_TIMEOUT
 #define UART_TIMEOUT 10
 #endif

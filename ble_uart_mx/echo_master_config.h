@@ -148,9 +148,8 @@
 #endif
 #endif
 
-#define MAX_BURST 1 // How many messages may be submitted at once
-#define UART_RX_BUFFER_SZ ((1+(MAX_FRAME*MAX_BURST+2048)/4096)*4096)
-#define UART_TX_BUFFER_SZ (4*UART_RX_BUFFER_SZ)
+// How many messages may be submitted at once
+#define MAX_BURST 1
 
 // If defined echo all data received back to sender (for testing)
 #define ECHO
