@@ -6,6 +6,7 @@
 
  Commands:
   '#C addr0 addr1 ..' - connect to peripherals with given addresses (up to 8)
+  '#A'                - start advertising if was hidden
   '#R'                - reset to idle state
  Connect command will be disabled if AUTOCONNECT is defined
 
@@ -49,6 +50,7 @@
 #include <BLE2902.h>
 #include <esp_mac.h>
 #include <esp_task_wdt.h>
+#include <esp_gatt_defs.h>
 #include <esp_gattc_api.h>
 #include <string.h>
 #include <malloc.h>
@@ -68,10 +70,8 @@
 #include "xframe.h"
 #endif
 
-#ifndef HIDDEN
 static BLECharacteristic* pCharacteristic;
 static uint32_t           last_characteristic_error;
-#endif
 
 class Peer;
 static Peer*    peers[MAX_PEERS];
@@ -80,9 +80,12 @@ static int      connected_peers;
 static int      connected_centrals;
 
 #ifndef HIDDEN
+static bool     enable_advertising = true;
+#else
+static bool     enable_advertising = false;
+#endif
 static bool     start_advertising = true;
 static uint32_t centr_disconn_ts;
-#endif
 
 #ifdef STATUS_REPORT_INTERVAL
 static uint32_t last_status_ts;
@@ -378,7 +381,7 @@ static bool transmit_frame(
   return true;
 }
 
-#if defined(EXT_FRAMES) && !defined(HIDDEN)
+#if defined(EXT_FRAMES)
 static uint8_t* get_chunk_buff(size_t sz, void* ctx)
 {
   static uint8_t buff[MAX_SIZE];
@@ -650,7 +653,6 @@ private:
 #endif
 };
 
-#ifndef HIDDEN
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       struct data_chunk ch = {.data = nullptr, .len = 0};
@@ -692,7 +694,6 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
       last_characteristic_error = code;
   }
 };
-#endif
 
 static void reset_self()
 {
@@ -800,7 +801,6 @@ static void bt_device_init()
 
 static void bt_device_start()
 {
-#ifndef HIDDEN
   // Create the BLE Server
   BLEServer* pServer = BLEDevice::createServer();
 
@@ -818,9 +818,15 @@ static void bt_device_start()
 #endif
   );
 
+  pCharacteristic->setAccessPermissions(
+    ESP_GATT_PERM_READ
+#ifdef WRITABLE
+    | ESP_GATT_PERM_WRITE
+#endif
+  );
+
   pCharacteristic->addDescriptor(new BLE2902());
   pCharacteristic->setCallbacks(new MyCharCallbacks());
-
   pServer->setCallbacks(new MyServerCallbacks());
 
   // Start the service
@@ -832,8 +838,9 @@ static void bt_device_start()
   pAdvertising->setAdvertisementData(data);
   pAdvertising->setScanResponse(true);
   pAdvertising->addServiceUUID(SERVICE_UUID);
-#endif
+
   dev_addr = BLEDevice::getAddress().toString();
+
 #ifndef NO_DEBUG
   uart_begin();
   DataSerial.print("-BT device ");
@@ -958,6 +965,8 @@ void Peer::connect()
   DataSerial.print(" msec");
   if (m_writable)
     DataSerial.print(", writable");
+  else
+    DataSerial.print(", readonly");
   DataSerial.print(", rssi=");
   DataSerial.print(m_Client->getRssi());
   uart_end();
@@ -1007,7 +1016,6 @@ void Peer::write_worker()
   }
 }
 
-#ifndef HIDDEN
 static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
 {
   last_characteristic_error = 0;
@@ -1023,13 +1031,14 @@ static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
 
 static bool transmit_to_central(const char* data, size_t len)
 {
+  if (!enable_advertising)
+    fatal("Can't transmit while hidden");
 #ifdef EXT_FRAMES
   return transmit_frame(data, len, get_chunk_buff, transmit_chunk_to_central, nullptr);
 #else
   return transmit_frame(data, len, nullptr, transmit_chunk_to_central, nullptr);
 #endif
 }
-#endif
 
 static bool transmit_to_peer(unsigned idx, const char* str, size_t len)
 {
@@ -1073,6 +1082,11 @@ static void process_cmd(const char* cmd)
       cmd_connect(cmd + 1);
       break;
 #endif
+#ifdef HIDDEN
+    case 'A':
+      enable_advertising = true;
+      break;
+#endif
     default:
       fatal("Unrecognized command");
   }
@@ -1088,10 +1102,8 @@ static bool process_msg(const char* str, size_t len)
     case '#':
       process_cmd(str + 1);
       return true;
-#ifndef HIDDEN
     case '>':
       return transmit_to_central(str + 1, len - 1);
-#endif
     default:
       return transmit_to_peer(str[0] - '0', str + 1, len - 1);
   }
@@ -1243,16 +1255,16 @@ void loop()
   if (received || is_congested)
     is_congested = !cli_process();
 
-#ifndef HIDDEN
-  if (start_advertising && elapsed(centr_disconn_ts, millis()) > 500) {
+
+  if (enable_advertising && start_advertising && elapsed(centr_disconn_ts, millis()) > 100) {
     debug_msg("-start advertising");
     BLEDevice::startAdvertising(); // restart advertising
     start_advertising = false;
   }
-#endif
 
 #ifdef TELL_UPTIME
-  tell_uptime();
+  if (enable_advertising)
+    tell_uptime();
 #endif
 
   struct data_chunk ch;

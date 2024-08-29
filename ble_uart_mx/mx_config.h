@@ -103,10 +103,14 @@
 
 #ifdef HIDDEN
 #define _ACCESS "H"
-#elif !defined(WRITABLE)
-#define _ACCESS "R"
 #else
 #define _ACCESS ""
+#endif
+
+#ifndef WRITABLE
+#define _RDONLY "R"
+#else
+#define _RDONLY ""
 #endif
 
 #ifdef ECHO
@@ -121,8 +125,4 @@
 #define _UTIME ""
 #endif
 
-#define VARIANT _XDATA _MODE _ACCESS _ECHO _UTIME
-
-#if defined(HIDDEN) && defined(PASSIVE_ONLY)
-#error "Defining HIDDEN and PASSIVE_ONLY at the same time makes adapter unusable"
-#endif
+#define VARIANT _XDATA _MODE _ACCESS _RDONLY _ECHO _UTIME

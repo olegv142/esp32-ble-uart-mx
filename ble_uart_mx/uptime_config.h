@@ -14,10 +14,8 @@
 // The connections to peers may be created though.
 // #define HIDDEN
 
-#ifndef HIDDEN
 // If defined the connected central may write to this device
 #define WRITABLE
-#endif
 
 // Connected LED pin
 #if (CONFIG_IDF_TARGET_ESP32)
@@ -93,11 +91,9 @@
 #endif
 #endif
 
-#ifndef HIDDEN
 // Broadcast millisecond uptime to connected central (for testing) if defined
 // The value defined is broadcast period in milliseconds
 #define TELL_UPTIME 20
-#endif
 
 // The maximum allowed size of the BLE characteristic
 #define MAX_SIZE 244
