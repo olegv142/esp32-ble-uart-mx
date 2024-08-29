@@ -25,6 +25,18 @@
 #error "The number of connections exceeded BLE stack implementation limit"
 #endif
 
+#ifdef HW_UART
+// Using hardware UART
+#define DataSerial Serial1
+#define DATA_UART_NUM UART_NUM_1
+#define UART_BEGIN '\1'
+#define UART_END   '\0'
+#else
+// Using USB CDC
+#define DataSerial Serial
+#define UART_END   '\n'
+#endif
+
 #ifdef TX_BOOST
 #if (CONFIG_IDF_TARGET_ESP32)
 #define TX_PW_BOOST ESP_PWR_LVL_P9
