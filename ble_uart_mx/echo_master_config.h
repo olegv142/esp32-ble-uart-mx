@@ -19,8 +19,14 @@
 #define WRITABLE
 #endif
 
-// Connected LED pin, active low
+// Connected LED pin
+#if (CONFIG_IDF_TARGET_ESP32)
+#define CONNECTED_LED 2
+#define CONNECTED_LED_LVL HIGH
+#else
 #define CONNECTED_LED 8
+#define CONNECTED_LED_LVL LOW
+#endif
 
 #define SERVICE_UUID           "FFE0"
 #define CHARACTERISTIC_UUID_TX "FFE1"

@@ -840,7 +840,7 @@ static void hw_init()
 {
 #ifdef CONNECTED_LED
   pinMode(CONNECTED_LED, OUTPUT);
-  digitalWrite(CONNECTED_LED, HIGH);
+  digitalWrite(CONNECTED_LED, !(CONNECTED_LED_LVL));
 #endif
 
   DataSerial.setRxBufferSize(UART_RX_BUFFER_SZ);
@@ -1170,7 +1170,7 @@ static void monitor_peers()
 #endif
 #ifdef CONNECTED_LED
   bool const conn_led = (!npeers && connected_centrals) || is_connected();
-  digitalWrite(CONNECTED_LED, conn_led ? LOW : HIGH);
+  digitalWrite(CONNECTED_LED, conn_led ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
 #endif
 }
 
