@@ -28,9 +28,6 @@
 #define CONNECTED_LED_LVL LOW
 #endif
 
-#define SERVICE_UUID           "FFE0"
-#define CHARACTERISTIC_UUID_TX "FFE1"
-
 // Watchdog timeout. It will restart esp32 if some operation will hung.
 #define WDT_TIMEOUT            20000 // msec
 

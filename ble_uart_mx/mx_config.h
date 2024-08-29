@@ -10,6 +10,9 @@
 // Miscellaneous settings
 //
 
+#define SERVICE_UUID           "FFE0"
+#define CHARACTERISTIC_UUID_TX "FFE1"
+
 #if (CONFIG_IDF_TARGET_ESP32)
 #define MAX_CONNS 2
 #else
