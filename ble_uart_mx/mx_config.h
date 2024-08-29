@@ -29,7 +29,7 @@
 #endif
 
 #ifndef TX_QUEUE
-#define TX_QUEUE 8
+#define TX_QUEUE 4
 #endif
 
 //
