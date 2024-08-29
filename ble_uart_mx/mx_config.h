@@ -10,9 +10,15 @@
 // Miscellaneous settings
 //
 
+#if (CONFIG_IDF_TARGET_ESP32)
+#define MAX_CONNS 2
+#else
+#define MAX_CONNS 4
+#endif
+
 #ifndef MAX_PEERS
-#define MAX_PEERS 4
-#elif (MAX_PEERS > 4)
+#define MAX_PEERS MAX_CONNS
+#elif (MAX_PEERS > MAX_CONNS)
 #error "The number of connections exceeded BLE stack implementation limit"
 #endif
 
