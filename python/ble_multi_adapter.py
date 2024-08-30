@@ -139,7 +139,7 @@ class MutliAdapter:
 		elif tag == b'C':
 			self.on_connecting(msg[1] - b'0'[0])
 		elif tag == b'D':
-			self.on_connected()
+			self.on_connected(msg[1:2] == b'h')
 		else:
 			self.parse_errors += 1
 
@@ -167,7 +167,7 @@ class MutliAdapter:
 	def on_connecting(self, idx):
 		pass
 
-	def on_connected(self):
+	def on_connected(self, hidden):
 		pass
 
 	def on_debug_msg(self, msg):

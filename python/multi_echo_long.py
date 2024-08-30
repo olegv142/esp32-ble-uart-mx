@@ -159,7 +159,7 @@ class EchoTest(MutliAdapter):
 			print('Idle, version ' + version.decode())
 			self.connect(self.targets)
 
-	def on_connected(self):
+	def on_connected(self, hidden):
 		self.send_msgs(True)
 
 	def on_debug_msg(self, msg):

@@ -16,15 +16,15 @@ class TestMutliAdapter(MutliAdapter):
 		self.peers = peers
 
 	def on_idle(self, hidden, version):
-		print('Idle, version ' + version.decode())
+		print(('Idle hidden, version ' if hidden else 'Idle, version ') + version.decode())
 		if self.peers:
 			self.connect(self.peers)
 
 	def on_connecting(self, idx):
 		print('Connecting to #%d' % idx)
 
-	def on_connected(self):
-		print('Connected')
+	def on_connected(self, hidden):
+		print('Connected hidden' if hidden else 'Connected')
 
 	def on_debug_msg(self, msg):
 		print('    ' + msg.decode())

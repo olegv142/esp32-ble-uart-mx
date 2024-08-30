@@ -13,7 +13,7 @@
  Status messages:
   ':I[h] vmaj.vmin-maxframe-variant' - idle, not connected, 'h' if hidden
   ':Cn'      - connecting to the n-th peripheral
-  ':D'       - all peripherals connected, data receiving
+  ':D[h]'    - all peripherals connected, data receiving, 'h' if hidden
   Status messages will be disabled if STATUS_REPORT_INTERVAL is undefined
 
  Debug messages:
@@ -80,9 +80,9 @@ static int      connected_peers;
 static int      connected_centrals;
 
 #ifndef HIDDEN
-static bool     enable_advertising = true;
+static bool     advertising_enabled = true;
 #else
-static bool     enable_advertising = false;
+static bool     advertising_enabled = false;
 #endif
 static bool     start_advertising = true;
 static uint32_t centr_disconn_ts;
@@ -1031,7 +1031,7 @@ static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
 
 static bool transmit_to_central(const char* data, size_t len)
 {
-  if (!enable_advertising)
+  if (!advertising_enabled)
     fatal("Can't transmit while hidden");
 #ifdef EXT_FRAMES
   return transmit_frame(data, len, get_chunk_buff, transmit_chunk_to_central, nullptr);
@@ -1084,7 +1084,7 @@ static void process_cmd(const char* cmd)
 #endif
 #if defined(HIDDEN) && !defined(CENTRAL_ONLY)
     case 'A':
-      enable_advertising = true;
+      advertising_enabled = true;
       break;
 #endif
     default:
@@ -1163,7 +1163,7 @@ static bool cli_process()
 static inline void report_idle()
 {
   uart_begin();
-  if (enable_advertising)
+  if (advertising_enabled)
     DataSerial.print(":I " VMAJOR "." VMINOR "-");
   else
     DataSerial.print(":Ih " VMAJOR "." VMINOR "-");
@@ -1175,7 +1175,10 @@ static inline void report_idle()
 static inline void report_connected()
 {
   uart_begin();
-  DataSerial.print(":D");  
+  if (advertising_enabled)
+    DataSerial.print(":D");
+  else
+    DataSerial.print(":Dh");
   uart_end();
 }
 #endif
@@ -1259,14 +1262,14 @@ void loop()
     is_congested = !cli_process();
 
 
-  if (enable_advertising && start_advertising && elapsed(centr_disconn_ts, millis()) > 100) {
+  if (advertising_enabled && start_advertising && elapsed(centr_disconn_ts, millis()) > 100) {
     debug_msg("-start advertising");
     BLEDevice::startAdvertising(); // restart advertising
     start_advertising = false;
   }
 
 #ifdef TELL_UPTIME
-  if (enable_advertising)
+  if (advertising_enabled)
     tell_uptime();
 #endif
 
