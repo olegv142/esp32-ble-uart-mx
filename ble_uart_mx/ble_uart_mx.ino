@@ -61,6 +61,10 @@
 #include "mx_config.h"
 #include "debug.h"
 
+#ifdef NEO_PIXEL_PIN
+#include <esp32-hal-rmt.h>
+#endif
+
 #ifdef BINARY_DATA_SUPPORT
 #include "mx_encoding.h"
 #endif
@@ -134,6 +138,11 @@ static inline bool is_idle()
 static inline bool is_connected()
 {
   return npeers && connected_peers >= npeers;
+}
+
+static inline bool get_connected_indicator()
+{
+  return (!npeers && connected_centrals) || is_connected();
 }
 
 static inline uint32_t elapsed(uint32_t from, uint32_t to)
@@ -858,13 +867,63 @@ static void bt_device_start()
 #endif
 }
 
-static void hw_init()
+#ifdef NEO_PIXEL_PIN
+#define NPX_LED_BITS (3*8)
+static rmt_data_t neopix_led_idle[NPX_LED_BITS];
+static rmt_data_t neopix_led_conn[NPX_LED_BITS];
+static bool       neopix_conn_last;
+
+static void neopix_led_data_init(rmt_data_t led_data[NPX_LED_BITS], uint8_t r, uint8_t g, uint8_t b)
 {
-#ifdef CONNECTED_LED
-  pinMode(CONNECTED_LED, OUTPUT);
-  digitalWrite(CONNECTED_LED, !(CONNECTED_LED_LVL));
+  int i = 0;
+  // Color coding is in order GREEN, RED, BLUE
+  uint8_t const color[] = {g, r, b};
+  for (int col = 0; col < 3; col++) {
+    for (int bit = 0; bit < 8; bit++) {
+      if ((color[col] & (1 << (7 - bit)))) {
+        // HIGH bit
+        led_data[i].level0 = 1;     // T1H
+        led_data[i].duration0 = 8;  // 0.8us
+        led_data[i].level1 = 0;     // T1L
+        led_data[i].duration1 = 4;  // 0.4us
+      } else {
+        // LOW bit
+        led_data[i].level0 = 1;     // T0H
+        led_data[i].duration0 = 4;  // 0.4us
+        led_data[i].level1 = 0;     // T0L
+        led_data[i].duration1 = 8;  // 0.8us
+      }
+      i++;
+    }
+  }
+}
+
+static inline void neopix_conn_set_(bool conn)
+{
+  rmtWrite(NEO_PIXEL_PIN, conn ? neopix_led_conn : neopix_led_idle, NPX_LED_BITS, RMT_WAIT_FOR_EVER);
+  neopix_conn_last = conn;
+}
+
+static void neopix_init()
+{
+  neopix_led_data_init(neopix_led_idle, IDLE_RGB);
+  neopix_led_data_init(neopix_led_conn, CONN_RGB);
+  if (!rmtInit(NEO_PIXEL_PIN, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_1, 10000000)) {
+    debug_msg("-neopixel pin init failed");
+    return;
+  }
+  neopix_conn_set_(false);
+}
+
+static inline void neopix_conn_set(bool conn)
+{
+  if (neopix_conn_last != conn)
+    neopix_conn_set_(conn);
+}
 #endif
 
+static void hw_init()
+{
   DataSerial.setRxBufferSize(UART_RX_BUFFER_SZ);
   DataSerial.setTxBufferSize(UART_TX_BUFFER_SZ);
 #ifdef HW_UART
@@ -886,6 +945,13 @@ static void hw_init()
   DataSerial.setTimeout(UART_TIMEOUT);
 
   Serial.begin(UART_BAUD_RATE);
+
+#ifdef NEO_PIXEL_PIN
+  neopix_init();
+#elif defined(CONNECTED_LED)
+  pinMode(CONNECTED_LED, OUTPUT);
+  digitalWrite(CONNECTED_LED, !(CONNECTED_LED_LVL));
+#endif
 }
 
 void setup()
@@ -1203,9 +1269,10 @@ static void monitor_peers()
     }
   }
 #endif
-#ifdef CONNECTED_LED
-  bool const conn_led = (!npeers && connected_centrals) || is_connected();
-  digitalWrite(CONNECTED_LED, conn_led ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
+#ifdef NEO_PIXEL_PIN
+  neopix_conn_set(get_connected_indicator());
+#elif defined(CONNECTED_LED)
+  digitalWrite(CONNECTED_LED, get_connected_indicator() ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
 #endif
 }
 

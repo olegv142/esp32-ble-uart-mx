@@ -24,7 +24,14 @@
 // Define if target platform is ESP32 USB key
 // #define ESP32_USB_KEY
 //
-// Connected LED pin
+// Define if board has serially controlled RGB led (WS2812)
+// #define NEO_PIXEL_PIN 10
+//
+// Connected LED parameters
+#ifdef NEO_PIXEL_PIN
+#define IDLE_RGB 10, 0, 0
+#define CONN_RGB 0, 0, 10
+#else
 #if (CONFIG_IDF_TARGET_ESP32)
 #ifdef ESP32_USB_KEY
 #define CONNECTED_LED 10
@@ -36,6 +43,7 @@
 #else
 #define CONNECTED_LED 8
 #define CONNECTED_LED_LVL LOW
+#endif
 #endif
 
 // Watchdog timeout. It will restart esp32 if some operation will hung.
