@@ -21,10 +21,18 @@
 // If defined the connected central may write to this device
 #define WRITABLE
 
+// Define if target platform is ESP32 USB key
+// #define ESP32_USB_KEY
+//
 // Connected LED pin
 #if (CONFIG_IDF_TARGET_ESP32)
+#ifdef ESP32_USB_KEY
+#define CONNECTED_LED 10
+#define CONNECTED_LED_LVL LOW
+#else
 #define CONNECTED_LED 2
 #define CONNECTED_LED_LVL HIGH
+#endif
 #else
 #define CONNECTED_LED 8
 #define CONNECTED_LED_LVL LOW
