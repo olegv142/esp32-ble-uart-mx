@@ -55,6 +55,11 @@
 #endif
 #endif
 
+// The maximum allowed size of the BLE characteristic
+#ifndef MAX_SIZE
+#define MAX_SIZE 244
+#endif
+
 #ifndef EXT_FRAMES
 #define XHDR_SIZE 0
 #define CHKSUM_SIZE 0

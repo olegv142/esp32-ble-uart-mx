@@ -109,9 +109,6 @@
 // The value defined is broadcast period in milliseconds
 #define TELL_UPTIME 20
 
-// The maximum allowed size of the BLE characteristic
-#define MAX_SIZE 244
-
 // If defined the binary data transmission is supported (WIP, not implemented yet)
 // #define BINARY_DATA_SUPPORT
 
