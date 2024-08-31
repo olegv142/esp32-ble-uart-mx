@@ -28,10 +28,7 @@
 // #define NEO_PIXEL_PIN 10
 //
 // Connected LED parameters
-#ifdef NEO_PIXEL_PIN
-#define IDLE_RGB 10, 0, 0
-#define CONN_RGB 0, 0, 10
-#else
+#ifndef NEO_PIXEL_PIN
 #if (CONFIG_IDF_TARGET_ESP32)
 #ifdef ESP32_USB_KEY
 #define CONNECTED_LED 10

@@ -25,6 +25,11 @@
 #error "The number of connections exceeded BLE stack implementation limit"
 #endif
 
+#ifdef NEO_PIXEL_PIN
+#define IDLE_RGB 10, 0, 0
+#define CONN_RGB 0, 0, 10
+#endif
+
 #ifdef HW_UART
 // Using hardware UART
 #define DataSerial Serial1
