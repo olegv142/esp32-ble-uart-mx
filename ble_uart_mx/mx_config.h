@@ -36,6 +36,9 @@
 
 #ifdef PASSIVE_ONLY
 #define AUTOCONNECT
+#if defined(PEER_ADDR) || defined(PEER_ADDR1) || defined(PEER_ADDR2) || defined(PEER_ADDR3)
+#error "Can't have PEER_ADDR with PASSIVE_ONLY"
+#endif
 #endif
 
 #if defined(CENTRAL_ONLY) && defined(PASSIVE_ONLY)
