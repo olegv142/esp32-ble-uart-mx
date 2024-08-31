@@ -89,9 +89,7 @@
 // If defined creating connections to other peripherals will be disabled
 #define PASSIVE_ONLY
 
-#ifdef PASSIVE_ONLY
-#define AUTOCONNECT
-#else
+#ifndef PASSIVE_ONLY
 // If AUTOCONNECT is defined it will connect on startup to the predefined set of peers.
 // The host commands will be disabled. One may use AUTOCONNECT with no target peers
 // to disable creating connections.

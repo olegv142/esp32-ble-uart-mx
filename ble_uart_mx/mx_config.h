@@ -25,6 +25,10 @@
 #error "The number of connections exceeded BLE stack implementation limit"
 #endif
 
+#ifdef PASSIVE_ONLY
+#define AUTOCONNECT
+#endif
+
 #ifdef NEO_PIXEL_PIN
 #define LED_BRIGHT 10
 #define IDLE_RGB       LED_BRIGHT, 0, 0
