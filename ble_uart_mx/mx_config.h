@@ -65,6 +65,10 @@
 #endif
 
 #ifndef EXT_FRAMES
+#define MAX_CHUNKS 1
+#endif
+
+#ifndef EXT_FRAMES
 #define XHDR_SIZE 0
 #define CHKSUM_SIZE 0
 #define MAX_CHUNK MAX_SIZE

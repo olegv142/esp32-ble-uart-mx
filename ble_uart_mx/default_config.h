@@ -116,9 +116,7 @@
 // - binary data support
 #define EXT_FRAMES
 
-#ifndef EXT_FRAMES
-#define MAX_CHUNKS 1
-#else
+#ifdef EXT_FRAMES
 // Max chunks in single data frame
 #define MAX_CHUNKS 9
 #endif
