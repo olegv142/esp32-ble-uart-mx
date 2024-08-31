@@ -42,9 +42,16 @@
 #error "CENTRAL_ONLY and PASSIVE_ONLY can't be defined at the same time"
 #endif
 
+#if defined(CENTRAL_ONLY) && defined(AUTOCONNECT) && !defined(PEER_ADDR)
+#error "PEER_ADDR must be defined with AUTOCONNECT"
+#endif
+
 #ifdef SIMPLE_LINK
 #if !defined(CENTRAL_ONLY) && !defined(PASSIVE_ONLY)
 #error "Either CENTRAL_ONLY or PASSIVE_ONLY should be defined with SIMPLE_LINK option"
+#endif
+#if defined(CENTRAL_ONLY) && !defined(AUTOCONNECT)
+#error "AUTOCONNECT must be defined with CENTRAL_ONLY and SIMPLE_LINK options"
 #endif
 #undef MAX_PEERS
 #define MAX_PEERS 1
