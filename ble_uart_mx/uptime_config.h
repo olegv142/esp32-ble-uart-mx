@@ -1,4 +1,7 @@
-#pragma once
+#ifdef __USER_CONFIG__
+#error "Can't have two configuration at once"
+#endif
+#define __USER_CONFIG__
 
 // Version info printed as part of idle status message
 #define VMAJOR    "1"
