@@ -83,6 +83,22 @@ static unsigned npeers;
 static int      connected_peers;
 static int      connected_centrals;
 
+typedef enum {
+  c_idle,
+  c_establishing,
+  c_active,
+  c_passive,
+  c_status_cnt
+} c_status_t;
+
+static inline c_status_t get_connect_status()
+{
+  if (!npeers)
+    return !connected_centrals ? c_idle : c_passive;
+  else
+    return connected_peers < npeers ? c_establishing : c_active;
+}
+
 #ifndef HIDDEN
 static bool     advertising_enabled = true;
 #else
@@ -132,7 +148,7 @@ static inline void uart_end()
 
 static inline bool is_idle()
 {
-  return !connected_peers;
+  return !npeers;
 }
 
 static inline bool is_connected()
@@ -142,7 +158,7 @@ static inline bool is_connected()
 
 static inline bool get_connected_indicator()
 {
-  return (!npeers && connected_centrals) || is_connected();
+  return get_connect_status() >= c_active;
 }
 
 static inline uint32_t elapsed(uint32_t from, uint32_t to)
@@ -869,31 +885,33 @@ static void bt_device_start()
 
 #ifdef NEO_PIXEL_PIN
 #define NPX_LED_BITS (3*8)
-static rmt_data_t neopix_led_idle[NPX_LED_BITS];
-static rmt_data_t neopix_led_conn[NPX_LED_BITS];
-static bool       neopix_conn_last;
+static rmt_data_t neopix_led[c_status_cnt][NPX_LED_BITS];
+static c_status_t neopix_conn_status;
 
-static inline void neopix_conn_set_(bool conn)
+static inline void neopix_conn_set(c_status_t sta)
 {
-  neopix_led_write(NEO_PIXEL_PIN, conn ? neopix_led_conn : neopix_led_idle);
-  neopix_conn_last = conn;
+  neopix_led_write(NEO_PIXEL_PIN, neopix_led[sta]);
+  neopix_conn_status = sta;
 }
 
 static void neopix_init()
 {
-  neopix_led_data_init(neopix_led_idle, IDLE_RGB);
-  neopix_led_data_init(neopix_led_conn, CONN_RGB);
+  neopix_led_data_init(neopix_led[c_idle],         IDLE_RGB);
+  neopix_led_data_init(neopix_led[c_establishing], CONNECTING_RGB);
+  neopix_led_data_init(neopix_led[c_active],       ACTIVE_RGB);
+  neopix_led_data_init(neopix_led[c_passive],      PASSIVE_RGB);
+
   if (!neopix_led_init(NEO_PIXEL_PIN)) {
     debug_msg("-neopixel pin init failed");
     return;
   }
-  neopix_conn_set_(false);
+  neopix_conn_set(c_idle);
 }
 
-static inline void neopix_conn_set(bool conn)
+static inline void neopix_conn_up(c_status_t sta)
 {
-  if (neopix_conn_last != conn)
-    neopix_conn_set_(conn);
+  if (neopix_conn_status != sta)
+    neopix_conn_set(sta);
 }
 #endif
 
@@ -1244,11 +1262,6 @@ static void monitor_peers()
     }
   }
 #endif
-#ifdef NEO_PIXEL_PIN
-  neopix_conn_set(get_connected_indicator());
-#elif defined(CONNECTED_LED)
-  digitalWrite(CONNECTED_LED, get_connected_indicator() ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
-#endif
 }
 
 #ifdef TELL_UPTIME
@@ -1297,6 +1310,15 @@ static bool cli_receive()
   return true;
 }
 
+static void show_conn_status()
+{
+#ifdef NEO_PIXEL_PIN
+  neopix_conn_up(get_connect_status());
+#elif defined(CONNECTED_LED)
+  digitalWrite(CONNECTED_LED, get_connected_indicator() ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
+#endif
+}
+
 void loop()
 {
   bool received = cli_receive();
@@ -1329,6 +1351,8 @@ void loop()
 #endif
     }
   }
+
+  show_conn_status();
 
 #ifndef NO_DEBUG
   chk_error_cnt(&rx_queue_full, "-rx queue full ");

@@ -26,8 +26,11 @@
 #endif
 
 #ifdef NEO_PIXEL_PIN
-#define IDLE_RGB 10, 0, 0
-#define CONN_RGB 0, 0, 10
+#define LED_BRIGHT 10
+#define IDLE_RGB       LED_BRIGHT, 0, 0
+#define CONNECTING_RGB LED_BRIGHT, LED_BRIGHT, 0
+#define ACTIVE_RGB     0, 0, LED_BRIGHT
+#define PASSIVE_RGB    0, LED_BRIGHT, 0
 #endif
 
 #ifdef HW_UART
