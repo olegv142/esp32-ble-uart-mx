@@ -40,9 +40,9 @@
 #error "CENTRAL_ONLY and PASSIVE_ONLY can't be defined at the same time"
 #endif
 
-#ifdef DATA_ONLY
+#ifdef SIMPLE_LINK
 #if !defined(CENTRAL_ONLY) && !defined(PASSIVE_ONLY)
-#error "Either CENTRAL_ONLY or PASSIVE_ONLY should be defined with DATA_ONLY option"
+#error "Either CENTRAL_ONLY or PASSIVE_ONLY should be defined with SIMPLE_LINK option"
 #endif
 #undef MAX_PEERS
 #define MAX_PEERS 1

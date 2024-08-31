@@ -74,7 +74,7 @@
 #include "xframe.h"
 #endif
 
-#ifdef DATA_ONLY
+#ifdef SIMPLE_LINK
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
@@ -291,7 +291,7 @@ private:
     uint8_t const is_binary = m_chunks[0].data[0] & XH_BINARY;
     char enc_buff[MAX_ENCODED_CHUNK_LEN];
     uart_begin();
-#ifndef DATA_ONLY
+#ifndef SIMPLE_LINK
     DataSerial.print(m_tag);
 #endif
     if (is_binary)
@@ -435,7 +435,7 @@ static void uart_print_data(uint8_t const* data, size_t len, char tag)
   }
 #endif
   uart_begin();
-#ifndef DATA_ONLY
+#ifndef SIMPLE_LINK
   DataSerial.print(tag);
 #endif
   DataSerial.write(out_data, len);
@@ -482,7 +482,7 @@ public:
 
   void notify_connected() {
     uart_begin();
-#ifndef DATA_ONLY
+#ifndef SIMPLE_LINK
     DataSerial.print(m_tag);
 #endif
     uart_end();
@@ -1162,7 +1162,7 @@ static bool process_msg(const char* str, size_t len)
     debug_msg("-invalid message");
     return true;
   }
-#ifndef DATA_ONLY
+#ifndef SIMPLE_LINK
   switch (str[0]) {
     case '#':
       process_cmd(str + 1);
@@ -1357,7 +1357,7 @@ void loop()
     } else {
       // Output stream start tag
       uart_begin();
-#ifndef DATA_ONLY
+#ifndef SIMPLE_LINK
       DataSerial.print('<');
 #endif
       uart_end();
