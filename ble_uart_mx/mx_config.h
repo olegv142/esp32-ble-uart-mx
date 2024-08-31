@@ -1,19 +1,19 @@
 #pragma once
 
 // Here you can include the configuration of your choice
-#include "default_config.h"
+#include "config/default_config.h"
 // .. for example
 
 // The following pair of config files is meant to be used for
 // creating point to point link with automatic connect.
 // The link is using simplified protocol with only data messages.
-// #include "simple_master_config.h"
-// #include "simple_slave_config.h"
+// #include "config/simple_master_config.h"
+// #include "config/simple_slave_config.h"
 
 // The following configurations are meant to be used for testing
-// #include "echo_config.h"
-// #include "echo_master_config.h"
-// #include "uptime_config.h"
+// #include "config/echo_config.h"
+// #include "config/echo_master_config.h"
+// #include "config/uptime_config.h"
 
 //
 // Miscellaneous settings
