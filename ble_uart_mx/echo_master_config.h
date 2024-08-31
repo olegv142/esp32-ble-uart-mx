@@ -21,6 +21,10 @@
 // If defined the connected central may write to this device
 #define WRITABLE
 
+// If defined the simplified version of the communication protocol will be used
+// with only data messages without protocol prefix.
+// #define DATA_ONLY
+
 // Define if target platform is ESP32 USB key
 // #define ESP32_USB_KEY
 //

@@ -21,6 +21,10 @@
 // If defined the connected central may write to this device
 #define WRITABLE
 
+// If defined the simplified version of the communication protocol will be used
+// with only data messages without protocol prefix.
+#define DATA_ONLY
+
 // Define if target platform is ESP32 USB key
 // #define ESP32_USB_KEY
 //
@@ -44,10 +48,10 @@
 #endif
 
 // If defined the status messages will be output periodically
-// #define STATUS_REPORT_INTERVAL 1000  // msec
+#define STATUS_REPORT_INTERVAL 1000  // msec
 
 // If defined all debug messages will be suppressed
-#define NO_DEBUG
+// #define NO_DEBUG
 
 #ifndef NO_DEBUG
 // Enable more debug messages

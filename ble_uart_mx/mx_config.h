@@ -36,6 +36,11 @@
 #define AUTOCONNECT
 #endif
 
+#ifdef DATA_ONLY
+#undef STATUS_REPORT_INTERVAL
+#define NO_DEBUG
+#endif
+
 #ifdef NEO_PIXEL_PIN
 #define LED_BRIGHT 10
 #define IDLE_RGB       LED_BRIGHT, 0, 0
