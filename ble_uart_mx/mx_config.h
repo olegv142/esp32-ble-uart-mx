@@ -71,12 +71,16 @@
 // Using hardware UART
 #define DataSerial Serial1
 #define DATA_UART_NUM UART_NUM_1
+#ifndef UART_END
 #define UART_BEGIN '\1'
 #define UART_END   '\0'
+#endif
 #else
 // Using USB CDC
 #define DataSerial Serial
+#ifndef UART_END
 #define UART_END   '\n'
+#endif
 #endif
 
 #ifdef TX_BOOST
