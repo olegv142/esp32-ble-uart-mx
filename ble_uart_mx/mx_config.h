@@ -36,7 +36,16 @@
 #define AUTOCONNECT
 #endif
 
+#if defined(CENTRAL_ONLY) && defined(PASSIVE_ONLY)
+#error "CENTRAL_ONLY and PASSIVE_ONLY can't be defined at the same time"
+#endif
+
 #ifdef DATA_ONLY
+#if !defined(CENTRAL_ONLY) && !defined(PASSIVE_ONLY)
+#error "Either CENTRAL_ONLY or PASSIVE_ONLY should be defined with DATA_ONLY option"
+#endif
+#undef MAX_PEERS
+#define MAX_PEERS 1
 #undef STATUS_REPORT_INTERVAL
 #define NO_DEBUG
 #endif

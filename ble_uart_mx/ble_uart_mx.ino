@@ -74,6 +74,10 @@
 #include "xframe.h"
 #endif
 
+#ifdef DATA_ONLY
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+
 static BLECharacteristic* pCharacteristic;
 static uint32_t           last_characteristic_error;
 
@@ -287,7 +291,9 @@ private:
     uint8_t const is_binary = m_chunks[0].data[0] & XH_BINARY;
     char enc_buff[MAX_ENCODED_CHUNK_LEN];
     uart_begin();
+#ifndef DATA_ONLY
     DataSerial.print(m_tag);
+#endif
     if (is_binary)
       DataSerial.print(ENCODED_DATA_START_TAG);
     for (int i = 0; i <= m_last_chunk; ++i) {
@@ -429,7 +435,9 @@ static void uart_print_data(uint8_t const* data, size_t len, char tag)
   }
 #endif
   uart_begin();
+#ifndef DATA_ONLY
   DataSerial.print(tag);
+#endif
   DataSerial.write(out_data, len);
   uart_end();
 }
@@ -474,7 +482,9 @@ public:
 
   void notify_connected() {
     uart_begin();
+#ifndef DATA_ONLY
     DataSerial.print(m_tag);
+#endif
     uart_end();
   }
 
@@ -506,11 +516,6 @@ public:
     if (event == ESP_GATTC_WRITE_CHAR_EVT)
       xSemaphoreGive(m_wr_sem);
     return true;
-  }
-
-  static bool transmit_chunk_fast(uint8_t* pdata, size_t sz, void* ctx)
-  {
-    return ((Peer*)ctx)->remote_write(pdata, sz);
   }
 
   uint8_t* alloc_chunk_queued(size_t sz)
@@ -649,7 +654,7 @@ public:
     , m_xrx('0' + idx)
 #endif
   {
-    BaseType_t const rc = xTaskCreate(write_worker_, "write_worker", 4096, this, tskIDLE_PRIORITY, &m_wr_task);
+    BaseType_t const rc = xTaskCreate(write_worker_, "write_worker", 4096, this, uxTaskPriorityGet(nullptr), &m_wr_task);
     BUG_ON(rc != pdPASS);
     BUG_ON(!m_wr_task);
     BUG_ON(!m_wr_queue);
@@ -1157,6 +1162,7 @@ static bool process_msg(const char* str, size_t len)
     debug_msg("-invalid message");
     return true;
   }
+#ifndef DATA_ONLY
   switch (str[0]) {
     case '#':
       process_cmd(str + 1);
@@ -1166,6 +1172,13 @@ static bool process_msg(const char* str, size_t len)
     default:
       return transmit_to_peer(str[0] - '0', str + 1, len - 1);
   }
+#else
+#ifdef CENTRAL_ONLY
+  return transmit_to_peer(0, str, len);
+#else
+  return transmit_to_central(str, len);
+#endif
+#endif
 }
 
 static bool cli_process()
@@ -1344,7 +1357,9 @@ void loop()
     } else {
       // Output stream start tag
       uart_begin();
+#ifndef DATA_ONLY
       DataSerial.print('<');
+#endif
       uart_end();
 #ifdef EXT_FRAMES
       centr_xrx.reset();
