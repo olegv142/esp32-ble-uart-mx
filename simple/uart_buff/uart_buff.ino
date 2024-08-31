@@ -3,15 +3,17 @@
 #define UART_TX_PIN  7
 #define UART_CTS_PIN 5
 #define UART_TIMEOUT 10
-//#define UART_BUFFER_SZ 256
+#define UART_BUFFER_SZ 256
 
 /*
 Without UART_BUFFER_SZ defined:
+..
 #63 4.
 #64 2.
 #65 0
 
 With UART_BUFFER_SZ defined:
+..
 #13 256.
 #14 256.
 #15 256
@@ -42,4 +44,3 @@ void loop()
   Serial.println('.');
   delay(100);
 }
-

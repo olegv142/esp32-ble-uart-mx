@@ -62,7 +62,7 @@
 #include "debug.h"
 
 #ifdef NEO_PIXEL_PIN
-#include <esp32-hal-rmt.h>
+#include "neopix.h"
 #endif
 
 #ifdef BINARY_DATA_SUPPORT
@@ -873,34 +873,9 @@ static rmt_data_t neopix_led_idle[NPX_LED_BITS];
 static rmt_data_t neopix_led_conn[NPX_LED_BITS];
 static bool       neopix_conn_last;
 
-static void neopix_led_data_init(rmt_data_t led_data[NPX_LED_BITS], uint8_t r, uint8_t g, uint8_t b)
-{
-  int i = 0;
-  // Color coding is in order GREEN, RED, BLUE
-  uint8_t const color[] = {g, r, b};
-  for (int col = 0; col < 3; col++) {
-    for (int bit = 0; bit < 8; bit++) {
-      if ((color[col] & (1 << (7 - bit)))) {
-        // HIGH bit
-        led_data[i].level0 = 1;     // T1H
-        led_data[i].duration0 = 8;  // 0.8us
-        led_data[i].level1 = 0;     // T1L
-        led_data[i].duration1 = 4;  // 0.4us
-      } else {
-        // LOW bit
-        led_data[i].level0 = 1;     // T0H
-        led_data[i].duration0 = 4;  // 0.4us
-        led_data[i].level1 = 0;     // T0L
-        led_data[i].duration1 = 8;  // 0.8us
-      }
-      i++;
-    }
-  }
-}
-
 static inline void neopix_conn_set_(bool conn)
 {
-  rmtWrite(NEO_PIXEL_PIN, conn ? neopix_led_conn : neopix_led_idle, NPX_LED_BITS, RMT_WAIT_FOR_EVER);
+  neopix_led_write(NEO_PIXEL_PIN, conn ? neopix_led_conn : neopix_led_idle);
   neopix_conn_last = conn;
 }
 
@@ -908,7 +883,7 @@ static void neopix_init()
 {
   neopix_led_data_init(neopix_led_idle, IDLE_RGB);
   neopix_led_data_init(neopix_led_conn, CONN_RGB);
-  if (!rmtInit(NEO_PIXEL_PIN, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_1, 10000000)) {
+  if (!neopix_led_init(NEO_PIXEL_PIN)) {
     debug_msg("-neopixel pin init failed");
     return;
   }
