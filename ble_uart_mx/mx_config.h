@@ -3,9 +3,10 @@
 // .. for example
 
 // The following pair of config files is meant to be used for
-// creating point to point link with automatic connect
-// #include "master_config.h"
-// #include "slave_config.h"
+// creating point to point link with automatic connect.
+// The link is using simplified protocol with only data messages.
+// #include "simple_master_config.h"
+// #include "simple_slave_config.h"
 
 // The following configurations are meant to be used for testing
 // #include "echo_config.h"
