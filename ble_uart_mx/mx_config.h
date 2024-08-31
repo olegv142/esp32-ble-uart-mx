@@ -1,7 +1,13 @@
 // Here you can include the configuration of your choice
 #include "default_config.h"
-
 // .. for example
+
+// The following pair of config files is meant to be used for
+// creating point to point link with automatic connect
+// #include "master_config.h"
+// #include "slave_config.h"
+
+// The following configurations are meant to be used for testing
 // #include "echo_config.h"
 // #include "echo_master_config.h"
 // #include "uptime_config.h"
