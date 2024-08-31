@@ -77,6 +77,11 @@
 #define UART_TIMEOUT 10
 #endif
 
+// Watchdog timeout. It will restart esp32 if some operation will hung.
+#ifndef WDT_TIMEOUT
+#define WDT_TIMEOUT 20000 // msec
+#endif
+
 #ifndef CONGESTION_DELAY
 #define CONGESTION_DELAY 10
 #endif

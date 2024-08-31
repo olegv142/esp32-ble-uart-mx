@@ -43,9 +43,6 @@
 #endif
 #endif
 
-// Watchdog timeout. It will restart esp32 if some operation will hung.
-#define WDT_TIMEOUT            20000 // msec
-
 // If defined the status messages will be output periodically
 #define STATUS_REPORT_INTERVAL 1000  // msec
 
