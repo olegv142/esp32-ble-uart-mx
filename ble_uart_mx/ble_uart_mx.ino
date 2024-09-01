@@ -1135,10 +1135,14 @@ static void cmd_connect(const char* param)
 }
 #endif
 
-static void process_cmd(const char* cmd)
+static void process_cmd(const char* cmd, size_t len)
 {
   switch (cmd[0]) {
     case 'R':
+      if (len != 1) {
+        ++parse_err.cnt;
+        return;
+      }
       reset_self();
       break;
 #ifndef AUTOCONNECT
@@ -1148,6 +1152,10 @@ static void process_cmd(const char* cmd)
 #endif
 #if defined(HIDDEN) && !defined(CENTRAL_ONLY)
     case 'A':
+      if (len != 1) {
+        ++parse_err.cnt;
+        return;
+      }
       advertising_enabled = true;
       break;
 #endif
@@ -1165,7 +1173,7 @@ static bool process_msg(const char* str, size_t len)
 #ifndef SIMPLE_LINK
   switch (str[0]) {
     case '#':
-      process_cmd(str + 1);
+      process_cmd(str + 1, len - 1);
       return true;
     case '>':
       return transmit_to_central(str + 1, len - 1);
