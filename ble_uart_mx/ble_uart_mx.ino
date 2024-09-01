@@ -1095,8 +1095,10 @@ static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
 
 static bool transmit_to_central(const char* data, size_t len)
 {
-  if (!advertising_enabled)
-    fatal("Can't transmit while hidden");
+  if (!advertising_enabled) {
+    debug_msg("-can't transmit while hidden");
+    return true;
+  }
 #ifdef EXT_FRAMES
   return transmit_frame(data, len, get_chunk_buff, transmit_chunk_to_central, nullptr);
 #else
@@ -1160,7 +1162,7 @@ static void process_cmd(const char* cmd, size_t len)
       break;
 #endif
     default:
-      fatal("Unrecognized command");
+      debug_msg("-unrecognized command");
   }
 }
 
