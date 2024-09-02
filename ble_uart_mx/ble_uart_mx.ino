@@ -206,22 +206,27 @@ static inline void debug_msg(const char* msg)
 #endif
 }
 
-#ifndef NO_DEBUG
-static void chk_error_cnt(struct err_count* e, const char* msg)
+static unsigned chk_error_cnt(struct err_count* e, const char* msg)
 {
   if (e->cnt != e->last) {
+#ifndef NO_DEBUG
     uart_begin();
     DataSerial.print(msg);
     DataSerial.print(e->cnt - e->last);
     DataSerial.print(" times");
     uart_end();
+#endif
+    unsigned const err_cnt = e->cnt - e->last;
     e->last = e->cnt;
+    return err_cnt;
   }
+  return 0;
 }
 
-static void chk_error_cnt2(struct err_count* e, const char* pref, char tag, const char* suff)
+static unsigned chk_error_cnt2(struct err_count* e, const char* pref, char tag, const char* suff)
 {
   if (e->cnt != e->last) {
+#ifndef NO_DEBUG
     uart_begin();
     DataSerial.print(pref);
     DataSerial.print(tag);
@@ -229,18 +234,23 @@ static void chk_error_cnt2(struct err_count* e, const char* pref, char tag, cons
     DataSerial.print(e->cnt - e->last);
     DataSerial.print(" times");
     uart_end();
+#endif
+    unsigned const err_cnt = e->cnt - e->last;
     e->last = e->cnt;
+    return err_cnt;
   }
+  return 0;
 }
 
-static void chk_error_flag(bool* flag, const char* msg)
+static unsigned chk_error_flag(bool* flag, const char* msg)
 {
   if (*flag) {
     debug_msg(msg);
     *flag = false;
+    return 1;
   }
+  return 0;
 }
-#endif
 
 struct data_chunk {
   uint8_t* data;
@@ -654,12 +664,14 @@ public:
 #endif
         }
       }
-#ifndef NO_DEBUG
-      chk_error_cnt2(&m_rx_queue_full, "-rx queue [", m_tag, "] full ");
-      chk_error_cnt2(&m_tx_queue_full, "-tx queue [", m_tag, "] full ");
-#endif
     }
     return true;
+  }
+
+  unsigned chk_errors()
+  {
+    return chk_error_cnt2(&m_rx_queue_full, "-rx queue [", m_tag, "] full ")
+         + chk_error_cnt2(&m_tx_queue_full, "-tx queue [", m_tag, "] full ");
   }
 
   void write_worker();
@@ -1374,6 +1386,20 @@ static void show_conn_status(bool congested)
 #endif
 }
 
+static unsigned chk_errors()
+{
+  unsigned err_cnt = chk_error_flag(&unknown_data_src, "-got data from unknown source")
+    + chk_error_cnt(&rx_queue_full, "-rx queue full ")
+    + chk_error_cnt(&write_err,  "-write failed ")
+    + chk_error_cnt(&notify_err, "-notify failed ")
+    + chk_error_cnt(&parse_err,  "-parse error ")
+    ;
+  for (unsigned i = 0; i < MAX_PEERS; ++i)
+    if (peers[i])
+      err_cnt += peers[i]->chk_errors();
+  return err_cnt;
+}
+
 void loop()
 {
   bool const received = cli_receive();
@@ -1409,17 +1435,10 @@ void loop()
     }
   }
 
-  show_conn_status(was_congested || is_congested);
-
-#ifndef NO_DEBUG
-  chk_error_cnt(&rx_queue_full, "-rx queue full ");
-  chk_error_cnt(&write_err,  "-write failed ");
-  chk_error_cnt(&notify_err, "-notify failed ");
-  chk_error_cnt(&parse_err,  "-parse error ");
-  chk_error_flag(&unknown_data_src, "-got data from unknown source");
-#endif
-
   monitor_peers();
+
+  unsigned const err_cnt = chk_errors();
+  show_conn_status(was_congested || is_congested || err_cnt);
 
   if (!is_congested)
     esp_task_wdt_reset();
