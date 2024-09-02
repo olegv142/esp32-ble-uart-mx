@@ -75,6 +75,11 @@
 #endif
 #endif
 
+#ifdef STREAM_TAGS
+#define STREAM_TAG_FIRST '@'
+#define STREAM_TAGS_MOD 191
+#endif
+
 #ifdef TX_BOOST
 #if (CONFIG_IDF_TARGET_ESP32)
 #define TX_PW_BOOST ESP_PWR_LVL_P9

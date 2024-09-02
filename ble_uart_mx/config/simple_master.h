@@ -131,3 +131,6 @@
 // If defined echo all data received back to sender (for testing)
 // #define ECHO
 
+// If defined every output message will be enclosed between the pair of opening and closing
+// message tags that helps to detect data stream corruption.
+// #define STREAM_TAGS

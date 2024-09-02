@@ -149,6 +149,11 @@ static String   dev_addr;
 static uint8_t   cli_buff[CLI_BUFF_SZ];
 static size_t    cli_buff_data_sz;
 
+#ifdef STREAM_TAGS
+uint8_t last_tx_tag = STREAM_TAG_FIRST - 1;
+unsigned tx_msg_sz;
+#endif
+
 static QueueHandle_t rx_queue;
 
 struct err_count {
@@ -170,11 +175,28 @@ static inline void uart_begin()
 #ifdef UART_BEGIN
   DataSerial.print(UART_BEGIN);
 #endif
+#ifdef STREAM_TAGS
+  uint8_t next_tag = last_tx_tag + 1;
+  if (next_tag >= STREAM_TAG_FIRST + STREAM_TAGS_MOD)
+    next_tag = STREAM_TAG_FIRST;
+  DataSerial.print((char)next_tag);
+  last_tx_tag = next_tag;
+  tx_msg_sz = 0;
+#endif
+}
+
+static inline void uart_end()
+{
+#ifdef STREAM_TAGS
+  DataSerial.print((char)(STREAM_TAG_FIRST + (last_tx_tag - STREAM_TAG_FIRST + tx_msg_sz) % STREAM_TAGS_MOD));
+#endif
+  DataSerial.print(UART_END);
 }
 
 static inline void uart_write(const char* data, size_t sz)
 {
   DataSerial.write(data, sz);
+  tx_msg_sz += sz;
 }
 
 static inline void uart_print(char c)
@@ -208,11 +230,6 @@ static void uart_print(unsigned long val)
 {
   String s(val);
   uart_write(s.c_str(), s.length());
-}
-
-static inline void uart_end()
-{
-  DataSerial.print(UART_END);
 }
 
 static inline bool is_idle()
