@@ -150,8 +150,14 @@ static uint8_t   cli_buff[CLI_BUFF_SZ];
 static size_t    cli_buff_data_sz;
 
 #ifdef STREAM_TAGS
-uint8_t last_tx_tag = STREAM_TAG_FIRST - 1;
-unsigned tx_msg_sz;
+static uint8_t last_tx_tag = STREAM_TAG_FIRST - 1;
+static uint8_t last_rx_tag;
+static unsigned tx_msg_sz;
+
+static inline bool is_stream_tag(uint8_t c)
+{
+  return c >= STREAM_TAG_FIRST && c < STREAM_TAG_FIRST + STREAM_TAGS_MOD;
+}
 #endif
 
 static QueueHandle_t rx_queue;
@@ -166,6 +172,7 @@ static struct err_count rx_queue_full;
 static struct err_count write_err;
 static struct err_count notify_err;
 static struct err_count parse_err;
+static struct err_count lost_frames;
 
 static bool   is_congested;
 static bool   unknown_data_src;
@@ -196,7 +203,9 @@ static inline void uart_end()
 static inline void uart_write(const char* data, size_t sz)
 {
   DataSerial.write(data, sz);
+#ifdef STREAM_TAGS
   tx_msg_sz += sz;
+#endif
 }
 
 static inline void uart_print(char c)
@@ -1261,15 +1270,57 @@ static void process_cmd(const char* cmd, size_t len)
 #endif
     default:
       debug_msg("-unrecognized command");
+      ++parse_err.cnt;
   }
 }
+
+#ifdef STREAM_TAGS
+static inline bool chk_stream_tags(uint8_t topen, uint8_t tclose, size_t len)
+{
+  if (len <= 2) {
+    ++parse_err.cnt;
+    return false;
+  }
+  if (last_rx_tag) {
+    uint8_t next_tag = last_rx_tag + 1;
+    if (next_tag >= STREAM_TAG_FIRST + STREAM_TAGS_MOD)
+      next_tag = STREAM_TAG_FIRST;
+    if (topen != next_tag) {
+      unsigned const lost = topen > next_tag ? topen - next_tag : topen + STREAM_TAGS_MOD - next_tag;
+      lost_frames.cnt += lost;
+    }
+  }
+  last_rx_tag = topen;
+  if (tclose != STREAM_TAG_FIRST + (topen - STREAM_TAG_FIRST + len - 2) % STREAM_TAGS_MOD) {
+    ++parse_err.cnt;
+    return false;
+  }
+  return true;
+}
+#endif
 
 static bool process_msg(const char* str, size_t len)
 {
   if (!len) {
-    debug_msg("-invalid message");
+    ++parse_err.cnt;
     return true;
   }
+#ifdef STREAM_TAGS
+#ifdef SIMPLE_LINK
+  if (!is_stream_tag(str[0])) {
+    ++parse_err.cnt;
+    return true;
+  }
+#else
+  if (is_stream_tag(str[0]))
+#endif
+  {
+    if (!chk_stream_tags(str[0], str[len-1], len))
+      return true;
+    str += 1;
+    len -= 2;
+  }
+#endif
 #ifndef SIMPLE_LINK
   switch (str[0]) {
     case '#':
@@ -1445,9 +1496,10 @@ static unsigned chk_errors()
 {
   unsigned err_cnt = chk_error_flag(&unknown_data_src, "-got data from unknown source")
     + chk_error_cnt(&rx_queue_full, "-rx queue full ")
-    + chk_error_cnt(&write_err,  "-write failed ")
-    + chk_error_cnt(&notify_err, "-notify failed ")
-    + chk_error_cnt(&parse_err,  "-parse error ")
+    + chk_error_cnt(&write_err,     "-write failed ")
+    + chk_error_cnt(&notify_err,    "-notify failed ")
+    + chk_error_cnt(&parse_err,     "-parse error ")
+    + chk_error_cnt(&lost_frames,   "-serial frame lost ")
     ;
   for (unsigned i = 0; i < MAX_PEERS; ++i)
     if (peers[i])
