@@ -172,6 +172,44 @@ static inline void uart_begin()
 #endif
 }
 
+static inline void uart_write(const char* data, size_t sz)
+{
+  DataSerial.write(data, sz);
+}
+
+static inline void uart_print(char c)
+{
+  uart_write(&c, 1);
+}
+
+static void uart_print(const char* str)
+{
+  uart_write(str, strlen(str));
+}
+
+static void uart_print(String const& str)
+{
+  uart_write(str.c_str(), str.length());
+}
+
+static void uart_print(int val)
+{
+  String s(val);
+  uart_write(s.c_str(), s.length());
+}
+
+static void uart_print(unsigned val)
+{
+  String s(val);
+  uart_write(s.c_str(), s.length());
+}
+
+static void uart_print(unsigned long val)
+{
+  String s(val);
+  uart_write(s.c_str(), s.length());
+}
+
 static inline void uart_end()
 {
   DataSerial.print(UART_END);
@@ -201,7 +239,7 @@ static inline void debug_msg(const char* msg)
 {
 #ifndef NO_DEBUG
   uart_begin();
-  DataSerial.print(msg);
+  uart_print(msg);
   uart_end();
 #endif
 }
@@ -211,9 +249,9 @@ static unsigned chk_error_cnt(struct err_count* e, const char* msg)
   if (e->cnt != e->last) {
 #ifndef NO_DEBUG
     uart_begin();
-    DataSerial.print(msg);
-    DataSerial.print(e->cnt - e->last);
-    DataSerial.print(" times");
+    uart_print(msg);
+    uart_print(e->cnt - e->last);
+    uart_print(" times");
     uart_end();
 #endif
     unsigned const err_cnt = e->cnt - e->last;
@@ -228,11 +266,11 @@ static unsigned chk_error_cnt2(struct err_count* e, const char* pref, char tag, 
   if (e->cnt != e->last) {
 #ifndef NO_DEBUG
     uart_begin();
-    DataSerial.print(pref);
-    DataSerial.print(tag);
-    DataSerial.print(suff);
-    DataSerial.print(e->cnt - e->last);
-    DataSerial.print(" times");
+    uart_print(pref);
+    uart_print(tag);
+    uart_print(suff);
+    uart_print(e->cnt - e->last);
+    uart_print(" times");
     uart_end();
 #endif
     unsigned const err_cnt = e->cnt - e->last;
@@ -270,9 +308,9 @@ public:
     if (chunk->len <= XHDR_SIZE + CHKSUM_SIZE || chunk->len > MAX_SIZE) {
 #ifndef NO_DEBUG
       uart_begin();
-      DataSerial.print("-invalid chunk size from [");
-      DataSerial.print(m_tag);
-      DataSerial.print("]");
+      uart_print("-invalid chunk size from [");
+      uart_print(m_tag);
+      uart_print("]");
       uart_end();
 #endif
       goto skip;
@@ -288,9 +326,9 @@ public:
     if (!chksum_validate(chunk->data, chunk->len - CHKSUM_SIZE, &chksum)) {
 #ifndef NO_DEBUG
       uart_begin();
-      DataSerial.print("-invalid checksum from [");
-      DataSerial.print(m_tag);
-      DataSerial.print("]");
+      uart_print("-invalid checksum from [");
+      uart_print(m_tag);
+      uart_print("]");
       uart_end();
 #endif
       goto skip;
@@ -306,9 +344,9 @@ public:
   skip_verbose:
 #ifdef VERBOSE_DEBUG
     uart_begin();
-    DataSerial.print("-skip chunk from [");
-    DataSerial.print(m_tag);
-    DataSerial.print("]");
+    uart_print("-skip chunk from [");
+    uart_print(m_tag);
+    uart_print("]");
     uart_end();
 #endif
   skip:
@@ -329,10 +367,10 @@ private:
     char enc_buff[MAX_ENCODED_CHUNK_LEN];
     uart_begin();
 #ifndef SIMPLE_LINK
-    DataSerial.print(m_tag);
+    uart_print(m_tag);
 #endif
     if (is_binary)
-      DataSerial.print(ENCODED_DATA_START_TAG);
+      uart_print(ENCODED_DATA_START_TAG);
     for (int i = 0; i <= m_last_chunk; ++i) {
       size_t len = m_chunks[i].len - XHDR_SIZE - CHKSUM_SIZE;
       const uint8_t* const pchunk = m_chunks[i].data + XHDR_SIZE;
@@ -341,7 +379,7 @@ private:
         len = encode(pchunk, len, enc_buff);
         out_data = enc_buff;
       }
-      DataSerial.write(out_data, len);
+      uart_write(out_data, len);
     }
     uart_end();
     reset();
@@ -473,9 +511,9 @@ static void uart_print_data(uint8_t const* data, size_t len, char tag)
 #endif
   uart_begin();
 #ifndef SIMPLE_LINK
-  DataSerial.print(tag);
+  uart_print(tag);
 #endif
-  DataSerial.write(out_data, len);
+  uart_write(out_data, len);
   uart_end();
 }
 #endif
@@ -511,8 +549,8 @@ public:
   void report_connecting() {
 #ifdef STATUS_REPORT_INTERVAL
     uart_begin();
-    DataSerial.print(":C");
-    DataSerial.print(m_tag);
+    uart_print(":C");
+    uart_print(m_tag);
     uart_end();
 #endif
   }
@@ -520,7 +558,7 @@ public:
   void notify_connected() {
     uart_begin();
 #ifndef SIMPLE_LINK
-    DataSerial.print(m_tag);
+    uart_print(m_tag);
 #endif
     uart_end();
   }
@@ -777,8 +815,8 @@ void fatal(const char* what)
 {
 #ifndef NO_DEBUG
   uart_begin();
-  DataSerial.print("-fatal: ");
-  DataSerial.print(what);
+  uart_print("-fatal: ");
+  uart_print(what);
   uart_end();
 #endif
 #ifdef HW_UART // Duplicate msg to other uart
@@ -812,11 +850,11 @@ static void add_peer(unsigned idx, String const& addr)
   ++npeers;
 #ifndef NO_DEBUG
   uart_begin();
-  DataSerial.print("-connection [");
-  DataSerial.print(idx);
-  DataSerial.print("] initialized, ");
-  DataSerial.print(ESP.getFreeHeap());
-  DataSerial.print(" bytes free");
+  uart_print("-connection [");
+  uart_print(idx);
+  uart_print("] initialized, ");
+  uart_print(ESP.getFreeHeap());
+  uart_print(" bytes free");
   uart_end();
 #endif
 }
@@ -916,17 +954,17 @@ static void bt_device_start()
 
 #ifndef NO_DEBUG
   uart_begin();
-  DataSerial.print("-BT device ");
-  DataSerial.print(dev_name);
-  DataSerial.print(" at ");
-  DataSerial.print(dev_addr);
-  DataSerial.print(" on ");
-  DataSerial.print(ESP.getChipModel());
-  DataSerial.print(" ");
-  DataSerial.print(getCpuFrequencyMhz());
-  DataSerial.print("MHz ");
-  DataSerial.print(ESP.getFreeHeap());
-  DataSerial.print(" bytes free");
+  uart_print("-BT device ");
+  uart_print(dev_name);
+  uart_print(" at ");
+  uart_print(dev_addr);
+  uart_print(" on ");
+  uart_print(ESP.getChipModel());
+  uart_print(" ");
+  uart_print(getCpuFrequencyMhz());
+  uart_print("MHz ");
+  uart_print(ESP.getFreeHeap());
+  uart_print(" bytes free");
   uart_end();
 #endif
 }
@@ -1034,8 +1072,8 @@ void Peer::connect()
 #ifndef NO_DEBUG
   uint32_t const start = millis();
   uart_begin();
-  DataSerial.print("-connecting to ");
-  DataSerial.print(m_addr);
+  uart_print("-connecting to ");
+  uart_print(m_addr);
   uart_end();
 #endif
 
@@ -1067,17 +1105,17 @@ void Peer::connect()
 
 #ifndef NO_DEBUG
   uart_begin();
-  DataSerial.print("-connected to ");
-  DataSerial.print(m_addr);
-  DataSerial.print(" in ");
-  DataSerial.print(millis() - start);
-  DataSerial.print(" msec");
+  uart_print("-connected to ");
+  uart_print(m_addr);
+  uart_print(" in ");
+  uart_print(millis() - start);
+  uart_print(" msec");
   if (m_writable)
-    DataSerial.print(", writable");
+    uart_print(", writable");
   else
-    DataSerial.print(", readonly");
-  DataSerial.print(", rssi=");
-  DataSerial.print(m_Client->getRssi());
+    uart_print(", readonly");
+  uart_print(", rssi=");
+  uart_print(m_Client->getRssi());
   uart_end();
 #endif
 }
@@ -1087,8 +1125,8 @@ void Peer::subscribe()
 #ifndef NO_DEBUG
   uint32_t const start = millis();
   uart_begin();
-  DataSerial.print("-subscribing to ");
-  DataSerial.print(m_addr);
+  uart_print("-subscribing to ");
+  uart_print(m_addr);
   uart_end();
 #endif
 
@@ -1098,13 +1136,13 @@ void Peer::subscribe()
 
 #ifndef NO_DEBUG
   uart_begin();
-  DataSerial.print("-subscribed to ");
-  DataSerial.print(m_addr);
-  DataSerial.print(" in ");
-  DataSerial.print(millis() - start);
-  DataSerial.print(" msec, ");
-  DataSerial.print(ESP.getFreeHeap());
-  DataSerial.print(" bytes free");
+  uart_print("-subscribed to ");
+  uart_print(m_addr);
+  uart_print(" in ");
+  uart_print(millis() - start);
+  uart_print(" msec, ");
+  uart_print(ESP.getFreeHeap());
+  uart_print(" bytes free");
   uart_end();
 #endif
 }
@@ -1289,11 +1327,11 @@ static inline void report_idle()
 {
   uart_begin();
   if (advertising_enabled)
-    DataSerial.print(":I " VMAJOR "." VMINOR "-");
+    uart_print(":I " VMAJOR "." VMINOR "-");
   else
-    DataSerial.print(":Ih " VMAJOR "." VMINOR "-");
-  DataSerial.print(MAX_FRAME);
-  DataSerial.print("-" VARIANT);
+    uart_print(":Ih " VMAJOR "." VMINOR "-");
+  uart_print(MAX_FRAME);
+  uart_print("-" VARIANT);
   uart_end();
 }
 
@@ -1301,9 +1339,9 @@ static inline void report_connected()
 {
   uart_begin();
   if (advertising_enabled)
-    DataSerial.print(":D");
+    uart_print(":D");
   else
-    DataSerial.print(":Dh");
+    uart_print(":Dh");
   uart_end();
 }
 #endif
@@ -1426,7 +1464,7 @@ void loop()
       // Output stream start tag
       uart_begin();
 #ifndef SIMPLE_LINK
-      DataSerial.print('<');
+      uart_print('<');
 #endif
       uart_end();
 #ifdef EXT_FRAMES
