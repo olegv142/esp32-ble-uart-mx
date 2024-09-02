@@ -4,4 +4,5 @@
 
 void fatal(const char* what);
 
-#define BUG_ON(cond) do { if (cond) fatal("BUG at " LINE_STRING); } while (0)
+#define BUG() do { fatal("BUG at line " LINE_STRING); } while (0)
+#define BUG_ON(cond) do { if (cond) BUG(); } while (0)
