@@ -95,12 +95,39 @@ typedef enum {
   c_status_cnt
 } c_status_t;
 
+typedef enum {
+  cx_idle,
+  cx_establishing,
+  cx_active,
+  cx_passive,
+  cx_active_congested,
+  cx_passive_congested,
+  cx_status_cnt
+} cx_status_t;
+
 static inline c_status_t get_connect_status()
 {
   if (!npeers)
     return !connected_centrals ? c_idle : c_passive;
   else
     return connected_peers < npeers ? c_establishing : c_active;
+}
+
+static inline cx_status_t get_connect_status_ex(bool congested)
+{
+  switch (get_connect_status()) {
+  case c_idle:
+    return cx_idle;
+  case c_establishing:
+    return cx_establishing;
+  case c_active:
+    return congested ? cx_active_congested : cx_active;
+  case c_passive:
+    return congested ? cx_passive_congested : cx_passive;
+  default:
+    BUG();
+    return cx_status_cnt;
+  }
 }
 
 #ifndef HIDDEN
@@ -503,6 +530,7 @@ public:
       // failed due to congestion
       xSemaphoreGive(m_wr_sem);
       ++write_err.cnt;
+      is_congested = true;
       return false;
     }
     taskYIELD();
@@ -574,7 +602,10 @@ public:
   {
 #ifdef ECHO
     if (m_writable && is_connected())
-      remote_write_(m_remoteCharacteristic, chunk->data, chunk->len, false);
+      if (!remote_write_(m_remoteCharacteristic, chunk->data, chunk->len, false)) {
+        ++write_err.cnt;
+        is_congested = true;
+      }
 #endif
 #ifdef EXT_FRAMES
     m_xrx.receive(chunk);
@@ -890,10 +921,10 @@ static void bt_device_start()
 
 #ifdef NEO_PIXEL_PIN
 #define NPX_LED_BITS (3*8)
-static rmt_data_t neopix_led[c_status_cnt][NPX_LED_BITS];
-static c_status_t neopix_conn_status;
+static rmt_data_t neopix_led[cx_status_cnt][NPX_LED_BITS];
+static cx_status_t neopix_conn_status;
 
-static inline void neopix_conn_set(c_status_t sta)
+static inline void neopix_conn_set(cx_status_t sta)
 {
   neopix_led_write(NEO_PIXEL_PIN, neopix_led[sta]);
   neopix_conn_status = sta;
@@ -901,19 +932,21 @@ static inline void neopix_conn_set(c_status_t sta)
 
 static void neopix_init()
 {
-  neopix_led_data_init(neopix_led[c_idle],         IDLE_RGB);
-  neopix_led_data_init(neopix_led[c_establishing], CONNECTING_RGB);
-  neopix_led_data_init(neopix_led[c_active],       ACTIVE_RGB);
-  neopix_led_data_init(neopix_led[c_passive],      PASSIVE_RGB);
+  neopix_led_data_init(neopix_led[cx_idle],              IDLE_RGB);
+  neopix_led_data_init(neopix_led[cx_establishing],      CONNECTING_RGB);
+  neopix_led_data_init(neopix_led[cx_active],            ACTIVE_RGB);
+  neopix_led_data_init(neopix_led[cx_passive],           PASSIVE_RGB);
+  neopix_led_data_init(neopix_led[cx_active_congested],  ACTIVE_CONGESTED_RGB);
+  neopix_led_data_init(neopix_led[cx_passive_congested], PASSIVE_CONGESTED_RGB);
 
   if (!neopix_led_init(NEO_PIXEL_PIN)) {
     debug_msg("-neopixel pin init failed");
     return;
   }
-  neopix_conn_set(c_idle);
+  neopix_conn_set(cx_idle);
 }
 
-static inline void neopix_conn_up(c_status_t sta)
+static inline void neopix_conn_up(cx_status_t sta)
 {
   if (neopix_conn_status != sta)
     neopix_conn_set(sta);
@@ -1072,10 +1105,8 @@ void Peer::write_worker()
     if (!data || !size)
       continue;
     BUG_ON(size > MAX_SIZE);
-    while (!remote_write(data, size)) {
-      is_congested = true;
+    while (!remote_write(data, size))
       vTaskDelay(pdMS_TO_TICKS(CONGESTION_DELAY));
-    }
     vRingbufferReturnItem(m_wr_queue, data);
   }
 }
@@ -1302,7 +1333,8 @@ static void tell_uptime()
     msg += dev_addr;
     msg += "#";
     msg += dev_name;
-    transmit_to_central(msg.c_str(), msg.length());
+    if (!transmit_to_central(msg.c_str(), msg.length()))
+      is_congested = true;
   }
 }
 #endif
@@ -1333,10 +1365,10 @@ static bool cli_receive()
   return true;
 }
 
-static void show_conn_status()
+static void show_conn_status(bool congested)
 {
 #ifdef NEO_PIXEL_PIN
-  neopix_conn_up(get_connect_status());
+  neopix_conn_up(get_connect_status_ex(congested));
 #elif defined(CONNECTED_LED)
   digitalWrite(CONNECTED_LED, get_connected_indicator() ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
 #endif
@@ -1344,10 +1376,10 @@ static void show_conn_status()
 
 void loop()
 {
-  bool received = cli_receive();
+  bool const received = cli_receive();
+  bool const was_congested = is_congested;
   if (received || is_congested)
     is_congested = !cli_process();
-
 
   if (advertising_enabled && start_advertising && elapsed(centr_disconn_ts, millis()) > 100) {
     debug_msg("-start advertising");
@@ -1377,7 +1409,7 @@ void loop()
     }
   }
 
-  show_conn_status();
+  show_conn_status(was_congested || is_congested);
 
 #ifndef NO_DEBUG
   chk_error_cnt(&rx_queue_full, "-rx queue full ");
