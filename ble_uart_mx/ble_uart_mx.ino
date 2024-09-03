@@ -149,16 +149,29 @@ static String   dev_addr;
 static uint8_t   cli_buff[CLI_BUFF_SZ];
 static size_t    cli_buff_data_sz;
 
-#ifdef STREAM_TAGS
-static uint8_t last_tx_tag = STREAM_TAG_FIRST - 1;
 static uint8_t last_rx_tag;
+
+#ifdef STREAM_TAGS
+static uint8_t  last_tx_tag = STREAM_TAG_FIRST - 1;
 static unsigned tx_msg_sz;
+#endif
 
 static inline bool is_stream_tag(uint8_t c)
 {
   return c >= STREAM_TAG_FIRST && c < STREAM_TAG_FIRST + STREAM_TAGS_MOD;
 }
-#endif
+
+static inline uint8_t next_stream_tag(uint8_t c)
+{
+  if (++c < STREAM_TAG_FIRST + STREAM_TAGS_MOD)
+    return c;
+  return STREAM_TAG_FIRST;
+}
+
+static inline uint8_t closing_stream_tag(uint8_t open_tag, size_t msg_sz)
+{
+  return STREAM_TAG_FIRST + (open_tag - STREAM_TAG_FIRST + msg_sz) % STREAM_TAGS_MOD;
+}
 
 static QueueHandle_t rx_queue;
 
@@ -183,9 +196,7 @@ static inline void uart_begin()
   DataSerial.print(UART_BEGIN);
 #endif
 #ifdef STREAM_TAGS
-  uint8_t next_tag = last_tx_tag + 1;
-  if (next_tag >= STREAM_TAG_FIRST + STREAM_TAGS_MOD)
-    next_tag = STREAM_TAG_FIRST;
+  uint8_t const next_tag = next_stream_tag(last_tx_tag);
   DataSerial.print((char)next_tag);
   last_tx_tag = next_tag;
   tx_msg_sz = 0;
@@ -195,7 +206,7 @@ static inline void uart_begin()
 static inline void uart_end()
 {
 #ifdef STREAM_TAGS
-  DataSerial.print((char)(STREAM_TAG_FIRST + (last_tx_tag - STREAM_TAG_FIRST + tx_msg_sz) % STREAM_TAGS_MOD));
+  DataSerial.print((char)closing_stream_tag(last_tx_tag, tx_msg_sz));
 #endif
   DataSerial.print(UART_END);
 }
@@ -1002,8 +1013,13 @@ static cx_status_t neopix_conn_status;
 
 static inline void neopix_conn_set(cx_status_t sta)
 {
+  static uint32_t last_set;
+  uint32_t const now = millis();
+  if (elapsed(last_set, now) < 50)
+    return;
   neopix_led_write(NEO_PIXEL_PIN, neopix_led[sta]);
   neopix_conn_status = sta;
+  last_set = now;
 }
 
 static void neopix_init()
@@ -1274,7 +1290,6 @@ static void process_cmd(const char* cmd, size_t len)
   }
 }
 
-#ifdef STREAM_TAGS
 static inline bool chk_stream_tags(uint8_t topen, uint8_t tclose, size_t len)
 {
   if (len <= 2) {
@@ -1282,22 +1297,19 @@ static inline bool chk_stream_tags(uint8_t topen, uint8_t tclose, size_t len)
     return false;
   }
   if (last_rx_tag) {
-    uint8_t next_tag = last_rx_tag + 1;
-    if (next_tag >= STREAM_TAG_FIRST + STREAM_TAGS_MOD)
-      next_tag = STREAM_TAG_FIRST;
+    uint8_t const next_tag = next_stream_tag(last_rx_tag);
     if (topen != next_tag) {
       unsigned const lost = topen > next_tag ? topen - next_tag : topen + STREAM_TAGS_MOD - next_tag;
       lost_frames.cnt += lost;
     }
   }
   last_rx_tag = topen;
-  if (tclose != STREAM_TAG_FIRST + (topen - STREAM_TAG_FIRST + len - 2) % STREAM_TAGS_MOD) {
+  if (tclose != closing_stream_tag(topen, len - 2)) {
     ++parse_err.cnt;
     return false;
   }
   return true;
 }
-#endif
 
 static bool process_msg(const char* str, size_t len)
 {
@@ -1305,13 +1317,13 @@ static bool process_msg(const char* str, size_t len)
     ++parse_err.cnt;
     return true;
   }
-#ifdef STREAM_TAGS
-#ifdef SIMPLE_LINK
+#if defined(STREAM_TAGS) && defined(SIMPLE_LINK)
   if (!is_stream_tag(str[0])) {
     ++parse_err.cnt;
     return true;
   }
 #else
+  // Otherwise stream tags are optional on input
   if (is_stream_tag(str[0]))
 #endif
   {
@@ -1320,7 +1332,6 @@ static bool process_msg(const char* str, size_t len)
     str += 1;
     len -= 2;
   }
-#endif
 #ifndef SIMPLE_LINK
   switch (str[0]) {
     case '#':
