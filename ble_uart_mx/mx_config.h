@@ -75,10 +75,9 @@
 #endif
 #endif
 
-#ifdef STREAM_TAGS
+// Stream tags are optional on input even if STREAM_TAGS not defined
 #define STREAM_TAG_FIRST '@'
 #define STREAM_TAGS_MOD 191
-#endif
 
 #ifdef TX_BOOST
 #if (CONFIG_IDF_TARGET_ESP32)
