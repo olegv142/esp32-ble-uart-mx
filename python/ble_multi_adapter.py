@@ -9,17 +9,21 @@ import base64
 import binascii
 from serial import Serial, PARITY_NONE, PARITY_EVEN
 
-use_parity = True
+STREAM_TAG_FIRST = ord('@')
+STREAM_TAGS_MOD = 191
 
-class MutliAdapter:
-	"""BLE multi-adapter interface class"""
+class AdapterConnection:
 	baud_rate   = 115200
+	use_parity  = True
 	parity      = PARITY_EVEN if use_parity else PARITY_NONE
 	start_byte  = b'\1'
 	end_byte    = b'\0'
-	b64_tag     = b'\2'
+	use_tags    = True
+	opt_tags    = True 
 	rtscts      = True
 	timeout     = .01
+	rx_buf_size = 4*4096
+	tx_buf_size = 4096
 	congest_thr = 16
 
 	def __init__(self, port):
@@ -27,7 +31,10 @@ class MutliAdapter:
 		self.com     = None
 		self.rx_buff = b''
 		self.parse_errors = 0
+		self.lost_frames = 0
 		self.tx_queue = []
+		self.last_tx_tag = STREAM_TAG_FIRST - 1
+		self.last_rx_tag = 0
 
 	def __enter__(self):
 		self.open()
@@ -39,12 +46,15 @@ class MutliAdapter:
 	def open(self):
 		assert self.com is None
 		self.com = Serial(self.port,
-			baudrate=MutliAdapter.baud_rate,
-			parity=MutliAdapter.parity,
-			rtscts=MutliAdapter.rtscts,
-			timeout=MutliAdapter.timeout
+			baudrate=self.baud_rate,
+			parity=self.parity,
+			rtscts=self.rtscts,
+			timeout=self.timeout
 		)
-		self.com.set_buffer_size(rx_size = 4*4096, tx_size = 4096)
+		self.com.set_buffer_size(
+			rx_size = self.rx_buf_size,
+			tx_size = self.tx_buf_size
+		)
 
 	def close(self):
 		if self.com:
@@ -52,35 +62,44 @@ class MutliAdapter:
 			self.com = None
 
 	def is_congested(self):
-		return len(self.tx_queue) > MutliAdapter.congest_thr
+		return len(self.tx_queue) > self.congest_thr
+
+	@staticmethod
+	def is_stream_tag(tag):
+		return STREAM_TAG_FIRST <= tag < STREAM_TAG_FIRST + STREAM_TAGS_MOD
+
+	@staticmethod
+	def get_next_tag_(tag):
+		tag += 1
+		if tag >= STREAM_TAG_FIRST + STREAM_TAGS_MOD:
+			tag = STREAM_TAG_FIRST
+		return tag
+
+	def get_next_tag(self):
+		self.last_tx_tag = self.get_next_tag_(self.last_tx_tag)
+		return self.last_tx_tag
+
+	@staticmethod
+	def get_closing_tag(open_tag, msg_len):
+		return STREAM_TAG_FIRST + (open_tag - STREAM_TAG_FIRST + msg_len) % STREAM_TAGS_MOD;
 
 	def write_msg(self, msg):
 		"""Write message to the adapter"""
-		self.com.write(msg)
-
-	def send_cmd(self, cmd):
-		"""Send command to the adapter"""
-		self.tx_queue.append(MutliAdapter.start_byte + b'#' + cmd + MutliAdapter.end_byte)
-
-	def reset(self):
-		"""Reset adapter"""
-		self.tx_queue = []
-		self.write_msg(MutliAdapter.start_byte + b'#R' + MutliAdapter.end_byte)
-
-	def connect(self, peers):
-		self.send_cmd(b'C' + b' '.join(peers))
-
-	def send_data(self, data, binary=False):
-		"""Send data to connected central"""
-		if binary:
-			data = MutliAdapter.b64_tag + base64.b64encode(data)
-		self.tx_queue.append(MutliAdapter.start_byte + b'>' + data + MutliAdapter.end_byte)
-
-	def send_data_to(self, idx, data, binary=False):
-		"""Send data to peer given its index"""
-		if binary:
-			data = MutliAdapter.b64_tag + base64.b64encode(data)
-		self.tx_queue.append(MutliAdapter.start_byte + (b'0'[0] + idx).to_bytes(1, byteorder='big') + data + MutliAdapter.end_byte)
+		if self.use_tags:
+			topen  = self.get_next_tag()
+			tclose = self.get_closing_tag(topen, len(msg))
+			wire_msg = b''.join((self.start_byte, 
+					bytes([topen]),
+					msg,
+					bytes([tclose]),
+					self.end_byte
+				))
+		else:
+			wire_msg = b''.join((self.start_byte,
+					msg,
+					self.end_byte
+				))
+		self.com.write(wire_msg)
 
 	def receive(self):
 		"""Receive from adapter"""
@@ -96,25 +115,88 @@ class MutliAdapter:
 			self.write_msg(msg)
 			self.receive()
 
+	def submit_msg(self, msg):
+		self.tx_queue.append(msg)
+
+	def reset(self):
+		self.tx_queue = []
+		self.last_rx_tag = 0
+
 	def process_rx(self, rx_bytes):
 		self.rx_buff += rx_bytes
 		first = 0
-		begin = self.rx_buff.find(MutliAdapter.start_byte, 0)
+		begin = self.rx_buff.find(self.start_byte, 0)
 		while begin >= 0:
-			end = self.rx_buff.find(MutliAdapter.end_byte, begin + 1)
+			end = self.rx_buff.find(self.end_byte, begin + 1)
 			if end < 0:
 				break
 			while True:
-				next_begin = self.rx_buff.find(MutliAdapter.start_byte, begin + 1)
+				next_begin = self.rx_buff.find(self.start_byte, begin + 1)
 				if next_begin >= 0 and next_begin < end:
 					begin = next_begin
 					self.parse_errors += 1
 				else:
 					break
-			self.process_msg(self.rx_buff[begin+1:end])
+			self.process_frame(self.rx_buff[begin+1:end])
 			first = end + 1
 			begin = next_begin
 		self.rx_buff = self.rx_buff[first:]
+
+	def process_frame(self, msg):
+		if not len(msg):
+			self.parse_errors += 1
+			return
+		topen = msg[0]
+		if not self.is_stream_tag(topen):
+			if self.opt_tags:
+				self.process_msg(msg)
+				return
+			else:
+				self.parse_errors += 1
+				return
+		if len(msg) <= 2:
+			self.parse_errors += 1
+			return
+		if self.last_rx_tag:
+			next_rx_tag = self.get_next_tag_(self.last_rx_tag)
+			if topen != next_rx_tag:
+				self.lost_frames += topen - next_rx_tag if topen > next_rx_tag else \
+									topen + STREAM_TAGS_MOD - next_rx_tag
+		self.last_rx_tag = topen
+		if msg[-1] != self.get_closing_tag(topen, len(msg) - 2):
+			self.parse_errors += 1
+			return
+		self.process_msg(msg[1:-1])
+
+	def process_msg(self, msg):
+		raise NotImplementedError()
+
+class MutliAdapter(AdapterConnection):
+	"""BLE multi-adapter interface class"""
+	b64_tag = b'\2'
+
+	def __init__(self, port):
+		super().__init__(port)
+
+	def reset(self):
+		"""Reset adapter"""
+		super().reset()
+		self.write_msg(b'#R')
+
+	def connect(self, peers):
+		self.send_cmd(b'C' + b' '.join(peers))
+
+	def send_data(self, data, binary=False):
+		"""Send data to connected central"""
+		if binary:
+			data = MutliAdapter.b64_tag + base64.b64encode(data)
+		self.submit_msg(b'>' + data)
+
+	def send_data_to(self, idx, data, binary=False):
+		"""Send data to peer given its index"""
+		if binary:
+			data = MutliAdapter.b64_tag + base64.b64encode(data)
+		self.submit_msg((b'0'[0] + idx).to_bytes(1, byteorder='big') + data)
 
 	def process_msg(self, msg):
 		tag = msg[:1]
