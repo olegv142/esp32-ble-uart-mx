@@ -14,7 +14,10 @@ import random
 from collections import defaultdict
 
 sys.path.append('.')
-from ble_multi_adapter import MutliAdapter
+from ble_multi_adapter import MutliAdapter, MutliAdapterUSB
+
+# If True use hardware UART else USB CDC
+hw_uart = False
 
 # If false all messages will have maximum allowed size
 random_size = True
@@ -110,12 +113,12 @@ class TestStream:
 
 	def print_stat(self, prefix):
 		print('%sconnected %u time(s)' % (prefix, self.conn_cnt))
-		print('%s%u msgs sent, %u received (%u bytes, %u/sec)' % (prefix, self.last_tx_sn, self.msg_cnt, self.byte_cnt, self.byte_cnt / (time.time() - self.created_ts)))
+		print('%s%u msgs sent, %u received (%u bytes, %u/sec)' % (prefix, self.last_tx_sn, self.msg_cnt, self.byte_cnt, self.byte_cnt / (time.time() - self.created_ts + 1)))
 		print('%s%u valid, %u lost, %u dup, %u reorder, %u corrupt)' % (
 				prefix, self.valid_cnt, self.lost_cnt, self.dup_cnt, self.reorder_cnt, self.corrupt_cnt
 			))
 
-class EchoTest(MutliAdapter):
+class EchoTest(MutliAdapter if hw_uart else MutliAdapterUSB):
 
 	def __init__(self, port, targets = None, active = None, peripheral = None):
 		super().__init__(port)

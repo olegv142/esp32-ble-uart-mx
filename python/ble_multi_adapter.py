@@ -13,6 +13,7 @@ STREAM_TAG_FIRST = ord('@')
 STREAM_TAGS_MOD = 191
 
 class AdapterConnection:
+	"""BLE multi-adapter interface serial connection"""
 	baud_rate   = 115200
 	use_parity  = True
 	parity      = PARITY_EVEN if use_parity else PARITY_NONE
@@ -124,23 +125,34 @@ class AdapterConnection:
 
 	def process_rx(self, rx_bytes):
 		self.rx_buff += rx_bytes
-		first = 0
-		begin = self.rx_buff.find(self.start_byte, 0)
-		while begin >= 0:
+		tail = 0
+		if self.start_byte:
+			begin = self.rx_buff.find(self.start_byte, 0)
+			if begin > 0:
+				self.parse_errors += 1
+		else:
+			begin = 0
+		while 0 <= begin < len(self.rx_buff):
 			end = self.rx_buff.find(self.end_byte, begin + 1)
 			if end < 0:
 				break
-			while True:
-				next_begin = self.rx_buff.find(self.start_byte, begin + 1)
-				if next_begin >= 0 and next_begin < end:
-					begin = next_begin
+			while self.start_byte:
+				begin += 1
+				next_begin = self.rx_buff.find(self.start_byte, begin)
+				if 0 <= next_begin < end:
+					begin = next_begin + 1
 					self.parse_errors += 1
 				else:
 					break
-			self.process_frame(self.rx_buff[begin+1:end])
-			first = end + 1
-			begin = next_begin
-		self.rx_buff = self.rx_buff[first:]
+			self.process_frame(self.rx_buff[begin:end])
+			tail = end + 1
+			if self.start_byte:
+				begin = next_begin
+				if begin >= 0 and begin != tail:
+					self.parse_errors += 1
+			else:
+				begin = tail
+		self.rx_buff = self.rx_buff[tail:]
 
 	def process_frame(self, msg):
 		if not len(msg):
@@ -157,15 +169,15 @@ class AdapterConnection:
 		if len(msg) <= 2:
 			self.parse_errors += 1
 			return
+		if msg[-1] != self.get_closing_tag(topen, len(msg) - 2):
+			self.parse_errors += 1
+			return
 		if self.last_rx_tag:
 			next_rx_tag = self.get_next_tag_(self.last_rx_tag)
 			if topen != next_rx_tag:
 				self.lost_frames += topen - next_rx_tag if topen > next_rx_tag else \
 									topen + STREAM_TAGS_MOD - next_rx_tag
 		self.last_rx_tag = topen
-		if msg[-1] != self.get_closing_tag(topen, len(msg) - 2):
-			self.parse_errors += 1
-			return
 		self.process_msg(msg[1:-1])
 
 	def process_msg(self, msg):
@@ -260,3 +272,10 @@ class MutliAdapter(AdapterConnection):
 
 	def on_peer_msg(self, idx, msg):
 		pass
+
+class MutliAdapterUSB(MutliAdapter):
+	"""BLE multi-adapter interface using built-in USB CDC"""
+	start_byte  = b''
+	end_byte    = b'\n'
+	def __init__(self, port):
+		super().__init__(port)
