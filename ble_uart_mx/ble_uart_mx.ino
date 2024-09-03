@@ -1296,6 +1296,10 @@ static inline bool chk_stream_tags(uint8_t topen, uint8_t tclose, size_t len)
     ++parse_err.cnt;
     return false;
   }
+  if (tclose != closing_stream_tag(topen, len - 2)) {
+    ++parse_err.cnt;
+    return false;
+  }
   if (last_rx_tag) {
     uint8_t const next_tag = next_stream_tag(last_rx_tag);
     if (topen != next_tag) {
@@ -1304,10 +1308,6 @@ static inline bool chk_stream_tags(uint8_t topen, uint8_t tclose, size_t len)
     }
   }
   last_rx_tag = topen;
-  if (tclose != closing_stream_tag(topen, len - 2)) {
-    ++parse_err.cnt;
-    return false;
-  }
   return true;
 }
 
