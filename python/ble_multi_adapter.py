@@ -21,7 +21,7 @@ class AdapterConnection:
 	end_tag     = b'\0'
 	b64_tag     = b'\2'
 	use_tags    = True
-	opt_tags    = True 
+	opt_tags    = True
 	rtscts      = True
 	timeout     = .01
 	rx_buf_size = 4*4096
@@ -198,7 +198,10 @@ class MutliAdapter(AdapterConnection):
 		self.write_msg(b'#R')
 
 	def connect(self, peers):
-		self.send_cmd(b'C' + b' '.join(peers))
+		self.submit_msg(b'#C' + b' '.join(peers))
+
+	def advertise(self):
+		self.submit_msg(b'#A')
 
 	def send_data(self, data, binary=False):
 		"""Send data to connected central"""
@@ -269,6 +272,32 @@ class MutliAdapter(AdapterConnection):
 
 class MutliAdapterUSB(MutliAdapter):
 	"""BLE multi-adapter interface using built-in USB CDC"""
+	start_tag  = b''
+	end_tag    = b'\n'
+	def __init__(self, port):
+		super().__init__(port)
+
+class SimpleAdapter(AdapterConnection):
+	"""BLE simple link adapter interface class"""
+	def __init__(self, port):
+		super().__init__(port)
+
+	def send_data(self, data, binary=False):
+		"""Send data frame to connected peer device"""
+		if binary:
+			data = self.encode_binary(data)
+		self.submit_msg(data)
+
+	def process_msg(self, msg):
+		data = self.decode_data(msg)
+		if data is not None:
+			self.on_data_received(data)
+
+	def on_data_received(self, data):
+		pass
+
+class SimpleAdapterUSB(SimpleAdapter):
+	"""BLE simple link adapter interface using built-in USB CDC"""
 	start_tag  = b''
 	end_tag    = b'\n'
 	def __init__(self, port):
