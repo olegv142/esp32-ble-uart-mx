@@ -17,7 +17,7 @@ sys.path.append('.')
 from ble_multi_adapter import MutliAdapter, MutliAdapterUSB
 
 # If True use hardware UART else USB CDC
-hw_uart = False
+hw_uart = True
 
 # If false all messages will have maximum allowed size
 random_size = True
@@ -166,9 +166,12 @@ class EchoTest(MutliAdapter if hw_uart else MutliAdapterUSB):
 		self.send_msgs(True)
 
 	def on_debug_msg(self, msg):
-		str = msg.decode()
-		print('    ' + str)
-		self.dbg_msgs[str] += 1
+		try:
+			str = msg.decode()
+			print('    ' + str)
+			self.dbg_msgs[str] += 1
+		except UnicodeDecodeError:
+			pass
 
 	def on_central_msg(self, msg):
 		print('[.] %r' % msg, end='')

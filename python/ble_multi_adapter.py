@@ -13,7 +13,7 @@ STREAM_TAG_FIRST = ord('@')
 STREAM_TAGS_MOD = 191
 
 class AdapterConnection:
-	"""BLE multi-adapter interface serial connection"""
+	"""BLE multi-adapter core communication interface class"""
 	baud_rate   = 115200
 	use_parity  = True
 	parity      = PARITY_EVEN if use_parity else PARITY_NONE
@@ -126,32 +126,27 @@ class AdapterConnection:
 	def process_rx(self, rx_bytes):
 		self.rx_buff += rx_bytes
 		tail = 0
-		if self.start_byte:
-			begin = self.rx_buff.find(self.start_byte, 0)
-			if begin > 0:
-				self.parse_errors += 1
-		else:
-			begin = 0
+		begin = self.rx_buff.find(self.start_byte, 0) if self.start_byte else 0
 		while 0 <= begin < len(self.rx_buff):
 			end = self.rx_buff.find(self.end_byte, begin + 1)
 			if end < 0:
 				break
-			while self.start_byte:
-				begin += 1
-				next_begin = self.rx_buff.find(self.start_byte, begin)
-				if 0 <= next_begin < end:
-					begin = next_begin + 1
+			if self.start_byte:
+				while True:
+					next_begin = self.rx_buff.find(self.start_byte, begin + 1)
+					if 0 <= next_begin < end:
+						# multiple begin bytes before end
+						begin = next_begin + 1
+						self.parse_errors += 1
+					else:
+						break
+				if begin != tail:
+					# garbage between messages
 					self.parse_errors += 1
-				else:
-					break
+				begin += 1 # skip start byte
 			self.process_frame(self.rx_buff[begin:end])
 			tail = end + 1
-			if self.start_byte:
-				begin = next_begin
-				if begin >= 0 and begin != tail:
-					self.parse_errors += 1
-			else:
-				begin = tail
+			begin = next_begin if self.start_byte else tail
 		self.rx_buff = self.rx_buff[tail:]
 
 	def process_frame(self, msg):
