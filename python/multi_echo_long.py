@@ -1,9 +1,9 @@
 """
 BLE multi adapter test script.
 Expects serial port name as a parameter.
-The script periodically transmits to central a message
+The script periodically transmits one or more messages
 with ever incremented sequence number followed by random data
-and expects it to echo them back.
+and expects them to be echoed back.
 
 Author: Oleg Volkov
 """
@@ -14,10 +14,10 @@ import random
 from collections import defaultdict
 
 sys.path.append('.')
-from ble_multi_adapter import MutliAdapter, MutliAdapterUSB
+from ble_multi_adapter import MutliAdapter, MutliAdapterUSB, SimpleAdapter, SimpleAdapterUSB
 
 # If True use hardware UART else USB CDC
-hw_uart = True
+hw_uart = False
 
 # If false all messages will have maximum allowed size
 random_size = True
@@ -25,11 +25,14 @@ random_size = True
 # The number of messages that should be sent at once
 tx_burst = 5
 
+# The simple link test message sending interval
+simple_tx_interval = 1 / tx_burst
+
 # Use binary data or text
 binary_data = True
 
 # Limit maximum message size
-max_size = None
+max_size = 2160
 
 if binary_data:
 	data_delimiter = b'\xff'
@@ -42,9 +45,9 @@ def random_bytes(len):
 	))
 
 class TestStream:
-	def __init__(self):
+	def __init__(self, no_wait=False):
 		self.created_ts = time.time()
-		self.is_started = False
+		self.is_started = no_wait
 		self.last_tx_sn = 0
 		self.last_rx_sn = None
 		self.msg_cnt = 0
@@ -119,7 +122,6 @@ class TestStream:
 			))
 
 class EchoTest(MutliAdapter if hw_uart else MutliAdapterUSB):
-
 	def __init__(self, port, targets = None, active = None, peripheral = None):
 		super().__init__(port)
 		ntargets = len(targets)
@@ -189,24 +191,60 @@ class EchoTest(MutliAdapter if hw_uart else MutliAdapterUSB):
 		hline = '-' * 64
 		print(hline)
 		if self.pstream:
-			self.pstream.print_stat("[.] ")
+			self.pstream.print_stat('[.] ')
 			print(hline)
-		for i in range(len(targets)):
-			self.tstream[i].print_stat("[%d] " % i)
+		for i in range(len(self.targets)):
+			self.tstream[i].print_stat('[%d] ' % i)
 			print(hline)
 		print('parse errors: %u, lost frames: %u' % (self.parse_errors, self.lost_frames))
 		print('debug messages:')
-		for msg, cnt in ad.dbg_msgs.items():
+		for msg, cnt in self.dbg_msgs.items():
 			print('%u: %s' % (cnt, msg))
 
-if __name__ == '__main__':
-	start = time.time()	
-	if first_only := '--first-only' in sys.argv:
-		sys.argv.remove('--first-only')
-	if last_only := '--last-only' in sys.argv:
-		sys.argv.remove('--last-only')
-	if peripheral := '--peripheral' in sys.argv:
-		sys.argv.remove('--peripheral')
+class SimpleEchoTest(SimpleAdapter if hw_uart else SimpleAdapterUSB):
+	def __init__(self, port):
+		super().__init__(port)
+		self.stream = TestStream(no_wait=True)
+		self.last_tx = 0
+
+	def send_msg(self):
+		self.send_data(self.stream.mk_msg(max_size), binary_data)
+
+	def on_data_received(self, data):
+		print('%r' % data, end='')
+		self.stream.chunk_received(data)
+		print()
+
+	def communicate(self):
+		if not self.is_congested():
+			now = time.time()
+			if now >= self.last_tx + simple_tx_interval:
+				self.last_tx = now
+				self.send_msg()
+		super().communicate()
+
+	def print_stat(self):
+		print('-' * 64)
+		self.stream.print_stat('')
+		print('parse errors: %u, lost frames: %u' % (self.parse_errors, self.lost_frames))
+
+def chk_opt(name):
+	if opt := name in sys.argv:
+		sys.argv.remove(name)
+	return opt
+
+def test_simple():
+	with SimpleEchoTest(sys.argv[1]) as ad:
+		try:
+			while True:
+				ad.communicate()
+		except KeyboardInterrupt:
+			ad.print_stat()
+
+def test_multi():
+	first_only = chk_opt('--first-only')
+	last_only  = chk_opt('--last-only')
+	peripheral = chk_opt('--peripheral')
 	targets = [addr.encode() for addr in sys.argv[2:]]
 	active = [0] if first_only else [len(targets)-1] if last_only else None
 	with EchoTest(sys.argv[1], targets, active, True if peripheral else None) as ad:
@@ -216,3 +254,9 @@ if __name__ == '__main__':
 				ad.communicate()
 		except KeyboardInterrupt:
 			ad.print_stat()
+
+if __name__ == '__main__':
+	if chk_opt('--simple'):
+		test_simple()
+	else:
+		test_multi()
