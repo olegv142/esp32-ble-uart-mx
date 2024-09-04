@@ -17,8 +17,9 @@ class AdapterConnection:
 	baud_rate   = 115200
 	use_parity  = True
 	parity      = PARITY_EVEN if use_parity else PARITY_NONE
-	start_byte  = b'\1'
-	end_byte    = b'\0'
+	start_tag   = b'\1'
+	end_tag     = b'\0'
+	b64_tag     = b'\2'
 	use_tags    = True
 	opt_tags    = True 
 	rtscts      = True
@@ -89,16 +90,16 @@ class AdapterConnection:
 		if self.use_tags:
 			topen  = self.get_next_tag()
 			tclose = self.get_closing_tag(topen, len(msg))
-			wire_msg = b''.join((self.start_byte, 
+			wire_msg = b''.join((self.start_tag, 
 					bytes([topen]),
 					msg,
 					bytes([tclose]),
-					self.end_byte
+					self.end_tag
 				))
 		else:
-			wire_msg = b''.join((self.start_byte,
+			wire_msg = b''.join((self.start_tag,
 					msg,
-					self.end_byte
+					self.end_tag
 				))
 		self.com.write(wire_msg)
 
@@ -123,17 +124,29 @@ class AdapterConnection:
 		self.tx_queue = []
 		self.last_rx_tag = 0
 
+	def encode_binary(self, data):
+		return self.b64_tag + base64.b64encode(data)
+
+	def decode_data(self, msg):
+		if msg[:1] != self.b64_tag:
+			return msg
+		try:
+			return base64.b64decode(msg[1:])
+		except binascii.Error:
+			self.parse_errors += 1
+			return None
+
 	def process_rx(self, rx_bytes):
 		self.rx_buff += rx_bytes
 		tail = 0
-		begin = self.rx_buff.find(self.start_byte, 0) if self.start_byte else 0
+		begin = self.rx_buff.find(self.start_tag, 0) if self.start_tag else 0
 		while 0 <= begin < len(self.rx_buff):
-			end = self.rx_buff.find(self.end_byte, begin + 1)
+			end = self.rx_buff.find(self.end_tag, begin + 1)
 			if end < 0:
 				break
-			if self.start_byte:
+			if self.start_tag:
 				while True:
-					next_begin = self.rx_buff.find(self.start_byte, begin + 1)
+					next_begin = self.rx_buff.find(self.start_tag, begin + 1)
 					if 0 <= next_begin < end:
 						# multiple begin bytes before end
 						begin = next_begin + 1
@@ -146,7 +159,7 @@ class AdapterConnection:
 				begin += 1 # skip start byte
 			self.process_frame(self.rx_buff[begin:end])
 			tail = end + 1
-			begin = next_begin if self.start_byte else tail
+			begin = next_begin if self.start_tag else tail
 		self.rx_buff = self.rx_buff[tail:]
 
 	def process_frame(self, msg):
@@ -180,8 +193,6 @@ class AdapterConnection:
 
 class MutliAdapter(AdapterConnection):
 	"""BLE multi-adapter interface class"""
-	b64_tag = b'\2'
-
 	def __init__(self, port):
 		super().__init__(port)
 
@@ -196,13 +207,13 @@ class MutliAdapter(AdapterConnection):
 	def send_data(self, data, binary=False):
 		"""Send data to connected central"""
 		if binary:
-			data = MutliAdapter.b64_tag + base64.b64encode(data)
+			data = self.encode_binary(data)
 		self.submit_msg(b'>' + data)
 
 	def send_data_to(self, idx, data, binary=False):
 		"""Send data to peer given its index"""
 		if binary:
-			data = MutliAdapter.b64_tag + base64.b64encode(data)
+			data = self.encode_binary(data)
 		self.submit_msg((b'0'[0] + idx).to_bytes(1, byteorder='big') + data)
 
 	def process_msg(self, msg):
@@ -233,22 +244,14 @@ class MutliAdapter(AdapterConnection):
 			self.parse_errors += 1
 
 	def on_central_msg_(self, msg):
-		if msg[:1] == MutliAdapter.b64_tag:
-			try:
-				msg = base64.b64decode(msg[1:])
-			except binascii.Error:
-				self.parse_errors += 1
-				return
-		self.on_central_msg(msg)
+		data = self.decode_data(msg)
+		if data is not None:
+			self.on_central_msg(data)
 
 	def on_peer_msg_(self, idx, msg):
-		if msg[:1] == MutliAdapter.b64_tag:
-			try:
-				msg = base64.b64decode(msg[1:])
-			except binascii.Error:
-				self.parse_errors += 1
-				return
-		self.on_peer_msg(idx, msg)
+		data = self.decode_data(msg)
+		if data is not None:
+			self.on_peer_msg(idx, data)
 
 	def on_idle(self, hidden, version):
 		pass
@@ -270,7 +273,7 @@ class MutliAdapter(AdapterConnection):
 
 class MutliAdapterUSB(MutliAdapter):
 	"""BLE multi-adapter interface using built-in USB CDC"""
-	start_byte  = b''
-	end_byte    = b'\n'
+	start_tag  = b''
+	end_tag    = b'\n'
 	def __init__(self, port):
 		super().__init__(port)
