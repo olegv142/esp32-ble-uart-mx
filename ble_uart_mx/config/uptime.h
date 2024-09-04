@@ -28,6 +28,10 @@
 // with only data messages without protocol prefix.
 // #define SIMPLE_LINK
 
+// If defined every output message will be enclosed between the pair of opening and closing
+// message tags that helps to detect data stream corruption.
+#define STREAM_TAGS
+
 // Define if target platform is ESP32 USB key
 // #define ESP32_USB_KEY
 //
@@ -133,7 +137,3 @@
 
 // If defined echo all data received back to sender (for testing)
 // #define ECHO
-
-// If defined every output message will be enclosed between the pair of opening and closing
-// message tags that helps to detect data stream corruption.
-// #define STREAM_TAGS
