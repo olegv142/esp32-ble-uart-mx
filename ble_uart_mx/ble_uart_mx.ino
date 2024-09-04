@@ -1239,14 +1239,15 @@ static bool transmit_to_peer(unsigned idx, const char* str, size_t len)
 }
 
 #ifndef AUTOCONNECT
-static void cmd_connect(const char* param)
+static void cmd_connect(const char* param, size_t len)
 {
-  String params(param);
-  const char* ptr = param;
   if (npeers) {
     debug_msg("-already connected");
     return;
   }
+  String params(param, len);
+  const char *str = params.c_str();
+  const char *ptr = str;
   while (*ptr)
   {
     while (isspace(*ptr))
@@ -1255,7 +1256,7 @@ static void cmd_connect(const char* param)
     while (*ptr && !isspace(*ptr))
       ++ptr;
     if (ptr != begin)
-      add_peer(npeers, params.substring(begin - param, ptr - param));
+      add_peer(npeers, params.substring(begin - str, ptr - str));
   }
 }
 #endif
@@ -1272,7 +1273,7 @@ static void process_cmd(const char* cmd, size_t len)
       break;
 #ifndef AUTOCONNECT
     case 'C':
-      cmd_connect(cmd + 1);
+      cmd_connect(cmd + 1, len - 1);
       break;
 #endif
 #if defined(HIDDEN) && !defined(CENTRAL_ONLY)
@@ -1307,31 +1308,11 @@ static inline bool chk_stream_tags(uint8_t topen, uint8_t tclose, size_t len)
       lost_frames.cnt += lost;
     }
   }
-  last_rx_tag = topen;
   return true;
 }
 
 static bool process_msg(const char* str, size_t len)
 {
-  if (!len) {
-    ++parse_err.cnt;
-    return true;
-  }
-#if defined(STREAM_TAGS) && defined(SIMPLE_LINK)
-  if (!is_stream_tag(str[0])) {
-    ++parse_err.cnt;
-    return true;
-  }
-#else
-  // Otherwise stream tags are optional on input
-  if (is_stream_tag(str[0]))
-#endif
-  {
-    if (!chk_stream_tags(str[0], str[len-1], len))
-      return true;
-    str += 1;
-    len -= 2;
-  }
 #ifndef SIMPLE_LINK
   switch (str[0]) {
     case '#':
@@ -1349,6 +1330,34 @@ static bool process_msg(const char* str, size_t len)
   return transmit_to_central(str, len);
 #endif
 #endif
+}
+
+static bool process_msg_(const char* str, size_t len)
+{
+  uint8_t topen = 0;
+  if (!len) {
+    ++parse_err.cnt;
+    return true;
+  }
+#if defined(STREAM_TAGS) && defined(SIMPLE_LINK)
+  if (!is_stream_tag(str[0])) {
+    ++parse_err.cnt;
+    return true;
+  }
+#else
+  // Otherwise stream tags are optional on input
+  if (is_stream_tag(str[0]))
+#endif
+  {
+    if (!chk_stream_tags(topen = str[0], str[len-1], len))
+      return true;
+    str += 1;
+    len -= 2;
+  }
+  bool const res = process_msg(str, len);
+  if (res && topen)
+      last_rx_tag = topen;
+  return res;
 }
 
 static bool cli_process()
@@ -1383,8 +1392,7 @@ static bool cli_process()
         break;
     }
 #endif
-    *tail = '\0';
-    if (!process_msg(begin, tail - begin)) {
+    if (!process_msg_(begin, tail - begin)) {
       done = false;
       break;
     }
