@@ -163,18 +163,14 @@ class AdapterConnection:
 		self.rx_buff = self.rx_buff[tail:]
 
 	def process_frame(self, msg):
-		if not len(msg):
-			self.parse_errors += 1
-			return
-		topen = msg[0]
-		if not self.is_stream_tag(topen):
+		if not msg or not self.is_stream_tag(topen := msg[0]):
 			if self.opt_tags:
 				self.process_msg(msg)
 				return
 			else:
 				self.parse_errors += 1
 				return
-		if len(msg) <= 2:
+		if len(msg) < 2:
 			self.parse_errors += 1
 			return
 		if msg[-1] != self.get_closing_tag(topen, len(msg) - 2):
