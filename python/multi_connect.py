@@ -8,9 +8,12 @@ Author: Oleg Volkov
 
 import sys
 sys.path.append('.')
-from ble_multi_adapter import MutliAdapter
+from ble_multi_adapter import MutliAdapter, MutliAdapterUSB
 
-class TestMutliAdapter(MutliAdapter):
+# If True use hardware UART else USB CDC
+hw_uart = False
+
+class TestMutliAdapter(MutliAdapter if hw_uart else MutliAdapterUSB):
 	def __init__(self, port, peers=None):
 		super().__init__(port)
 		self.peers = peers
