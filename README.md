@@ -120,19 +120,18 @@ If you have only one ESP32 module and want to test **ble_uart_mx** adapter do th
 * try using Serial Monitor and BLE terminal application to send data in both directions
 
 ## Power consumption
-The results of measuring idle power consumption with maximum and lowered CPU frequency are shown in th etable below.  
+The results of measuring idle power consumption with maximum and lowered CPU frequency are shown in the table below.  
 | MCU | Max frequency | Min frequency (80MHz) |
 |-------|----------------|--------------------|
 |ESP32C3| 60mA           | 50mA               |
 |ESP32C6| 68mA           | 60mA               |
 |ESP32S3| 95mA           | 65mA               |
-
-With ESP32C3 one can expect the power current of around 65mA while the adapter is idle. 
-With 3 active connections to peripheral devices each receiving and transmitting 50 short messages per second the current rises up to 120mA. The ESP32S3 power consumption is higher due to dual core CPU. One can expect 90mA while the adapter is idle. In the same 3 connection test it rises up to 115mA though. The power consumption was significantly improved since SDK v.2. Yet its still not quite suitable for battery powered applications.
+The power consumption under the load were measured in the following test. The central device was creating 3 active connections to peripheral devices each transmitting 50 short messages per second. There were two versions of the test. In the first version the central device did nothing with messages received. In the second version the central device was sending them back to peripheral devices. Results are shown on the following figure.
 
 <p align="center">
   <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/power_consumption.png?raw=true" width="70%" alt="Power consumption with 3 active connections"/>
 </p>
+The power consumption was significantly improved since SDK v.2. Yet its still not quite suitable for battery powered applications.
 
 ## Range testing results
 
