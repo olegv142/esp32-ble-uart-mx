@@ -118,6 +118,11 @@ With ESP32C3 one can expect the power current of around 65mA while the adapter i
 ![Power consumption with 3 active connections](https://github.com/olegv142/esp32-ble/blob/main/doc/power_consumption.png)
 
 ## Range testing results
+
+<p align="center">
+  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/chip_ant_mod.jpg?raw=true" width="70%" alt="Chip antenna improved"/>
+</p>
+
 The maximum distance over which we can safely transmit data is an important issue in many applications. Typically small and cheap ESP32 modules have tiny chip antenna soldered on board. With such modules one can expect the operating distance around 10 meters. The efficiency of such chip antenna is close to nothing. Even printed circuit antenna is better and gives you more range. The external antenna is much better choice. One can solder it instead of the chip antenna as shown on the figure below.
 
 ![The ESP32 C3 Super mini module with external antenna](https://github.com/olegv142/esp32-ble/blob/main/doc/c3_supermini_with_antenna.jpg)
