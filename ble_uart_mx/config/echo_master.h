@@ -119,7 +119,7 @@
 // The value defined is broadcast period in milliseconds
 // #define TELL_UPTIME 20
 
-// If defined the binary data transmission is supported (WIP, not implemented yet)
+// If defined the binary data transmission is supported
 // #define BINARY_DATA_SUPPORT
 
 // If define adapter will transparently use extended data frames with the following features:
