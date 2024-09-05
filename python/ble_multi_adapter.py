@@ -272,6 +272,10 @@ class MutliAdapter(AdapterConnection):
 
 class MutliAdapterUSB(MutliAdapter):
 	"""BLE multi-adapter interface using built-in USB CDC"""
+	# The only difference from the base class is start/end tags. Using new line as line terminator is more
+	# convenient while entering commands from terminal. Yet the '\1' '\0' tags are more robust and recommended
+	# for production. One can undefine UART_END in adapter configuration file to use them by default. Use
+	# MutliAdapter class with '\1' '\0' start/end tags.
 	start_tag  = b''
 	end_tag    = b'\n'
 	def __init__(self, port):
@@ -298,6 +302,10 @@ class SimpleAdapter(AdapterConnection):
 
 class SimpleAdapterUSB(SimpleAdapter):
 	"""BLE simple link adapter interface using built-in USB CDC"""
+	# The only difference from the base class is start/end tags. Using new line as line terminator is more
+	# convenient while entering commands from terminal. Yet the '\1' '\0' tags are more robust and recommended
+	# for production. One can undefine UART_END in adapter configuration file to use them by default. Use
+	# SimpleAdapter class with '\1' '\0' start/end tags.
 	start_tag  = b''
 	end_tag    = b'\n'
 	def __init__(self, port):
