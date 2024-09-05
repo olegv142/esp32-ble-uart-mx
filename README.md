@@ -39,6 +39,16 @@ The next big feature that is enabled by default is extended data frames. It adds
 
 If extended data frames are enabled the adapter will split long data frames onto fragments automatically and transparently for the user. The adapter adds one byte header and 3 byte check sum to every such fragment as shown on the figure above. The header byte has 5 bit sequence number incremented on each fragment, the bit marking data as binary (so it should be encoded to base64 before sending to serial link) and two bits marking the first and the last fragment in the particular data frame (single fragment has them both set). At the end of each fragment is the 3 byte checksum. The checksum is cumulative. So each fragment checksum is calculated over that particular fragment data as well as all previous fragments data. The receiving adapter merges fragments and sends the original data frame to serial link if all check sums match. The maximum number of fragments (and so the maximum data frame size) may be configured at compile time. By default the maximum data frame size is 2160 bytes. One can further increase it by increasing MAX_CHUNKS in the configuration file.
 
+### Simple link protocol
+
+![Simple link protocol](https://github.com/olegv142/esp32-ble/blob/main/doc/simple_link.png)
+
+### Stream tags
+
+<p align="center">
+  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/stream_tags.png?raw=true" width="70%" alt="Stream tags"/>
+</p>
+
 ## Notes on data integrity
 The very important question is what BLE stack guarantees regarding integrity of characteristic updates. Does connection state mean some set of guarantees which should be obeyed or connection should be closed by BLE stack? The TCP/IP stack for example follows such strict connection paradigm. The data is either delivered to other side of the connection or connection is closed. It turns out that the connection paradigm in BLE is much looser. The connection at least for the two stacks implementation available for ESP32 is just the context making communication possible but without any guarantees. Though the stack is tending to preserve the integrity and atomicity of the particular update sometimes its failed. Updates may be easily lost, duplicated, reordered or even altered. Yet in some cases the connection may be closed by the stack. But there are no guarantees of updates delivery while the connection is open. That's why its always recommended to use checksums appended transparently to the data when using extended frames. They greatly reduce the possibility of delivering corrupted data. Yet the data frames may still be lost or reordered.
 
@@ -85,12 +95,12 @@ In case you are failed to flash ESP32 board from Arduino do the following:
 * proceed with flashing in Arduino
 
 ## Host API
-The host API implementation for python may be found in **python/ble_multi_adapter.py**. Currently only hardware serial link is supported. Note that USB CDC link typically receives some debug information during ESP32 boot so its useful mostly for testing and debugging (unless the ESP32 chip has another USB adapter as S3 for example). Yet USB CDC may be sufficient for applications that don't need to read from the adapter at all. Consider for example an application that need to send some telemetry information for connected central device. It may just open USB serial port and keep sending telemetry data packets to it prefixed by '>' symbol and terminated by new line symbol.
+The host API implementation for python may be found in **python/ble_multi_adapter.py**. It supports all protocol variants using either physical serial port or USB CDC. Be ware that USB CDC link typically receives some debug information during ESP32 boot. So its better to use stream tags to filter out that messages not related to the adapter or just use it only for data transmission.
 
 ## Testing
 
 ### The hard way
-There are pair of test scripts **multi_echo.py** and **multi_echo_long.py** in **python** folder sending packets to other side that is expected to echo them back. One may use ECHO compilation option to echo data right on the device or use **central_echo.py** script for that purpose.
+The **multi_echo_long.py** script in **python** folder is sending packets to other side that is expected to echo them back. One may use ECHO compilation option to echo data right on the device.
 
 ### The quick way
 If you have only one ESP32 module and want to test **ble_uart_mx** adapter do the following:
