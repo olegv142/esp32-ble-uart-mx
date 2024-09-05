@@ -115,7 +115,7 @@ If you have only one ESP32 module and want to test **ble_uart_mx** adapter do th
 ## Power consumption
 With ESP32C3 one can expect the power current of around 65mA while the adapter is idle. With 3 active connections to peripheral devices each receiving and transmitting 50 short messages per second the current rises up to 120mA. The ESP32S3 power consumption is higher due to dual core CPU. One can expect 90mA while the adapter is idle. In the same 3 connection test it rises up to 115mA though. The power consumption was significantly improved since SDK v.2. Yet its still not quite suitable for battery powered applications.
 
-![Power consumption with 3 active connections](https://github.com/olegv142/esp32-ble/blob/main/doc/power_consumption.jpg)
+![Power consumption with 3 active connections](https://github.com/olegv142/esp32-ble/blob/main/doc/power_consumption.png)
 
 ## Range testing results
 The maximum distance over which we can safely transmit data is an important issue in many applications. Typically small and cheap ESP32 modules have tiny chip antenna soldered on board. With such modules one can expect the operating distance around 10 meters. The efficiency of such chip antenna is close to nothing. Even printed circuit antenna is better and gives you more range. The external antenna is much better choice. One can solder it instead of the chip antenna as shown on the figure below.
