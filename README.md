@@ -44,11 +44,16 @@ If the adapter is used to create simple communication link between two devices w
 
 ![Simple link protocol](https://github.com/olegv142/esp32-ble/blob/main/doc/simple_link.png)
 
+There is no indication of the data destination in the simple link protocol. So the adapter should be properly configured as central or peripheral device. The autoconnect target address (PEER_ADDR) should be set for central device.
+
 ### Stream tags
+Its not uncommon to use serial communication link without hardware flow control just to save pins. Not to mention that ESP32 implementation of the USB CDC serial port does not have flow control at all. So the data may be easily lost in the serial link in case the receiving buffer capacity is exhausted. The stream tags feature helps to detect such data loss / corruption. Stream tags are two bytes immediately following the message start marker (if present) and preceding the message end marker. The first tag is 'opening'. Its value equals to the 0x40 (the code of the symbol @) plus ever incrementing message sequence number modulo 191. The second 'closing' tag value has message length added to the equation as shown by the following figure.  
 
 <p align="center">
   <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/stream_tags.png?raw=true" width="70%" alt="Stream tags"/>
 </p>
+
+One can define STREAM_TAGS in the configuration file to add stream tags to the protocol. With STREAM_TAGS defined the adapter is adding stream tags to the output serial frames. It always able to recognise stream tags on input regardless of that macro definition. Yet with simple link protocol the stream tags must be present on input if and only if the STREAM_TAGS is defined since in simple link protocol the stream tags can't be descriminated from the data.
 
 ## Notes on data integrity
 The very important question is what BLE stack guarantees regarding integrity of characteristic updates. Does connection state mean some set of guarantees which should be obeyed or connection should be closed by BLE stack? The TCP/IP stack for example follows such strict connection paradigm. The data is either delivered to other side of the connection or connection is closed. It turns out that the connection paradigm in BLE is much looser. The connection at least for the two stacks implementation available for ESP32 is just the context making communication possible but without any guarantees. Though the stack is tending to preserve the integrity and atomicity of the particular update sometimes its failed. Updates may be easily lost, duplicated, reordered or even altered. Yet in some cases the connection may be closed by the stack. But there are no guarantees of updates delivery while the connection is open. That's why its always recommended to use checksums appended transparently to the data when using extended frames. They greatly reduce the possibility of delivering corrupted data. Yet the data frames may still be lost or reordered.
