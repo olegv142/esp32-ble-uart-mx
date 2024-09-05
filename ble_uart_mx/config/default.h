@@ -69,6 +69,14 @@
 // Otherwise the USB virtual serial port will be utilized.
 // #define HW_UART
 
+#ifndef HW_UART
+// Use new line terminated messages.
+// Though its more convenient while entering commands from terminal,
+// the '\1' '\0' message delimiters are more robust. Undefine the following
+// to use them by default.
+#define UART_END '\n'
+#endif
+
 #define UART_BAUD_RATE 115200
 
 #ifdef HW_UART

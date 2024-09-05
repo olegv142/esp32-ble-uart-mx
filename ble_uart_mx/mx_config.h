@@ -63,16 +63,14 @@
 // Using hardware UART
 #define DataSerial Serial1
 #define DATA_UART_NUM UART_NUM_1
-#ifndef UART_END
-#define UART_BEGIN '\1'
-#define UART_END   '\0'
-#endif
 #else
 // Using USB CDC
 #define DataSerial Serial
-#ifndef UART_END
-#define UART_END   '\n'
 #endif
+
+#ifndef UART_END
+#define UART_BEGIN '\1'
+#define UART_END   '\0'
 #endif
 
 // Stream tags are optional on input even if STREAM_TAGS not defined
@@ -155,12 +153,6 @@
 #define _XDATA "T"
 #endif
 
-#ifdef STREAM_TAGS
-#define _TAGS "S"
-#else
-#define _TAGS ""
-#endif
-
 #ifdef PASSIVE_ONLY
 #define _MODE "P"
 #elif defined(AUTOCONNECT)
@@ -195,4 +187,4 @@
 #define _UTIME ""
 #endif
 
-#define VARIANT _XDATA _TAGS _MODE _ADVERT _RDONLY _ECHO _UTIME
+#define VARIANT _XDATA _MODE _ADVERT _RDONLY _ECHO _UTIME
