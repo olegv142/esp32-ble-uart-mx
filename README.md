@@ -93,7 +93,7 @@ The compilation options are placed onto the separate header **ble_uart_mx/mx_con
 * configure using extended data frames and/or stream tags
 * setup debug options (TELL_UPTIME, ECHO)
 
-Since configuration options are placed onto the separate file you may conveniently create you own file instead of **ble_uart_mx/config/default.h** or set of files for various device variants.
+Since configuration options are placed onto the separate file you may conveniently create you own file instead of **ble_uart_mx/config/default.h** or set of files for various device variants. The **ble_uart_mx/config/** folder contains the set of configuration files that may be used as starting points while creating your own configuration.
 
 In case you are failed to flash ESP32 board from Arduino do the following:
 * press BOOT button
@@ -136,17 +136,20 @@ The power consumption was significantly improved since SDK v.2. Yet its still no
 
 ## Range testing results
 
+The maximum distance over which we can safely transmit data is an important issue in many applications. Typically small and cheap ESP32 modules have tiny chip antenna soldered on board. With such modules one can expect the operating distance around 10 meters. One can further increase operating range by setting maximum transmission power programmatically. Such power boost is enabled by default in the dapter configuration (TX_BOOST). Yet the ESP32C3 Super Mini modules demonstrated rather low range around 20m even with power boost enabled. The investigation have shown that its not bad antenna that makes receiption weaker than expected. The antenna placement was just choosen improperly. The first rule that is typically violated on all compact boards is placing antenna perpendicular to the edge of the ground polygon. Worse that on ESP32C3 Super Mini the antenna is placed very close to the edge of the ground polygon. To fix that I've unsoldered antennas and solder them back rotated by 90 degrees as shown on the figure below. As a result the range was vastly improved from 20 to 100 meters.
+
 <p align="center">
   <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/chip_ant_mod.jpg?raw=true" width="70%" alt="Chip antenna improved"/>
 </p>
 
-The maximum distance over which we can safely transmit data is an important issue in many applications. Typically small and cheap ESP32 modules have tiny chip antenna soldered on board. With such modules one can expect the operating distance around 10 meters. The efficiency of such chip antenna is close to nothing. Even printed circuit antenna is better and gives you more range. The external antenna is much better choice. One can solder it instead of the chip antenna as shown on the figure below.
+Another possibility is to remove chip antenna and solder external antenna as shown on the figure below. Be ware that chip antenna is fed from one side only. Another side is not connected to anything. So take care to solder cable shield to the ground. Failure to to it may greatly increase power consumption of the module, cause its overheating and damage.
 
 <p align="center">
   <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/ext_ant_.jpg?raw=true" width="50%" alt="External antenna wiring"/>
 </p>
 
-One can further increase operating range by setting maximum transmission power programmatically (TX_PW_BOOST option in mx_config.h). I have tested two modules with external antennas like shown on the figure above with elevated TX power. Inside the building I've got stable transmission between adjacent floors through the layer of reinforced concrete slabs. Outdoors, it showed stable transmission at a distance of 120m with line of sight.
+
+I have tested two modules with external antennas like shown on the figure above with elevated TX power. Inside the building I've got stable transmission between adjacent floors through the layer of reinforced concrete slabs. Outdoors, it showed stable transmission at a distance of 120m with line of sight.
 
 ## Interoperability
 The adapters may be used either to connect to the similar adapter or another BLE adapter or application (Web BLE in particular). Note that using extended data frames requires decoding/encoding them at the other side of the connection if its not using the same **ble_uart_mx** adapter. Though this feature may be disabled at compile time. Apart from that the adapter works flawlessly with Web BLE applications.
