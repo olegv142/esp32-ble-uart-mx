@@ -134,7 +134,6 @@ The power consumption under the load were measured in the following test. The ce
 The power consumption was significantly improved since SDK v.2. Yet its still not quite suitable for battery powered applications.
 
 ## Range testing results
-
 The maximum distance over which we can safely transmit data is an important issue in many applications. Typically small and cheap ESP32 modules have tiny chip antenna soldered on board. With such modules one can expect the operating distance around 10 meters. One can further increase operating range by setting maximum transmission power programmatically. Such power boost is enabled by default in the dapter configuration (TX_BOOST). Yet the ESP32C3 Super Mini modules demonstrated rather low range around 20m even with power boost enabled. The investigation have shown that its not bad antenna that makes receiption weaker than expected. The antenna placement was just choosen improperly. The first rule that is typically violated on all compact boards is placing antenna perpendicular to the edge of the ground polygon. Worse that on ESP32C3 Super Mini the antenna is placed along the edge of the ground polygon with minimal distance to it. So most of the transmitter power were absorbed by the ground plane and converted to the heat rather than electromagnetic radiation. To fix that I've unsoldered antennas and solder them back rotated by 90 degrees as shown on the figure below. As a result the range was vastly improved from 20 to 100 meters.
 
 <p align="center">
@@ -148,6 +147,9 @@ Another possibility is to remove chip antenna and solder external antenna as sho
 </p>
 
 Two modules with external monopole antennas soldered this way have demonstrated the same 100м range as modules with chip antennas in the right orientation. Interestingly the best range of about 150+ meters was demonstrated by WeAct ESP32C3 Core boards with printed circuit antenna.
+
+## Connection state indicator
+The connection state indicator is very useful feature for testing and debugging. The adapter is able to use either plain LED or serially controlled RGB led (aka neo pixel) as connection state indicator. The RGB LED is more informative so the boards with such LED are more preffereable. 
 
 ## Interoperability
 The adapters may be used either to connect to the similar adapter or another BLE adapter or application (Web BLE in particular). Note that using extended data frames requires decoding/encoding them at the other side of the connection if its not using the same **ble_uart_mx** adapter. Though this feature may be disabled at compile time. Apart from that the adapter works flawlessly with Web BLE applications.
