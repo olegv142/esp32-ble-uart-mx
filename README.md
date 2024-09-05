@@ -80,19 +80,20 @@ To be able to build this code examples add the following to Arduino Additional b
 ```
 https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
 ```
-Then go to Boards Manager and install **esp32 by Espressif Systems**. Open **ble_uart_mx** project in Arduino. Select **ESP32C3 Dev Module** if you have ESP32C3 Super Mini and enable **USB CDC On Boot**. After that you can build and flash the adapter code.
+Then go to Boards Manager and install **esp32 by Espressif Systems**. Open **ble_uart_mx** project in Arduino. Select **ESP32C3/ESP32C6/ESP32S3 Dev Module** depending on your board and enable **USB CDC On Boot**. After that you can build and flash the adapter code.
 
-The compilation options are placed onto the separate header **ble_uart_mx/mx_config.h** which includes **ble_uart_mx/default_config.h**. With those options one can
+The compilation options are placed onto the separate header **ble_uart_mx/mx_config.h** which includes **ble_uart_mx/user_config.h** which includes **ble_uart_mx/config/default.h**. With those options one can
 * choose device name
 * choose between USB CDC and hardware UART for communications
 * configure hardware UART parameters (pins, flow control)
-* disable status and/or debug events if user is interested in data events only
+* configure connection status LED
+* disable status and/or debug events or enable simple link protocol if user is interested in data events only
 * configure device behavior, for example disable discovery
 * configure auto-connecting on startup
-* configure using extended data frames or binary data encoding
+* configure using extended data frames and/or stream tags
 * setup debug options (TELL_UPTIME, ECHO)
 
-Since configuration options are placed onto the separate file you may conveniently create you own file instead of **default_config.h** or set of files for various device variants.
+Since configuration options are placed onto the separate file you may conveniently create you own file instead of **ble_uart_mx/config/default.h** or set of files for various device variants.
 
 In case you are failed to flash ESP32 board from Arduino do the following:
 * press BOOT button
@@ -101,7 +102,7 @@ In case you are failed to flash ESP32 board from Arduino do the following:
 * proceed with flashing in Arduino
 
 ## Host API
-The host API implementation for python may be found in **python/ble_multi_adapter.py**. It supports all protocol variants using either physical serial port or USB CDC. Be ware that USB CDC link typically receives some debug information during ESP32 boot. So its better to use stream tags to filter out that messages not related to the adapter or just use it only for data transmission.
+The host API implementation for python may be found in **python/ble_multi_adapter.py**. It supports all protocol variants using either physical serial port or USB CDC.
 
 ## Testing
 
