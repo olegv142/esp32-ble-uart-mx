@@ -142,14 +142,13 @@ The maximum distance over which we can safely transmit data is an important issu
   <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/chip_ant_mod.jpg?raw=true" width="70%" alt="Chip antenna improved"/>
 </p>
 
-Another possibility is to remove chip antenna and solder external antenna as shown on the figure below. Be ware that chip antenna is fed from one side only. Another side is not connected to anything. So take care to solder cable shield to the ground. Failure to to it may greatly increase power consumption of the module, cause its overheating and damage.
+Another possibility is to remove chip antenna and solder external antenna as shown on the figure below. Be ware that chip antenna is fed from one side only. Another side is not connected to anything. So take care to solder cable shield to the ground. Failure to do it may greatly increase power consumption of the module, cause its overheating and damage.
 
 <p align="center">
   <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/ext_ant_.jpg?raw=true" width="50%" alt="External antenna wiring"/>
 </p>
 
-
-I have tested two modules with external antennas like shown on the figure above with elevated TX power. Inside the building I've got stable transmission between adjacent floors through the layer of reinforced concrete slabs. Outdoors, it showed stable transmission at a distance of 120m with line of sight.
+Two modules with external monopole antennas soldered this way have demonstrated the same 100м range as modules with chip antennas in the right orientation. Interestingly the best range of about 150+ meters was demonstrated by WeAct ESP32C3 Core boards with printed circuit antenna.
 
 ## Interoperability
 The adapters may be used either to connect to the similar adapter or another BLE adapter or application (Web BLE in particular). Note that using extended data frames requires decoding/encoding them at the other side of the connection if its not using the same **ble_uart_mx** adapter. Though this feature may be disabled at compile time. Apart from that the adapter works flawlessly with Web BLE applications.
