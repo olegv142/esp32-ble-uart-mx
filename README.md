@@ -53,7 +53,7 @@ Its not uncommon to use serial communication link without hardware flow control 
   <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/stream_tags.png?raw=true" width="70%" alt="Stream tags"/>
 </p>
 
-One can define STREAM_TAGS in the configuration file to add stream tags to the protocol. With STREAM_TAGS defined the adapter is adding stream tags to the output serial frames. It always able to recognise stream tags on input regardless of that macro definition. Yet with simple link protocol the stream tags must be present on input if and only if the STREAM_TAGS is defined since in simple link protocol the stream tags can't be descriminated from the data.
+One can define STREAM_TAGS in the configuration file to add stream tags to the protocol. With STREAM_TAGS defined the adapter is adding stream tags to the output serial data stream. It always able to recognise stream tags on input regardless of that macro definition. Yet with simple link protocol the stream tags must be present on input if and only if the STREAM_TAGS is defined since in simple link protocol the stream tags can't be descriminated from the data.
 
 ## Notes on data integrity
 The very important question is what BLE stack guarantees regarding integrity of characteristic updates. Does connection state mean some set of guarantees which should be obeyed or connection should be closed by BLE stack? The TCP/IP stack for example follows such strict connection paradigm. The data is either delivered to other side of the connection or connection is closed. It turns out that the connection paradigm in BLE is much looser. The connection at least for the two stacks implementation available for ESP32 is just the context making communication possible but without any guarantees. Though the stack is tending to preserve the integrity and atomicity of the particular update sometimes its failed. Updates may be easily lost, duplicated, reordered or even altered. Yet in some cases the connection may be closed by the stack. But there are no guarantees of updates delivery while the connection is open. That's why its always recommended to use checksums appended transparently to the data when using extended frames. They greatly reduce the possibility of delivering corrupted data. Yet the data frames may still be lost or reordered.
@@ -111,7 +111,6 @@ The **multi_echo_long.py** script in **python** folder is sending packets to oth
 
 ### The quick way
 If you have only one ESP32 module and want to test **ble_uart_mx** adapter do the following:
-* enable using built-in USB CDC by commenting out HW_UART define in mx_config.h
 * build and flash **ble_uart_mx** project by Arduino
 * open Arduino Serial Monitor
 * observe idle events
@@ -136,13 +135,13 @@ The power consumption was significantly improved since SDK v.2. Yet its still no
 
 ## Range testing results
 
-The maximum distance over which we can safely transmit data is an important issue in many applications. Typically small and cheap ESP32 modules have tiny chip antenna soldered on board. With such modules one can expect the operating distance around 10 meters. One can further increase operating range by setting maximum transmission power programmatically. Such power boost is enabled by default in the dapter configuration (TX_BOOST). Yet the ESP32C3 Super Mini modules demonstrated rather low range around 20m even with power boost enabled. The investigation have shown that its not bad antenna that makes receiption weaker than expected. The antenna placement was just choosen improperly. The first rule that is typically violated on all compact boards is placing antenna perpendicular to the edge of the ground polygon. Worse that on ESP32C3 Super Mini the antenna is placed very close to the edge of the ground polygon. To fix that I've unsoldered antennas and solder them back rotated by 90 degrees as shown on the figure below. As a result the range was vastly improved from 20 to 100 meters.
+The maximum distance over which we can safely transmit data is an important issue in many applications. Typically small and cheap ESP32 modules have tiny chip antenna soldered on board. With such modules one can expect the operating distance around 10 meters. One can further increase operating range by setting maximum transmission power programmatically. Such power boost is enabled by default in the dapter configuration (TX_BOOST). Yet the ESP32C3 Super Mini modules demonstrated rather low range around 20m even with power boost enabled. The investigation have shown that its not bad antenna that makes receiption weaker than expected. The antenna placement was just choosen improperly. The first rule that is typically violated on all compact boards is placing antenna perpendicular to the edge of the ground polygon. Worse that on ESP32C3 Super Mini the antenna is placed along the edge of the ground polygon with minimal distance to it. So most of the transmitter power were absorbed by the ground plane and converted to the heat rather than electromagnetic radiation. To fix that I've unsoldered antennas and solder them back rotated by 90 degrees as shown on the figure below. As a result the range was vastly improved from 20 to 100 meters.
 
 <p align="center">
   <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/chip_ant_mod.jpg?raw=true" width="70%" alt="Chip antenna improved"/>
 </p>
 
-Another possibility is to remove chip antenna and solder external antenna as shown on the figure below. Be ware that chip antenna is fed from one side only. Another side is not connected to anything. So take care to solder cable shield to the ground. Failure to do it may greatly increase power consumption of the module, cause its overheating and damage.
+Another possibility is to remove chip antenna and solder external antenna as shown on the figure below. Be aware that chip antenna is fed from one side only. Another side is not connected to anything. So take care to solder cable shield to the ground. Failure to do it may greatly increase power consumption of the module, cause its overheating and damage.
 
 <p align="center">
   <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/ext_ant_.jpg?raw=true" width="50%" alt="External antenna wiring"/>
