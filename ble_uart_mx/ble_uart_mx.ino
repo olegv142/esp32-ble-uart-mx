@@ -1339,7 +1339,8 @@ static bool process_msg_(const char* str, size_t len)
     ++parse_err.cnt;
     return true;
   }
-#if defined(STREAM_TAGS) && defined(SIMPLE_LINK)
+#if defined(STREAM_TAGS) || !defined(SIMPLE_LINK)
+#if defined(STREAM_TAGS) &&  defined(SIMPLE_LINK)
   if (!is_stream_tag(str[0])) {
     ++parse_err.cnt;
     return true;
@@ -1354,6 +1355,7 @@ static bool process_msg_(const char* str, size_t len)
     str += 1;
     len -= 2;
   }
+#endif
   bool const res = process_msg(str, len);
   if (res && topen)
       last_rx_tag = topen;
