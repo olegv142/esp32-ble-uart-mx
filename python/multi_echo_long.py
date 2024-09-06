@@ -194,7 +194,7 @@ class EchoTest(MutliAdapter):
 		for i in range(len(self.targets)):
 			self.tstream[i].print_stat('[%d] ' % i)
 			print(hline)
-		print('test duration: %.2f sec, stale time: %.2f sec' % (time.time() - self.created_ts, self.stale_time))
+		print('test duration: %.2f sec, stall time: %.2f sec' % (time.time() - self.created_ts, self.stall_time))
 		print('parse errors: %u, lost frames: %u' % (self.parse_errors, self.lost_frames))
 		print('debug messages:')
 		for msg, cnt in self.dbg_msgs.items():

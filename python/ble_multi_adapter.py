@@ -219,43 +219,49 @@ class AdapterConnection:
 
 class MutliAdapter(AdapterConnection):
 	"""BLE multi-adapter interface class"""
-	stale_tout = 2 # sec
+	stall_tout = 2 # sec
 
 	def __init__(self, port):
 		super().__init__(port)
 		self.status_ts = 0
-		self.is_stale = True
-		self.stale_ts = None
-		self.stale_time = 0
+		self.is_stall = True
+		self.stall_ts = None
+		self.stall_time = 0
 
 	def is_congested(self):
-		return super().is_congested() or self.is_stale
+		"""Client should avoid submitting new data if adapter is congested"""
+		return super().is_congested() or self.is_stall
 
 	def reset(self):
 		"""Reset adapter"""
 		super().reset()
 		self.write_msg(b'#R')
-		self.is_stale = True
-		self.stale_ts = None
+		self.is_stall = True
+		self.stall_ts = None
 
-	def chk_stale(self):
+	def chk_stall(self):
+		"""Adapter is considered stall if its not sending status messages at expected interval (1 sec)"""
 		now = time.time()
-		if not self.is_stale and now > self.status_ts + self.stale_tout:
-			self.is_stale = True
-			self.stale_ts = now
-		return self.is_stale
+		if not self.is_stall and now > self.status_ts + self.stall_tout:
+			self.is_stall = True
+			self.stall_ts = now
+		return self.is_stall
 
 	def communicate(self):
-		self.chk_stale()
+		"""Send/receive data to/from adapter"""
+		self.chk_stall()
 		super().communicate()
 
 	def can_transmit(self):
-		return not self.chk_stale()
+		"""Called by communicate implementation to check if we allowed to transmit data to adapter"""
+		return not self.chk_stall()
 
 	def connect(self, peers):
+		"""Connect to the list of device addresses"""
 		self.submit_msg(b'#C' + b' '.join(peers))
 
 	def advertise(self):
+		"""Turn on advertising if was hidden"""
 		self.submit_msg(b'#A')
 
 	def send_data(self, data, binary=False):
@@ -285,10 +291,10 @@ class MutliAdapter(AdapterConnection):
 
 	def on_stable_status(self):
 		self.status_ts = time.time()
-		if self.is_stale:
-			self.is_stale = False
-			if self.stale_ts:
-				self.stale_time += time.time() - self.stale_ts
+		if self.is_stall:
+			self.is_stall = False
+			if self.stall_ts:
+				self.stall_time += time.time() - self.stall_ts
 
 	def on_status_msg(self, msg):
 		tag = msg[:1]
