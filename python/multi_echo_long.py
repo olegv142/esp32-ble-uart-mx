@@ -232,9 +232,12 @@ def chk_opt(name):
 
 def test_simple():
 	nl_term = chk_opt('-n')
+	stream_tags = chk_opt('-s')
 	with SimpleEchoTest(sys.argv[1]) as ad:
 		if nl_term:
 			ad.selt_nl_terminator()
+		if stream_tags:
+			ad.use_stream_tags()
 		try:
 			while True:
 				ad.communicate()

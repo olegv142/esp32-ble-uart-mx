@@ -76,6 +76,9 @@ class AdapterConnection:
 		"""Use new line symbol as message terminator"""
 		self.set_terminator(b'\n')
 
+	def use_stream_tags(use = True):
+		self.use_tags = use
+
 	def is_congested(self):
 		return len(self.tx_queue) > self.congest_thr
 
@@ -176,6 +179,9 @@ class AdapterConnection:
 		self.rx_buff = self.rx_buff[tail:]
 
 	def process_frame(self, msg):
+		if not self.use_tags and not self.opt_tags:
+			self.process_msg(msg)
+			return
 		if not msg or not self.is_stream_tag(topen := msg[0]):
 			if self.opt_tags:
 				self.process_msg(msg)
@@ -285,6 +291,9 @@ class MutliAdapter(AdapterConnection):
 
 class SimpleAdapter(AdapterConnection):
 	"""BLE simple link adapter interface class"""
+	use_tags = False
+	opt_tags = False
+
 	def __init__(self, port):
 		super().__init__(port)
 
