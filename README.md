@@ -1,4 +1,4 @@
-# esp32-ble (ble_uart_mx)
+# esp32-ble-uart-mx
 This is the multipurpose dual role BLE to serial bridge capable of creating multiple connections to other peripheral devices as well as acting as peripheral accepting connections from other central device. Its operation is controlled by the host via the same serial link as used for data transfers. Multiple compile time configuration options are provided to meet requirements in a variety of applications. For example it may be used for gathering telemetry data from some set of devices, providing communication link for commands / responses from controlling application or for creating bidirectional wireless communication channel between the pair of devices. It uses Arduino as building platform to keep code compact and make building and flashing as simple as possible. The adapter was tested on ESP32, ESP32C3, ESP32C6 and ESP32S3 with Espressif board support package version 3.0.3.
 
 ## Architecture and communication protocol
