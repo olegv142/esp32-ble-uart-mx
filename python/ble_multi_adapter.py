@@ -63,6 +63,19 @@ class AdapterConnection:
 			self.com.close()
 			self.com = None
 
+	def set_start_end_tags(self, tstart, tend):
+		"""Set non default start / end tags"""
+		self.start_tag = tstart
+		self.end_tag   = tend
+
+	def set_terminator(self, tend):
+		"""Set end tag while not using start tag"""
+		self.set_start_end_tags(b'', tend)
+
+	def selt_nl_terminator(self):
+		"""Use new line symbol as message terminator"""
+		self.set_terminator(b'\n')
+
 	def is_congested(self):
 		return len(self.tx_queue) > self.congest_thr
 
@@ -270,17 +283,6 @@ class MutliAdapter(AdapterConnection):
 	def on_peer_msg(self, idx, msg):
 		pass
 
-class MutliAdapterUSB(MutliAdapter):
-	"""BLE multi-adapter interface using built-in USB CDC"""
-	# The only difference from the base class is start/end tags. Using new line as line terminator is more
-	# convenient while entering commands from terminal. Yet the '\1' '\0' tags are more robust and recommended
-	# for production. One can undefine UART_END in adapter configuration file to use them by default. Use
-	# MutliAdapter class with '\1' '\0' start/end tags.
-	start_tag  = b''
-	end_tag    = b'\n'
-	def __init__(self, port):
-		super().__init__(port)
-
 class SimpleAdapter(AdapterConnection):
 	"""BLE simple link adapter interface class"""
 	def __init__(self, port):
@@ -300,13 +302,3 @@ class SimpleAdapter(AdapterConnection):
 	def on_data_received(self, data):
 		pass
 
-class SimpleAdapterUSB(SimpleAdapter):
-	"""BLE simple link adapter interface using built-in USB CDC"""
-	# The only difference from the base class is start/end tags. Using new line as line terminator is more
-	# convenient while entering commands from terminal. Yet the '\1' '\0' tags are more robust and recommended
-	# for production. One can undefine UART_END in adapter configuration file to use them by default. Use
-	# SimpleAdapter class with '\1' '\0' start/end tags.
-	start_tag  = b''
-	end_tag    = b'\n'
-	def __init__(self, port):
-		super().__init__(port)

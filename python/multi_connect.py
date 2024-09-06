@@ -8,12 +8,9 @@ Author: Oleg Volkov
 
 import sys
 sys.path.append('.')
-from ble_multi_adapter import MutliAdapter, MutliAdapterUSB
+from ble_multi_adapter import MutliAdapter
 
-# If True use hardware UART else USB CDC
-hw_uart = False
-
-class TestMutliAdapter(MutliAdapter if hw_uart else MutliAdapterUSB):
+class TestMutliAdapter(MutliAdapter):
 	def __init__(self, port, peers=None):
 		super().__init__(port)
 		self.peers = peers
@@ -39,9 +36,13 @@ class TestMutliAdapter(MutliAdapter if hw_uart else MutliAdapterUSB):
 		print('[%d] %r' % (idx, msg))
 
 if __name__ == '__main__':
+	if nl_term := '-n' in sys.argv:
+		 sys.argv.remove('-n')
 	port  = sys.argv[1]
 	peers = [addr.encode() for addr in sys.argv[2:]]
 	with TestMutliAdapter(port, peers) as ad:
+		if nl_term:
+			ad.selt_nl_terminator()
 		ad.reset()
 		try:
 			while True:

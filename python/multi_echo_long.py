@@ -14,10 +14,7 @@ import random
 from collections import defaultdict
 
 sys.path.append('.')
-from ble_multi_adapter import MutliAdapter, MutliAdapterUSB, SimpleAdapter, SimpleAdapterUSB
-
-# If True use hardware UART else USB CDC
-hw_uart = False
+from ble_multi_adapter import MutliAdapter, SimpleAdapter
 
 # If false all messages will have maximum allowed size
 random_size = True
@@ -121,7 +118,7 @@ class TestStream:
 				prefix, self.valid_cnt, self.lost_cnt, self.dup_cnt, self.reorder_cnt, self.corrupt_cnt
 			))
 
-class EchoTest(MutliAdapter if hw_uart else MutliAdapterUSB):
+class EchoTest(MutliAdapter):
 	def __init__(self, port, targets = None, active = None, peripheral = None):
 		super().__init__(port)
 		ntargets = len(targets)
@@ -201,7 +198,7 @@ class EchoTest(MutliAdapter if hw_uart else MutliAdapterUSB):
 		for msg, cnt in self.dbg_msgs.items():
 			print('%u: %s' % (cnt, msg))
 
-class SimpleEchoTest(SimpleAdapter if hw_uart else SimpleAdapterUSB):
+class SimpleEchoTest(SimpleAdapter):
 	def __init__(self, port):
 		super().__init__(port)
 		self.stream = TestStream(no_wait=True)
@@ -234,7 +231,10 @@ def chk_opt(name):
 	return opt
 
 def test_simple():
+	nl_term = chk_opt('-n')
 	with SimpleEchoTest(sys.argv[1]) as ad:
+		if nl_term:
+			ad.selt_nl_terminator()
 		try:
 			while True:
 				ad.communicate()
@@ -242,12 +242,15 @@ def test_simple():
 			ad.print_stat()
 
 def test_multi():
+	nl_term = chk_opt('-n')
 	first_only = chk_opt('--first-only')
 	last_only  = chk_opt('--last-only')
 	peripheral = chk_opt('--peripheral')
 	targets = [addr.encode() for addr in sys.argv[2:]]
 	active = [0] if first_only else [len(targets)-1] if last_only else None
 	with EchoTest(sys.argv[1], targets, active, True if peripheral else None) as ad:
+		if nl_term:
+			ad.selt_nl_terminator()
 		ad.reset()
 		try:
 			while True:
