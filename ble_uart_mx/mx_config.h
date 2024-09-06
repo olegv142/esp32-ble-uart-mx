@@ -28,12 +28,14 @@
 #endif
 #endif
 
-#if defined(CENTRAL_ONLY) && defined(PASSIVE_ONLY)
-#error "CENTRAL_ONLY and PASSIVE_ONLY can't be defined at the same time"
+#if !defined(PASSIVE_ONLY) && defined(AUTOCONNECT) 
+#if !defined(PEER_ADDR) && !defined(PEER_ADDR1) && !defined(PEER_ADDR2) && !defined(PEER_ADDR3)
+#error "At least one PEER_ADDR must be defined with AUTOCONNECT"
+#endif
 #endif
 
-#if defined(CENTRAL_ONLY) && defined(AUTOCONNECT) && !defined(PEER_ADDR)
-#error "PEER_ADDR must be defined with AUTOCONNECT"
+#if defined(CENTRAL_ONLY) && defined(PASSIVE_ONLY)
+#error "CENTRAL_ONLY and PASSIVE_ONLY can't be defined at the same time"
 #endif
 
 #ifdef SIMPLE_LINK
