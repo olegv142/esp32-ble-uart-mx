@@ -1442,16 +1442,14 @@ static void monitor_peers()
       break;
 
 #ifdef STATUS_REPORT_INTERVAL
-  uint32_t const now = millis();
-  if (is_idle()) {
+  if (!is_congested) {
+    uint32_t const now = millis();
     if (!last_status_ts || elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
+      if (is_idle())
+        report_idle();
+      else if (is_connected())
+        report_connected();
       last_status_ts = now;
-      report_idle();
-    }
-  } else if (is_connected() && !is_congested) {
-    if (elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
-      last_status_ts = now;
-      report_connected();
     }
   }
 #endif
