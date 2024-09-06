@@ -113,7 +113,7 @@ class TestStream:
 
 	def print_stat(self, prefix):
 		print('%sconnected %u time(s)' % (prefix, self.conn_cnt))
-		print('%s%u msgs sent, %u received (%u bytes, %u/sec)' % (prefix, self.last_tx_sn, self.msg_cnt, self.byte_cnt, self.byte_cnt / (time.time() - self.created_ts + 1)))
+		print('%s%u msgs sent, %u received (%u bytes, %u/sec)' % (prefix, self.last_tx_sn, self.msg_cnt, self.byte_cnt, self.byte_cnt / (time.time() - self.created_ts + .001)))
 		print('%s%u valid, %u lost, %u dup, %u reorder, %u corrupt)' % (
 				prefix, self.valid_cnt, self.lost_cnt, self.dup_cnt, self.reorder_cnt, self.corrupt_cnt
 			))
@@ -134,6 +134,7 @@ class EchoTest(MutliAdapter):
 		self.dbg_msgs = defaultdict(int)
 		self.pstream = TestStream() if peripheral else None
 		self.tstream = [TestStream() for _ in targets]
+		self.created_ts = time.time()
 
 	def send_msg(self, connected):
 		if self.pstream is not None:
@@ -193,6 +194,7 @@ class EchoTest(MutliAdapter):
 		for i in range(len(self.targets)):
 			self.tstream[i].print_stat('[%d] ' % i)
 			print(hline)
+		print('test duration: %.2f sec, stale time: %.2f sec' % (time.time() - self.created_ts, self.stale_time))
 		print('parse errors: %u, lost frames: %u' % (self.parse_errors, self.lost_frames))
 		print('debug messages:')
 		for msg, cnt in self.dbg_msgs.items():

@@ -5,6 +5,7 @@ Author: Oleg Volkov
 """
 
 import sys
+import time
 import base64
 import binascii
 from serial import Serial, PARITY_NONE, PARITY_EVEN
@@ -208,13 +209,31 @@ class AdapterConnection:
 
 class MutliAdapter(AdapterConnection):
 	"""BLE multi-adapter interface class"""
+	stale_tout = 2 # sec
+
 	def __init__(self, port):
 		super().__init__(port)
+		self.status_ts = 0
+		self.is_stale = True
+		self.stale_ts = None
+		self.stale_time = 0
+
+	def is_congested(self):
+		return super().is_congested() or self.is_stale
 
 	def reset(self):
 		"""Reset adapter"""
 		super().reset()
 		self.write_msg(b'#R')
+		self.is_stale = True
+		self.stale_ts = None
+
+	def communicate(self):
+		now = time.time()
+		if not self.is_stale and now > self.status_ts + self.stale_tout:
+			self.is_stale = True
+			self.stale_ts = now
+		super().communicate()
 
 	def connect(self, peers):
 		self.submit_msg(b'#C' + b' '.join(peers))
@@ -247,9 +266,17 @@ class MutliAdapter(AdapterConnection):
 		else:
 			self.parse_errors += 1
 
+	def on_stable_status(self):
+		self.status_ts = time.time()
+		if self.is_stale:
+			self.is_stale = False
+			if self.stale_ts:
+				self.stale_time += time.time() - self.stale_ts
+
 	def on_status_msg(self, msg):
 		tag = msg[:1]
 		if tag == b'I':
+			self.on_stable_status()
 			if msg[1:2] == b'h':
 				self.on_idle(True, msg[2:].strip())
 			else:
@@ -257,6 +284,7 @@ class MutliAdapter(AdapterConnection):
 		elif tag == b'C':
 			self.on_connecting(msg[1] - b'0'[0])
 		elif tag == b'D':
+			self.on_stable_status()
 			self.on_connected(msg[1:2] == b'h')
 		else:
 			self.parse_errors += 1
