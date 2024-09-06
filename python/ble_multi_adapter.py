@@ -125,14 +125,24 @@ class AdapterConnection:
 		while rx_bytes := self.com.read(4096):
 			self.process_rx(rx_bytes)
 
+	def can_transmit(self):
+		return True
+
 	def communicate(self):
 		"""Communicate with adapter"""
 		self.receive()
+		if not (can_tx := self.can_transmit()):
+			return
 		tx_queue = self.tx_queue
-		self.tx_queue = []
+		self.tx_queue, delay_queue = [], []
 		for msg in tx_queue:
-			self.write_msg(msg)
-			self.receive()
+			if can_tx and self.can_transmit():
+				self.write_msg(msg)
+				self.receive()
+			else:
+				can_tx = False
+				delay_queue.append(msg)
+		self.tx_queue = delay_queue + self.tx_queue
 
 	def submit_msg(self, msg):
 		self.tx_queue.append(msg)
@@ -228,12 +238,19 @@ class MutliAdapter(AdapterConnection):
 		self.is_stale = True
 		self.stale_ts = None
 
-	def communicate(self):
+	def chk_stale(self):
 		now = time.time()
 		if not self.is_stale and now > self.status_ts + self.stale_tout:
 			self.is_stale = True
 			self.stale_ts = now
+		return self.is_stale
+
+	def communicate(self):
+		self.chk_stale()
 		super().communicate()
+
+	def can_transmit(self):
+		return not self.chk_stale()
 
 	def connect(self, peers):
 		self.submit_msg(b'#C' + b' '.join(peers))
