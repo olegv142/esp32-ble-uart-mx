@@ -76,7 +76,7 @@ class AdapterConnection:
 		"""Use new line symbol as message terminator"""
 		self.set_terminator(b'\n')
 
-	def use_stream_tags(use = True):
+	def use_stream_tags(self, use = True):
 		self.use_tags = use
 
 	def is_congested(self):
