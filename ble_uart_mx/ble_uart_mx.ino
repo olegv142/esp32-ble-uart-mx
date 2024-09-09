@@ -1008,6 +1008,7 @@ static void bt_device_start()
 
 #ifdef NEO_PIXEL_PIN
 #define NPX_LED_BITS (3*8)
+#define NPX_IDLE_DELAY 2
 static rmt_data_t neopix_led[cx_status_cnt][NPX_LED_BITS];
 static cx_status_t neopix_conn_status;
 
@@ -1015,7 +1016,7 @@ static inline void neopix_conn_set(cx_status_t sta)
 {
   static uint32_t last_set;
   uint32_t const now = millis();
-  if (elapsed(last_set, now) < 50)
+  if (elapsed(last_set, now) < NPX_IDLE_DELAY)
     return;
   neopix_led_write(NEO_PIXEL_PIN, neopix_led[sta]);
   neopix_conn_status = sta;
@@ -1036,6 +1037,7 @@ static void neopix_init()
     return;
   }
   neopix_conn_set(cx_idle);
+  delay(NPX_IDLE_DELAY+1);
 }
 
 static inline void neopix_conn_up(cx_status_t sta)
@@ -1118,6 +1120,8 @@ void Peer::connect()
   uart_print(m_addr);
   uart_end();
 #endif
+
+  neopix_conn_up(cx_establishing);
 
   if (!m_Client) {
     m_Client = BLEDevice::createClient();
