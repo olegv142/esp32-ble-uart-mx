@@ -165,6 +165,8 @@ Another issue observed in tests is the possibility of deadlock while using CTS/R
 
 Care should be taken when using the same USB CDC port for communicating with adapter as used by ESP32 boot loader. The boot loader used to emit some information to it at boot. So its important to discriminate that information from the the adapter messages. Using bytes 1 and 0 as start / end markers and stream tags solves this problem. But what is even more important is that data sent to the port may be interpreted by boot loader in unexpected way. This issue is typically manifests itself as rebooting adapter in a loop while its fed with input messages. The full featured version of the protocol is more robust than the simple link since it provides the host with information on current state of the adapter. The python interface class **MutliAdapter** provides some built in protection against such failures.
 
+When operating at maximum transmission power, the transceiver may fail due to output overload. To avoid such errors, the adapter does not use the maximum possible power, setting the power level 5..6 dB lower.
+
 ## Other experimental projects
 A bunch of experimental projects created mostly for testing during the work on this project are located in **simple** folder.
 
