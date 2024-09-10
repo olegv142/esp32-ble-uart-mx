@@ -1047,6 +1047,15 @@ static inline void neopix_conn_up(cx_status_t sta)
 }
 #endif
 
+static void show_conn_status(bool congested = false)
+{
+#ifdef NEO_PIXEL_PIN
+  neopix_conn_up(get_connect_status_ex(congested));
+#elif defined(CONNECTED_LED)
+  digitalWrite(CONNECTED_LED, get_connected_indicator() ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
+#endif
+}
+
 static void hw_init()
 {
   DataSerial.setRxBufferSize(UART_RX_BUFFER_SZ);
@@ -1121,7 +1130,7 @@ void Peer::connect()
   uart_end();
 #endif
 
-  neopix_conn_up(cx_establishing);
+  show_conn_status();
 
   if (!m_Client) {
     m_Client = BLEDevice::createClient();
@@ -1504,15 +1513,6 @@ static bool cli_receive()
     return false;
   cli_buff_data_sz += sz;
   return true;
-}
-
-static void show_conn_status(bool congested)
-{
-#ifdef NEO_PIXEL_PIN
-  neopix_conn_up(get_connect_status_ex(congested));
-#elif defined(CONNECTED_LED)
-  digitalWrite(CONNECTED_LED, get_connected_indicator() ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
-#endif
 }
 
 static unsigned chk_errors()
