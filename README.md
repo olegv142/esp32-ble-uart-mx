@@ -140,6 +140,12 @@ The maximum distance over which we can safely transmit data is an important issu
   <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/chip_ant_mod.jpg?raw=true" width="70%" alt="Chip antenna improved"/>
 </p>
 
+Another option is to replace the built-in antenna with a 1/4 wavelength (30 mm) wire, as shown in the picture below. You can bend it as shown to make it more compact. This setup provides a range of 100 meters.
+
+<p align="center">
+  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/wire_ant.jpg?raw=true" width="50%" alt="Wire antenna"/>
+</p>
+
 Another possibility is to remove chip antenna and solder external antenna as shown on the figure below. Be aware that chip antenna is fed from one side only. Another side is not connected to anything. So take care to solder cable shield to the ground. Failure to do it may greatly increase power consumption of the module, cause its overheating and damage.
 
 <p align="center">
