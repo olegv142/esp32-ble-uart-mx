@@ -120,7 +120,7 @@
 
 // Watchdog timeout. It will restart esp32 if some operation will hung.
 #ifndef WDT_TIMEOUT
-#define WDT_TIMEOUT 15000 // msec
+#define WDT_TIMEOUT 12000 // msec
 #endif
 
 #ifndef CONGESTION_DELAY
