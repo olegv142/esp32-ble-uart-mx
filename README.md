@@ -125,6 +125,7 @@ The results of measuring idle power consumption with maximum and lowered CPU fre
 |ESP32C3| 60mA           | 50mA               |
 |ESP32C6| 68mA           | 60mA               |
 |ESP32S3| 95mA           | 65mA               |
+|ESP32H2| 26mA           |                    |
 
 The power consumption under the load were measured in the following test. The central device was creating 3 active connections to peripheral devices each transmitting 50 short messages per second. There were two versions of the test. In the first version the central device did nothing with messages received. In the second version the central device was sending them back to peripheral devices. Results are shown on the following figure.
 
