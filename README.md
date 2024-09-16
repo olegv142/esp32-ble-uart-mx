@@ -122,16 +122,33 @@ If you have only one ESP32 module and want to test **ble_uart_mx** adapter do th
 The results of measuring idle power consumption with maximum and lowered CPU frequency are shown in the table below.  
 | MCU | Max frequency | Min frequency (80MHz) |
 |-------|----------------|--------------------|
-|ESP32C3| 60mA           | 50mA               |
+|ESP32C3| 56mA           | 48mA               |
 |ESP32C6| 68mA           | 60mA               |
-|ESP32S3| 95mA           | 65mA               |
-|ESP32H2| 26mA           |                    |
+|ESP32S3| 93mA           | 63mA               |
+|ESP32H2| 27mA           |                    |
 
-The power consumption under the load were measured in the following test. The central device was creating 3 active connections to peripheral devices each transmitting 50 short messages per second. There were two versions of the test. In the first version the central device did nothing with messages received. In the second version the central device was sending them back to peripheral devices. Results are shown on the following figure.
+The power consumption under the load were measured in the following test. The central device was creating 3 active connections to peripheral devices each transmitting 50 short messages per second. There were two versions of the test. In the first version the central device did nothing with messages received. In the second version the central device was sending them back to peripheral devices. 
+The peripheral power consumption in both tests were barely the same. The results are shown in the following table.
+| MCU | Max frequency | Min frequency (80MHz) |
+|-------|----------------|--------------------|
+|ESP32C3| 64mA           | 56mA               |
+|ESP32C6| 76mA           | 68mA               |
+|ESP32H2| 31mA           |                    |
 
-<p align="center">
-  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/power_consumption.png?raw=true" width="70%" alt="Power consumption with 3 active connections"/>
-</p>
+The central device receiving 3x50 messages per second consumes power as shown in the following table.
+| MCU | Max frequency | Min frequency (80MHz) |
+|-------|----------------|--------------------|
+|ESP32C3| 66mA           | 58mA               |
+|ESP32C6| 78mA           | 70mA               |
+|ESP32S3| 100mA          | 70mA               |
+
+Results for central device sending and receiving 3x50 messages per second are shown in the following table.
+| MCU | Max frequency | Min frequency (80MHz) |
+|-------|----------------|--------------------|
+|ESP32C3| 77mA           | 69mA               |
+|ESP32C6| 90mA           | 81mA               |
+|ESP32S3| 115mA          | 85mA               |
+
 The power consumption was significantly improved since SDK v.2. Yet its still not quite suitable for battery powered applications. Please note that while using a lower processor clock speed helps reduce power consumption, it also increases the chance of data loss when transmitting data by BLE stack.
 
 ## Range testing results
@@ -173,6 +190,8 @@ Another issue observed in tests is the possibility of deadlock while using CTS/R
 Care should be taken when using the same USB CDC port for communicating with adapter as used by ESP32 boot loader. The boot loader used to emit some information to it at boot. So its important to discriminate that information from the the adapter messages. Using bytes 1 and 0 as start / end markers and stream tags solves this problem. But what is even more important is that data sent to the port may be interpreted by boot loader in unexpected way. This issue is typically manifests itself as rebooting adapter in a loop while its fed with input messages. The full featured version of the protocol is more robust than the simple link since it provides the host with information on current state of the adapter. The python interface class **MutliAdapter** provides some built in protection against such failures.
 
 When operating at maximum transmission power, the transceiver may fail due to output overload. To avoid such errors, the adapter does not use the maximum possible power, setting the power level 5..6 dB lower.
+
+The ESP32H2 demonstrating lowest power consumption is failed to establish more than one connection to peripheral device. Its yet unknown if this is the bug or just platform limitation.
 
 ## Other experimental projects
 A bunch of experimental projects created mostly for testing during the work on this project are located in **simple** folder.
