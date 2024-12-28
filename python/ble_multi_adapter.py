@@ -9,6 +9,7 @@ import time
 import base64
 import binascii
 from serial import Serial, PARITY_NONE, PARITY_EVEN
+from serial.tools import list_ports
 
 STREAM_TAG_FIRST = ord('@')
 STREAM_TAGS_MOD = 191
@@ -363,8 +364,16 @@ class SimpleAdapter(AdapterConnection):
 		pass
 
 
+def find_port():
+	for p in list_ports.comports():
+		if p.vid == 0x303A and p.pid == 0x1001:
+			return p.device
+	return None
+
+
 if __name__ == '__main__':
 	class Test(MutliAdapter):
+		# Setting for USB virtual com port
 		start_tag   = b''
 		end_tag     = b'\n'
 		def __init__(self, port):
@@ -379,7 +388,12 @@ if __name__ == '__main__':
 		def on_central_msg(self, msg):
 			print('[.] ' + msg.decode())
 
-	with Test(sys.argv[1]) as ad:
+	port = sys.argv[1] if len(sys.argv) > 1 else find_port()
+	if not port:
+		print ('Controller not found', file=sys.stderr)
+		sys.exit(-1)
+
+	with Test(port) as ad:
 		ad.reset()
 		while True:
 			ad.communicate()
