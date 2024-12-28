@@ -362,3 +362,25 @@ class SimpleAdapter(AdapterConnection):
 	def on_data_received(self, data):
 		pass
 
+
+if __name__ == '__main__':
+	class Test(MutliAdapter):
+		start_tag   = b''
+		end_tag     = b'\n'
+		def __init__(self, port):
+			super().__init__(port)
+
+		def on_idle(self, hidden, version):
+			print('  v.' + version.decode())
+
+		def on_debug_msg(self, msg):
+			print('    ' + msg.decode())
+
+		def on_central_msg(self, msg):
+			print('[.] ' + msg.decode())
+
+	with Test(sys.argv[1]) as ad:
+		ad.reset()
+		while True:
+			ad.communicate()
+
