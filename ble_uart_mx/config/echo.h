@@ -37,6 +37,11 @@
 //
 // Define if board has serially controlled RGB led (WS2812)
 // #define NEO_PIXEL_PIN 10
+
+#ifdef NEO_PIXEL_PIN
+// Allow user to control LED
+#define LED_CONTROL_API
+#endif
 //
 // Connected LED parameters
 #ifndef NEO_PIXEL_PIN

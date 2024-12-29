@@ -323,6 +323,14 @@ class MutliAdapter(AdapterConnection):
 		if data is not None:
 			self.on_peer_msg(idx, data)
 
+	def led_set_rgb(self, r, g, b):
+		"""Manually control the neo-pixel LED on board"""
+		self.submit_msg(b'#L%u %u %u' % (r, g, b))
+
+	def led_set_auto(self):
+		"""Switch to auto control of the neo-pixel LED on board"""
+		self.submit_msg(b'#L')
+
 	def on_idle(self, hidden, version):
 		pass
 
@@ -365,6 +373,7 @@ class SimpleAdapter(AdapterConnection):
 
 
 def find_port():
+	"""Find connected controller by USB device VID:PID"""
 	for p in list_ports.comports():
 		if p.vid == 0x303A and p.pid == 0x1001:
 			return p.device
@@ -372,6 +381,13 @@ def find_port():
 
 
 if __name__ == '__main__':
+	#
+	# The following example illustrates sending / receiving
+	# messages to / from connected central and controlling
+	# the on-board neo-pixel LED.
+	# One can use https://enspectr.github.io/ble-term/?echo
+	# to receive those messages and echo them back
+	#
 	class TestAdapter(MutliAdapter):
 		def __init__(self, port):
 			super().__init__(port)
@@ -391,14 +407,27 @@ if __name__ == '__main__':
 		sys.exit(-1)
 
 	sn, msg_interval = 0, .2
+	blink_interval, blink_duration = 5, .5
+	blink_rgb = (128, 32, 64)
 	with TestAdapter(port) as ad:
 		ad.reset()
-		next_ts = time.time() + msg_interval
+		next_msg_ts = time.time() + msg_interval
+		next_blink_ts = time.time() + msg_interval
+		blink_off_ts = None
 		while True:
 			ad.communicate()
 			ts = time.time()
-			if ts > next_ts:
+			if ts > next_msg_ts:
+				# send message to connected central
 				sn += 1
 				ad.send_data(b'message #%d' % sn)
-				next_ts = ts + msg_interval
-
+				next_msg_ts = ts + msg_interval
+			if ts > next_blink_ts:
+				# blink on
+				ad.led_set_rgb(*blink_rgb)
+				blink_off_ts  = ts + blink_duration
+				next_blink_ts = ts + blink_interval
+			elif blink_off_ts and ts > blink_off_ts:
+				# blink off
+				ad.led_set_auto()
+				blink_off_ts = None

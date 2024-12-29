@@ -36,7 +36,7 @@
 // #define ESP32_USB_KEY
 //
 // Define if board has serially controlled RGB led (WS2812)
-// #define NEO_PIXEL_PIN 10
+#define NEO_PIXEL_PIN 10
 
 #ifdef NEO_PIXEL_PIN
 // Allow user to control LED
@@ -79,7 +79,7 @@
 // Though its more convenient while entering commands from terminal,
 // the '\1' '\0' message delimiters are more robust. Undefine the following
 // to use them by default.
-#define UART_END '\n'
+// #define UART_END '\n'
 #endif
 
 #define UART_BAUD_RATE 115200
@@ -111,17 +111,16 @@
 #define TX_BOOST
 
 // If defined creating connections to other peripherals will be disabled
-// #define PASSIVE_ONLY
+#define PASSIVE_ONLY
 
 #ifndef PASSIVE_ONLY
 // If AUTOCONNECT is defined it will connect on startup to the predefined set of peers.
 // The host commands will be disabled. One may use AUTOCONNECT with no target peers
 // to disable creating connections.
-#define AUTOCONNECT
+// #define AUTOCONNECT
 #ifdef AUTOCONNECT
 // Peer device address to connect to
-#define PEER_ADDR    "DC:54:75:EE:0C:95"
-//#define PEER_ADDR    "EC:DA:3B:BB:CE:02"
+#define PEER_ADDR    "EC:DA:3B:BB:CE:02"
 //#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
 //#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
 //#define PEER_ADDR3   "34:B7:DA:FB:58:E2"
@@ -150,4 +149,4 @@
 #define MAX_BURST 1
 
 // If defined echo all data received back to sender (for testing)
-#define ECHO
+// #define ECHO

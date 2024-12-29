@@ -1009,18 +1009,19 @@ static void bt_device_start()
 #ifdef NEO_PIXEL_PIN
 #define NPX_LED_BITS (3*8)
 #define NPX_IDLE_DELAY 2
-static rmt_data_t neopix_led[cx_status_cnt][NPX_LED_BITS];
+static rmt_data_t  neopix_led[cx_status_cnt][NPX_LED_BITS];
+static rmt_data_t* neopix_write_data;
 static cx_status_t neopix_conn_status;
+static bool        neopix_user_controlled;
+#ifdef LED_CONTROL_API
+static rmt_data_t  neopix_user_data[NPX_LED_BITS];
+#endif
 
 static inline void neopix_conn_set(cx_status_t sta)
 {
-  static uint32_t last_set;
-  uint32_t const now = millis();
-  if (elapsed(last_set, now) < NPX_IDLE_DELAY)
-    return;
-  neopix_led_write(NEO_PIXEL_PIN, neopix_led[sta]);
+  if (!neopix_user_controlled)
+    neopix_write_data = neopix_led[sta];
   neopix_conn_status = sta;
-  last_set = now;
 }
 
 static void neopix_init()
@@ -1038,6 +1039,19 @@ static void neopix_init()
   }
   neopix_conn_set(cx_idle);
   delay(NPX_IDLE_DELAY+1);
+}
+
+static void neopix_process()
+{
+  if (!neopix_write_data)
+    return;
+  static uint32_t last_set;
+  uint32_t const now = millis();
+  if (elapsed(last_set, now) < NPX_IDLE_DELAY)
+    return;
+  neopix_led_write(NEO_PIXEL_PIN, neopix_write_data);
+  neopix_write_data = NULL;
+  last_set = now;
 }
 
 static inline void neopix_conn_up(cx_status_t sta)
@@ -1274,6 +1288,35 @@ static void cmd_connect(const char* param, size_t len)
 }
 #endif
 
+#ifdef LED_CONTROL_API
+static inline void led_cmd_auto(void)
+{
+  neopix_user_controlled = false;
+  neopix_write_data = neopix_led[neopix_conn_status];
+}
+
+static inline void led_cmd_rgb(unsigned r, unsigned g, unsigned b)
+{
+  neopix_user_controlled = true;
+  neopix_led_data_init(neopix_user_data, r, g, b);
+  neopix_write_data = neopix_user_data;
+}
+
+static void cmd_led(const char* param, size_t len)
+{
+  if (!len) {
+      led_cmd_auto();
+      return;
+  }
+  String params(param, len);
+  unsigned r, g, b;
+  if (3 == sscanf(params.c_str(), " %u %u %u", &r, &g, &b))
+      led_cmd_rgb(r, g, b);
+  else
+      debug_msg("-unrecognized parameter");
+}
+#endif
+
 static void process_cmd(const char* cmd, size_t len)
 {
   switch (cmd[0]) {
@@ -1296,6 +1339,11 @@ static void process_cmd(const char* cmd, size_t len)
         return;
       }
       advertising_enabled = true;
+      break;
+#endif
+#ifdef LED_CONTROL_API
+    case 'L':
+      cmd_led(cmd + 1, len - 1);
       break;
 #endif
     default:
@@ -1569,7 +1617,9 @@ void loop()
 
   unsigned const err_cnt = chk_errors();
   show_conn_status(was_congested || is_congested || err_cnt);
-
+#ifdef NEO_PIXEL_PIN
+  neopix_process();
+#endif
   if (!is_congested)
     esp_task_wdt_reset();
 #ifdef UART_THROTTLE

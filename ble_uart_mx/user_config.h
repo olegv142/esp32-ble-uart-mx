@@ -1,8 +1,11 @@
 #pragma once
 
 // Here you can include the configuration of your choice
-#include "config/default.h"
+//#include "config/default.h"
 // .. for example
+
+// Peripheral device
+#include "config/peripheral.h"
 
 // The following pair of config files is meant to be used for
 // creating point to point link with automatic connect.
