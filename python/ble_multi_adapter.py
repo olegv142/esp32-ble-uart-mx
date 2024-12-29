@@ -372,10 +372,7 @@ def find_port():
 
 
 if __name__ == '__main__':
-	class Test(MutliAdapter):
-		# Setting for USB virtual com port
-		start_tag   = b''
-		end_tag     = b'\n'
+	class TestAdapter(MutliAdapter):
 		def __init__(self, port):
 			super().__init__(port)
 
@@ -393,8 +390,15 @@ if __name__ == '__main__':
 		print ('Controller not found', file=sys.stderr)
 		sys.exit(-1)
 
-	with Test(port) as ad:
+	sn, msg_interval = 0, .2
+	with TestAdapter(port) as ad:
 		ad.reset()
+		next_ts = time.time() + msg_interval
 		while True:
 			ad.communicate()
+			ts = time.time()
+			if ts > next_ts:
+				sn += 1
+				ad.send_data(b'message #%d' % sn)
+				next_ts = ts + msg_interval
 
