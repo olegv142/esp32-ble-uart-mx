@@ -8,7 +8,10 @@
   '#C addr0 addr1 ..' - connect to peripherals with given addresses (up to 8)
   '#A'                - start advertising if was hidden
   '#R'                - reset to idle state
- Connect command will be disabled if AUTOCONNECT is defined
+  '#L r g b'          - manually control the on-board neo-pixel LED by setting rgb values
+  '#L'                - switch to auto control of the on-board neo-pixel LED
+ Connect command will be disabled if AUTOCONNECT is defined. The L command is not available
+ unless NEO_PIXEL_PIN and LED_CONTROL_API are defined.
 
  Status messages:
   ':I[h] vmaj.vmin-maxframe-variant' - idle, not connected, 'h' if hidden
