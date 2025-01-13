@@ -126,8 +126,15 @@ If you have only one ESP32 module and want to test **ble_uart_mx** adapter do th
 * press 'connect' to establish connection to your device
 * try using Serial Monitor and BLE terminal application to send data in both directions
 
-## Power consumption
-The results of measuring idle power consumption with maximum and lowered CPU frequency are shown in the table below.  
+<details>
+<summary>
+<h2>Testing results</h2>
+</summary>
+
+<h3>Power consumption</h3>
+
+The results of measuring idle power consumption with maximum and lowered CPU frequency are shown in the table below.
+
 | MCU | Max frequency | Min frequency (80MHz) |
 |-------|----------------|--------------------|
 |ESP32C3| 56mA           | 48mA               |
@@ -135,8 +142,10 @@ The results of measuring idle power consumption with maximum and lowered CPU fre
 |ESP32S3| 93mA           | 63mA               |
 |ESP32H2| 27mA           |                    |
 
+
 The power consumption under the load were measured in the following test. The central device was creating 3 active connections to peripheral devices each transmitting 50 short messages per second. There were two versions of the test. In the first version the central device did nothing with messages received. In the second version the central device was sending them back to peripheral devices. 
 The peripheral power consumption in both tests were barely the same. The results are shown in the following table.
+
 | MCU | Max frequency | Min frequency (80MHz) |
 |-------|----------------|--------------------|
 |ESP32C3| 64mA           | 56mA               |
@@ -144,6 +153,7 @@ The peripheral power consumption in both tests were barely the same. The results
 |ESP32H2| 31mA           |                    |
 
 The central device receiving 3x50 messages per second consumes power as shown in the following table.
+
 | MCU | Max frequency | Min frequency (80MHz) |
 |-------|----------------|--------------------|
 |ESP32C3| 66mA           | 58mA               |
@@ -151,6 +161,7 @@ The central device receiving 3x50 messages per second consumes power as shown in
 |ESP32S3| 100mA          | 70mA               |
 
 Results for central device sending and receiving 3x50 messages per second are shown in the following table.
+
 | MCU | Max frequency | Min frequency (80MHz) |
 |-------|----------------|--------------------|
 |ESP32C3| 77mA           | 69mA               |
@@ -159,7 +170,8 @@ Results for central device sending and receiving 3x50 messages per second are sh
 
 The power consumption was significantly improved since SDK v.2. Yet its still not quite suitable for battery powered applications. Please note that while using a lower processor clock speed helps reduce power consumption, it also increases the chance of data loss when transmitting data by BLE stack.
 
-## Range testing results
+<h3>Communication range</h3>
+
 The maximum distance over which we can safely transmit data is an important issue in many applications. Typically small and cheap ESP32 modules have tiny chip antenna soldered on board. With such modules one can expect the operating distance around 10 meters. One can further increase operating range by setting maximum transmission power programmatically. Such power boost is enabled by default in the dapter configuration (TX_BOOST). Yet the ESP32C3 Super Mini modules demonstrated rather low range around 20m even with power boost enabled. The investigation have shown that its not bad antenna that makes receiption weaker than expected. The antenna placement was just choosen improperly. The first rule that is typically violated on all compact boards is placing antenna perpendicular to the edge of the ground polygon. Worse that on ESP32C3 Super Mini the antenna is placed along the edge of the ground polygon with minimal distance to it. So most of the transmitter power were absorbed by the ground plane and converted to the heat rather than electromagnetic radiation. To fix that I've unsoldered antennas and solder them back rotated by 90 degrees as shown on the figure below. As a result the range was vastly improved from 20 to 100 meters.
 
 <p align="center">
@@ -179,6 +191,7 @@ Another possibility is to remove chip antenna and solder external antenna as sho
 </p>
 
 Two modules with external monopole antennas soldered this way have demonstrated the same 100м range as modules with chip antennas in the right orientation. Interestingly the best range of about 150+ meters was demonstrated by WeAct ESP32C3 Core boards with printed circuit antenna.
+</details>
 
 ## Connection state indicator
 The connection state indicator is very useful feature for testing and debugging. The adapter is able to use either plain LED or serially controlled RGB led (aka neo pixel) as connection state indicator. The RGB LED is more informative so the boards with such LED are more preffereable. User may overwrite default connection indicator behavior by sending L command with RGB values. Sending L command without parameters revert back default behavior of the connection indicator.
