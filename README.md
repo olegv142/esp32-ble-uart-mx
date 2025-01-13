@@ -55,7 +55,10 @@ Its not uncommon to use serial communication link without hardware flow control 
 
 One can define STREAM_TAGS in the configuration file to add stream tags to the protocol. With STREAM_TAGS defined the adapter is adding stream tags to the output serial data stream. It always able to recognize stream tags on input regardless of that macro definition. Yet with simple link protocol the stream tags must be present on input if and only if the STREAM_TAGS is defined since in simple link protocol the stream tags can't be discriminated from the data.
 
-## Notes on data integrity
+<details>
+<summary>
+<h3>Notes on data integrity</h3>
+</summary>
 The very important question is what BLE stack guarantees regarding integrity of characteristic updates. Does connection state mean some set of guarantees which should be obeyed or connection should be closed by BLE stack? The TCP/IP stack for example follows such strict connection paradigm. The data is either delivered to other side of the connection or connection is closed. It turns out that the connection paradigm in BLE is much looser. The connection at least for the two stacks implementation available for ESP32 is just the context making communication possible but without any guarantees. Though the stack is tending to preserve the integrity and atomicity of the particular update sometimes its failed. Updates may be easily lost, duplicated, reordered or even altered. Yet in some cases the connection may be closed by the stack. But there are no guarantees of updates delivery while the connection is open. That's why its always recommended to use checksums appended transparently to the data when using extended frames. They greatly reduce the possibility of delivering corrupted data. Yet the data frames may still be lost or reordered.
 
 The BLE link is not the only place where data may be corrupted. The serial data link between adapter and the controlling host may also drop or alter bytes transmitted. To reduce the probability of serial data corruption the following guidelines may be useful:
@@ -63,17 +66,22 @@ The BLE link is not the only place where data may be corrupted. The serial data 
 * Be aware of the possibility of the serial buffer overflow. Use at least RTS hardware flow control at ESP32 side of the connection to prevent its buffer overflow.
 * Use stream tags to detect data loss in serial channel.
 * Application should not rely solely on the transport layer. If integrity of the messages it is sending and receiving is critical the application should protect them by checksum so messages corrupted by transport layer may be detected.
+</details>
 
-## Design decisions and limitations
+<details>
+<summary>
+<h3>Design decisions and limitations</h3>
+</summary>
 
-### Packed based communications
+<h4>Packed based communications</h4>
 One may wander why there is no possibility to create transparent data link. The protocol offers packed based communications instead. By default the data packet size is limited to 2160 bytes while using extended frames or to 244 bytes otherwise. As was mentioned above the BLE stack does not guarantee delivery. Once the API uses some communication abstraction it should guarantee its integrity. To guarantee transparent data stream integrity is quite challenging task. We have to get acknowledges from the other side of the connection which will complicate implementation and slow it down significantly. In fact I don't know any transparent BLE serial adapter implementation that would guarantee data stream integrity. Implementing reliable communications over such unreliable data stream is a challenge. The only way to do it is to split data onto packets providing the means of detecting there boundaries even in the presence of corruptions and add some means of detecting corrupted packets. The adapter using packet based protocol solves the problem of splitting data to packets and maintaining their boundaries for the user. So in the end its more convenient than unreliable transparent data stream.
 
-### Connect by addresses
+<h4>Connect by addresses</h4>
 The adapter does not provide the possibility to connect to target device by its name. The only way to identify the target is by MAC address consisting of 6 bytes. This is intentional since using device names does not work in case there are 2 devices with the same name. One may easily find device address by using **nRF Connect** application which is available for many platforms.
 
-### Error handling
+<h4>Error handling</h4>
 The adapter implements very simple but powerful error handling strategy. Should anything goes wrong it just resets itself. It helps to workaround potential problems with error handling in BLE stack. For example the connect routine may hung forever. Resetting is the only way to recover from such situations. The adapter also restarts itself on any peripheral disconnection (though there is a compile option enabling re-connection without restart in such cases).
+</details>
 
 ## Building and flashing
 To be able to build this code examples add the following to Arduino Additional board manager URLs:
@@ -173,14 +181,17 @@ Another possibility is to remove chip antenna and solder external antenna as sho
 Two modules with external monopole antennas soldered this way have demonstrated the same 100м range as modules with chip antennas in the right orientation. Interestingly the best range of about 150+ meters was demonstrated by WeAct ESP32C3 Core boards with printed circuit antenna.
 
 ## Connection state indicator
-The connection state indicator is very useful feature for testing and debugging. The adapter is able to use either plain LED or serially controlled RGB led (aka neo pixel) as connection state indicator. The RGB LED is more informative so the boards with such LED are more preffereable. 
+The connection state indicator is very useful feature for testing and debugging. The adapter is able to use either plain LED or serially controlled RGB led (aka neo pixel) as connection state indicator. The RGB LED is more informative so the boards with such LED are more preffereable. User may overwrite default connection indicator behavior by sending L command with RGB values. Sending L command without parameters revert back default behavior of the connection indicator.
 
 ## Interoperability
 The adapters may be used either to connect to the similar adapter or another BLE adapter or application (Web BLE in particular). Note that using extended data frames requires decoding/encoding them at the other side of the connection if its not using the same **ble_uart_mx** adapter. Though this feature may be disabled at compile time. Apart from that the adapter works flawlessly with Web BLE applications.
 
 Another popular Chinese BLE adapter JDY-08 (https://github.com/olegv142/esp32-ble/blob/main/doc/JDY-08.pdf) may be used as peripheral device with **ble_uart_mx** adapter acting as central. Note though that it splits data stream onto chunks with up to 20 bytes each. An attempt to send more than 20 bytes to JDY-08 will fail.
 
-## Known issues
+<details>
+<summary>
+<h2>Known issues</h2>
+</summary>
 The main fundamental issue with BLE regarding data transmission is the lack of the flow control. To transmit the particular data fragment the peripheral issues notification which is absolutely asynchronous (aka 'fire and forget'). The BLE stack provides the possibility to notify synchronously but its slow and so rarely used. Without flow control the capacity of BLE link may be easily exhausted. This results in an increased number of lost/corrupted BLE characteristic updates, which manifests itself as lost/corrupted data frames. So pushing adapter throughput to the limit is not recommended. The data rate should be limited by the sender. The best usage pattern is sending limited amount of data periodically.
 
 Using adapter with dual peripheral / central roles simultaneously makes the probability of data loss even higher. Possibly it is expected behavior. The central device is expected to schedule radio receive / transmit intervals for itself and for connected peripheral. So working with the same radio in two roles simultaneously is inherently problematic.
@@ -192,9 +203,14 @@ Care should be taken when using the same USB CDC port for communicating with ada
 When operating at maximum transmission power, the transceiver may fail due to output overload. To avoid such errors, the adapter does not use the maximum possible power, setting the power level 5..6 dB lower.
 
 The ESP32H2 demonstrating lowest power consumption is failed to establish more than one connection to peripheral device. Its yet unknown if this is the bug or just platform limitation.
+</details>
 
-## Other experimental projects
-A bunch of experimental projects created mostly for testing during the work on this project are located in **simple** folder.
+<details>
+<summary>
+<h2>Other experimental projects</h2>
+</summary>
+A bunch of experimental projects created mostly for testing during the work on this project are located in <b>simple</b> folder.
+</details>
 
 ## Useful links
 
