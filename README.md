@@ -20,7 +20,15 @@ The serial communication between controlling host and **ble_uart_mx** adapter ta
 
 The output messages have similar structure. The first symbol after start marker determines the type of the message. Symbols 0..3 indicate the index of the connection to peripheral where data that follows were received. The < symbols indicates that the data that follows were received from the connected central device. The - symbol indicates the start of the debug message. The : symbol marks the status event. There are 3 kinds of status events. The idle event (I) is sent every second in idle state which means that the device was just reset and no connection was made yet. The version string sent with idle events consists of the 3 parts separated by '-' symbol. The first part is the version number, the second part is maximum data frame size, the third part is the set of capability symbols related to adapter configuration options. For example the version string **1.0-2160-X** indicates that the adapter with version 1.0 has maximum data frame size 2160 and using extended data frames. The connecting event (C) notifies user about initiating connection to the particular peripheral. The connected event (D) is sent every second if connections were successfully made to all peripherals listed in connect command.
 
-### Binary data encoding
+<details>
+<summary>
+<h3>Protocol variants</h3>
+
+Communication protocol may be extended or simplified by means of compilation options to better meet user requirements.
+</summary>
+
+
+<h4>Binary data encoding</h4>
 Since bytes with value 1 and 0 (or just newline symbol depending on the configuration) are used as message start / end markers passing binary data that may contain that bytes will break communication protocol. To allow for passing arbitrary binary data the following data encoding scheme is used. If host needs to pass binary data to device it encodes it into base64 encoding and adds prefix byte with the value 2. It plays the role of encoding marker telling the receiver that data that follows is base64 encoded. The adapter decodes such data and passes them over the air in binary form to avoid size overhead of base64 encoding. The following figure illustrates this schema.
 
 <p align="center">
@@ -29,7 +37,7 @@ Since bytes with value 1 and 0 (or just newline symbol depending on the configur
 
 On receiving data from the connected peer device the adapter checks if data contains reserved bytes with special meaning. If not then its safe to transmit them as plain text to serial channel. Otherwise the adapter encodes data to base64 and prepends encoding marker byte before sending data to serial channel. Since checking every received byte takes CPU time the binary data encoding may be disabled by undefining BINARY_DATA_SUPPORT option in configuration file if it is not required by a particular usage scenario.
 
-### Extended data frames
+<h4>Extended data frames</h4>
 The next big feature that is enabled by default is extended data frames. It adds the bunch of the following convenient features:
 * checksums to detect data lost or corrupted in transit
 * automatic large data frames fragmentation
@@ -39,14 +47,14 @@ The next big feature that is enabled by default is extended data frames. It adds
 
 If extended data frames are enabled the adapter will split long data frames onto fragments automatically and transparently for the user. The adapter adds one byte header and 3 byte check sum to every such fragment as shown on the figure above. The header byte has 5 bit sequence number incremented on each fragment, the bit marking data as binary (so it should be encoded to base64 before sending to serial link) and two bits marking the first and the last fragment in the particular data frame (single fragment has them both set). At the end of each fragment is the 3 byte checksum. The checksum is cumulative. So each fragment checksum is calculated over that particular fragment data as well as all previous fragments data. The receiving adapter merges fragments and sends the original data frame to serial link if all check sums match. The maximum number of fragments (and so the maximum data frame size) may be configured at compile time. By default the maximum data frame size is 2160 bytes. One can further increase it by increasing MAX_CHUNKS in the configuration file.
 
-### Simple link protocol
+<h4>Simple link protocol</h4>
 If the adapter is used to create simple communication link between two devices with automatic connection the complex protocol discussed above may be not necessary. One can reduce it to simplified version with only data messages by defining SIMPLE_LINK in the configuration file. This result in almost 'transparent' protocol with data messages enclosed between start (optional) and end tags as shown on the following figure. The binary data may be optionally encoded to base64 representation.   
 
 ![Simple link protocol](https://github.com/olegv142/esp32-ble/blob/main/doc/simple_link.png)
 
 There is no indication of the data destination in the simple link protocol. So the adapter should be properly configured as central or peripheral device. The autoconnect target address (PEER_ADDR) should be set for central device.
 
-### Stream tags
+<h4>Stream tags</h4>
 Its not uncommon to use serial communication link without hardware flow control just to save pins. Not to mention that ESP32 implementation of the USB CDC serial port does not have flow control at all. So the data may be easily lost in the serial link in case the receiving buffer capacity is exhausted. The stream tags feature helps to detect such data loss / corruption. Stream tags are two bytes immediately following the message start marker (if present) and preceding the message end marker. The first tag is 'opening'. Its value equals to the 0x40 (the code of the symbol @) plus ever incrementing message sequence number modulo 191. The second 'closing' tag value has message length added to the equation as shown by the following figure.  
 
 <p align="center">
@@ -54,6 +62,7 @@ Its not uncommon to use serial communication link without hardware flow control 
 </p>
 
 One can define STREAM_TAGS in the configuration file to add stream tags to the protocol. With STREAM_TAGS defined the adapter is adding stream tags to the output serial data stream. It always able to recognize stream tags on input regardless of that macro definition. Yet with simple link protocol the stream tags must be present on input if and only if the STREAM_TAGS is defined since in simple link protocol the stream tags can't be discriminated from the data.
+</details>
 
 <details>
 <summary>
