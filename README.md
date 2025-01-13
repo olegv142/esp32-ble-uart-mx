@@ -83,6 +83,12 @@ The adapter does not provide the possibility to connect to target device by its 
 The adapter implements very simple but powerful error handling strategy. Should anything goes wrong it just resets itself. It helps to workaround potential problems with error handling in BLE stack. For example the connect routine may hung forever. Resetting is the only way to recover from such situations. The adapter also restarts itself on any peripheral disconnection (though there is a compile option enabling re-connection without restart in such cases).
 </details>
 
+## Connection state indicator
+The connection state indicator is very useful feature for testing and debugging. The adapter is able to use either plain LED or serially controlled RGB led (aka neo pixel) as connection state indicator. The RGB LED is more informative so the boards with such LED are more preffereable. User may overwrite default connection indicator behavior by sending L command with RGB values. Sending L command without parameters revert back default behavior of the connection indicator.
+
+## Host API
+The host API implementation for python may be found in **python/ble_multi_adapter.py**. It supports all protocol variants using either physical serial port or USB CDC.
+
 ## Building and flashing
 To be able to build this code examples add the following to Arduino Additional board manager URLs:
 ```
@@ -108,9 +114,6 @@ In case you are failed to flash ESP32 board from Arduino do the following:
 * short press RST button
 * release BOOT button
 * proceed with flashing in Arduino
-
-## Host API
-The host API implementation for python may be found in **python/ble_multi_adapter.py**. It supports all protocol variants using either physical serial port or USB CDC.
 
 ## Testing
 
@@ -192,9 +195,6 @@ Another possibility is to remove chip antenna and solder external antenna as sho
 
 Two modules with external monopole antennas soldered this way have demonstrated the same 100м range as modules with chip antennas in the right orientation. Interestingly the best range of about 150+ meters was demonstrated by WeAct ESP32C3 Core boards with printed circuit antenna.
 </details>
-
-## Connection state indicator
-The connection state indicator is very useful feature for testing and debugging. The adapter is able to use either plain LED or serially controlled RGB led (aka neo pixel) as connection state indicator. The RGB LED is more informative so the boards with such LED are more preffereable. User may overwrite default connection indicator behavior by sending L command with RGB values. Sending L command without parameters revert back default behavior of the connection indicator.
 
 ## Interoperability
 The adapters may be used either to connect to the similar adapter or another BLE adapter or application (Web BLE in particular). Note that using extended data frames requires decoding/encoding them at the other side of the connection if its not using the same **ble_uart_mx** adapter. Though this feature may be disabled at compile time. Apart from that the adapter works flawlessly with Web BLE applications.
