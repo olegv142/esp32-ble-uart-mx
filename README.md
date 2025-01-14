@@ -119,8 +119,7 @@ In case you are failed to flash ESP32 board from Arduino do the following:
 
 The compilation options are placed onto the separate header **ble_uart_mx/user_config.h** which includes the particular user configuration file (**ble_uart_mx/config/peripheral.h** by default). With those options one can
 * choose device name
-* choose between USB CDC (virtual serial port) and hardware UART for communications
-* configure hardware UART parameters (pins, flow control)
+* choose between USB CDC (virtual serial port) and hardware UART for communications as well as configure hardware UART parameters (pins, flow control)
 * configure connection status LED
 * configure device behavior, for example disable discovery or configure auto-connecting on startup
 * fine tune communication protocol, for example disable status and/or debug events, enable simple link protocol, configure using extended data frames and/or stream tags
@@ -134,7 +133,7 @@ The default configuration (**ble_uart_mx/config/peripheral.h**) corresponds to t
 ## Testing
 To test adapter in peripheral role one can do the following:
 * build and flash it with default configuration
-* run **python/ble_multi_adapter.py** passing USB virtual port name as parameters
+* run **python/ble_multi_adapter.py** passing USB virtual port name as parameter
 * open https://enspectr.github.io/ble-term?echo in chrome browser and connect to the adapter
 * observe messages passing in both directions between adapter and host computer running browser
 
@@ -225,13 +224,6 @@ Care should be taken when using the same USB CDC port for communicating with ada
 When operating at maximum transmission power, the transceiver may fail due to output overload. To avoid such errors, the adapter does not use the maximum possible power, setting the power level 5..6 dB lower.
 
 The ESP32H2 demonstrating lowest power consumption is failed to establish more than one connection to peripheral device. Its yet unknown if this is the bug or just platform limitation.
-</details>
-
-<details>
-<summary>
-<h2>Other experimental projects</h2>
-</summary>
-A bunch of experimental projects created mostly for testing during the work on this project are located in <b>simple</b> folder.
 </details>
 
 ## Useful links
