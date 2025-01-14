@@ -132,18 +132,11 @@ The default configuration (**ble_uart_mx/config/peripheral.h**) corresponds to t
 </details>
 
 ## Testing
-
-### The hard way
-The **multi_echo_long.py** script in **python** folder is sending packets to other side that is expected to echo them back. One may use ECHO compilation option to echo data right on the device.
-
-### The quick way
-If you have only one ESP32 module and want to test **ble_uart_mx** adapter do the following:
-* build and flash **ble_uart_mx** project by Arduino
-* open Arduino Serial Monitor
-* observe idle events
-* open https://enspectr.github.io/ble-term in chrome browser
-* press 'connect' to establish connection to your device
-* try using Serial Monitor and BLE terminal application to send data in both directions
+To test adapter in peripheral role one can do the following:
+* build and flash it with default configuration
+* run **python/ble_multi_adapter.py** passing USB virtual port name as parameters
+* open https://enspectr.github.io/ble-term?echo in chrome browser and connect to the adapter
+* observe messages passing in both directions between adapter and host computer running browser
 
 <details>
 <summary>
