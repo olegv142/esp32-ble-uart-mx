@@ -1,7 +1,7 @@
 #pragma once
 
 // Here you can include the configuration of your choice
-//#include "config/default.h"
+//#include "config/multirole.h"
 // .. for example
 
 // Peripheral device

@@ -105,24 +105,31 @@ https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32
 ```
 Then go to Boards Manager and install **esp32 by Espressif Systems**. Open **ble_uart_mx** project in Arduino. Select **ESP32C3/ESP32C6/ESP32S3 Dev Module** depending on your board and enable **USB CDC On Boot**. After that you can build and flash the adapter code.
 
-The compilation options are placed onto the separate header **ble_uart_mx/mx_config.h** which includes **ble_uart_mx/user_config.h** which includes **ble_uart_mx/config/default.h**. With those options one can
-* choose device name
-* choose between USB CDC and hardware UART for communications
-* configure hardware UART parameters (pins, flow control)
-* configure connection status LED
-* disable status and/or debug events or enable simple link protocol if user is interested in data events only
-* configure device behavior, for example disable discovery
-* configure auto-connecting on startup
-* configure using extended data frames and/or stream tags
-* setup debug options (TELL_UPTIME, ECHO)
-
-Since configuration options are placed onto the separate file you may conveniently create you own file instead of **ble_uart_mx/config/default.h** or set of files for various device variants. The **ble_uart_mx/config/** folder contains the set of configuration files that may be used as starting points while creating your own configuration.
-
 In case you are failed to flash ESP32 board from Arduino do the following:
 * press BOOT button
 * short press RST button
 * release BOOT button
 * proceed with flashing in Arduino
+* press RST when flashing is complete
+
+<details>
+<summary>
+<h3>Compilation options</h3>
+</summary>
+
+The compilation options are placed onto the separate header **ble_uart_mx/user_config.h** which includes the particular user configuration file (**ble_uart_mx/config/peripheral.h** by default). With those options one can
+* choose device name
+* choose between USB CDC (virtual serial port) and hardware UART for communications
+* configure hardware UART parameters (pins, flow control)
+* configure connection status LED
+* configure device behavior, for example disable discovery or configure auto-connecting on startup
+* fine tune communication protocol, for example disable status and/or debug events, enable simple link protocol, configure using extended data frames and/or stream tags
+
+Since configuration options are placed onto the separate file you may conveniently create you own file and include it from **ble_uart_mx/user_config.h**. The **ble_uart_mx/config/** folder contains the set of configuration files that may be used as starting points while creating your own configuration.
+
+The default configuration (**ble_uart_mx/config/peripheral.h**) corresponds to the peripheral device using USB virtual port for communicating with the host.
+
+</details>
 
 ## Testing
 
