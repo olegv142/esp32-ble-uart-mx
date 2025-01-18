@@ -62,6 +62,8 @@ Its not uncommon to use serial communication link without hardware flow control 
 </p>
 
 One can define STREAM_TAGS in the configuration file to add stream tags to the protocol. With STREAM_TAGS defined the adapter is adding stream tags to the output serial data stream. It always able to recognize stream tags on input regardless of that macro definition. Yet with simple link protocol the stream tags must be present on input if and only if the STREAM_TAGS is defined since in simple link protocol the stream tags can't be discriminated from the data.
+
+Note that stream tags don't not gurantee that corrupted data frame will never be erroneously treated as valid. They just provide the way to detect them which works most of the time (roughly for 99.5% of messages). In particular the python communication class **MutliAdapter** uses them to count the number of lost (lost_frames field) and corrupted (parse_errors field) data frames. Yet some corrupted data frames may still be handled as valid. So application should implement additional data protection (by means of checksum) to relyably detect corrupted data.
 </details>
 
 <details>
