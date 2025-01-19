@@ -74,7 +74,7 @@ class AdapterConnection:
 		"""Set end tag while not using start tag"""
 		self.set_start_end_tags(b'', tend)
 
-	def selt_nl_terminator(self):
+	def set_nl_terminator(self):
 		"""Use new line symbol as message terminator"""
 		self.set_terminator(b'\n')
 

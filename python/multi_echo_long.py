@@ -237,7 +237,7 @@ def test_simple():
 	stream_tags = chk_opt('-s')
 	with SimpleEchoTest(sys.argv[1]) as ad:
 		if nl_term:
-			ad.selt_nl_terminator()
+			ad.set_nl_terminator()
 		if stream_tags:
 			ad.use_stream_tags()
 		try:
@@ -255,7 +255,7 @@ def test_multi():
 	active = [0] if first_only else [len(targets)-1] if last_only else None
 	with EchoTest(sys.argv[1], targets, active, True if peripheral else None) as ad:
 		if nl_term:
-			ad.selt_nl_terminator()
+			ad.set_nl_terminator()
 		ad.reset()
 		try:
 			while True:

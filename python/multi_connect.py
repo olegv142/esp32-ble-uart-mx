@@ -42,7 +42,7 @@ if __name__ == '__main__':
 	peers = [addr.encode() for addr in sys.argv[2:]]
 	with TestMutliAdapter(port, peers) as ad:
 		if nl_term:
-			ad.selt_nl_terminator()
+			ad.set_nl_terminator()
 		ad.reset()
 		try:
 			while True:
