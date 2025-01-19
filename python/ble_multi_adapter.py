@@ -178,7 +178,6 @@ class AdapterConnection:
 					if 0 <= next_begin < end:
 						# multiple begin bytes before end
 						begin = next_begin
-						self.parse_errors += 1
 					else:
 						break
 				if begin != tail:
