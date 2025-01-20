@@ -1435,8 +1435,6 @@ static bool cli_process()
 
 #ifdef UART_BEGIN
   const char* begin = (const char*)memchr(str, UART_BEGIN, len);
-  if (begin && begin != str)
-    ++parse_err.cnt;
 #else
   const char* begin = str;
 #endif
@@ -1451,10 +1449,9 @@ static bool cli_process()
     char* next_begin;
     for (;;) {
       next_begin = (char*)memchr(begin, UART_BEGIN, len - (begin - str));
-      if (next_begin && next_begin < tail) {
+      if (next_begin && next_begin < tail)
         begin = next_begin + 1;
-        ++parse_err.cnt;
-      } else
+      else
         break;
     }
 #endif
@@ -1462,11 +1459,13 @@ static bool cli_process()
       done = false;
       break;
     }
+#ifdef UART_BEGIN
+    if (begin != next + 1)
+      ++parse_err.cnt;
+#endif
     next = tail + 1;
 #ifdef UART_BEGIN
     begin = next_begin;
-    if (begin && begin != next)
-      ++parse_err.cnt;
 #else
     begin = next;
 #endif
