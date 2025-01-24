@@ -19,7 +19,7 @@
 // #define HIDDEN
 
 // If defined the device will be hidden without the possibility to unhide it
-// #define CENTRAL_ONLY
+#define CENTRAL_ONLY
 
 // If defined the connected central may write to this device
 #define WRITABLE
@@ -33,10 +33,10 @@
 #define STREAM_TAGS
 
 // Define if target platform is ESP32 USB key
-// #define ESP32_USB_KEY
+#define ESP32_USB_KEY
 //
 // Define if board has serially controlled RGB led (WS2812)
-#define NEO_PIXEL_PIN 10
+// #define NEO_PIXEL_PIN 10
 
 #ifdef NEO_PIXEL_PIN
 // Allow user to control LED
@@ -72,7 +72,7 @@
 
 // If HW_UART is defined the hardware serial port will be used for communications.
 // Otherwise the USB virtual serial port will be utilized.
-// #define HW_UART
+#define HW_UART
 
 #ifndef HW_UART
 // Use new line terminated messages.
@@ -85,6 +85,10 @@
 #define UART_BAUD_RATE 115200
 
 #ifdef HW_UART
+// If defined UART will use default port0 initialized on boot
+#define HW_UART_DEFAULT
+// Otherwise separate port will be used
+#ifndef HW_UART_DEFAULT
 // Use even parity if defined
 #define UART_USE_PARITY
 
@@ -104,14 +108,15 @@
 // #define UART_CTS_PIN 5
 // RTS prevents overflow of the esp32 receiving buffer.
 // Its safe to have it enabled even in case you don't actually use it.
-#define UART_RTS_PIN 4
+// #define UART_RTS_PIN 4
+#endif
 #endif
 
 // If define increase transmitter power up to the maximum
 #define TX_BOOST
 
 // If defined creating connections to other peripherals will be disabled
-#define PASSIVE_ONLY
+// #define PASSIVE_ONLY
 
 #ifndef PASSIVE_ONLY
 // If AUTOCONNECT is defined it will connect on startup to the predefined set of peers.
@@ -146,7 +151,7 @@
 #endif
 
 // How many messages may be submitted at once
-#define MAX_BURST 4
+#define MAX_BURST 1
 
 // If defined echo all data received back to sender (for testing)
 // #define ECHO

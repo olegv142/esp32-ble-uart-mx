@@ -1,11 +1,14 @@
 #pragma once
 
 // Here you can include the configuration of your choice
-//#include "config/multirole.h"
 // .. for example
 
-// Peripheral device
+// Multirole adapter
+// #include "config/multirole.h"
+// Peripheral device with USB interface
 #include "config/peripheral.h"
+// USB key as central device
+// #include "config/usb_key_central.h"
 
 // The following pair of config files is meant to be used for
 // creating point to point link with automatic connect.

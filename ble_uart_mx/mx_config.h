@@ -63,8 +63,17 @@
 
 #ifdef HW_UART
 // Using hardware UART
+#ifdef HW_UART_DEFAULT
+#define DataSerial Serial0
+#define DATA_UART_NUM UART_NUM_0
+// Note that RX, TX are typically defined in pins_arduino.h
+#define UART_TX_PIN  TX
+#define UART_RX_PIN  RX
+#define UART_MODE SERIAL_8N1
+#else
 #define DataSerial Serial1
 #define DATA_UART_NUM UART_NUM_1
+#endif
 #else
 // Using USB CDC
 #define DataSerial Serial
