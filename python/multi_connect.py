@@ -7,7 +7,6 @@ Author: Oleg Volkov
 """
 
 import sys
-sys.path.append('.')
 from ble_multi_adapter import MutliAdapter
 
 class TestMutliAdapter(MutliAdapter):

@@ -12,8 +12,6 @@ import sys
 import time
 import random
 from collections import defaultdict
-
-sys.path.append('.')
 from ble_multi_adapter import MutliAdapter, SimpleAdapter
 
 # If false all messages will have maximum allowed size
