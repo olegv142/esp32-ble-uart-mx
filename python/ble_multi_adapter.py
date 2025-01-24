@@ -26,6 +26,7 @@ class AdapterConnection:
 	opt_tags    = True
 	rtscts      = True
 	timeout     = .01
+	wr_timeout  = 20
 	rx_buf_size = 4*4096
 	tx_buf_size = 4096
 	congest_thr = 16
@@ -53,7 +54,8 @@ class AdapterConnection:
 			baudrate=self.baud_rate,
 			parity=self.parity,
 			rtscts=self.rtscts,
-			timeout=self.timeout
+			timeout=self.timeout,
+			write_timeout=self.wr_timeout
 		)
 		self.com.set_buffer_size(
 			rx_size = self.rx_buf_size,
@@ -371,10 +373,10 @@ class SimpleAdapter(AdapterConnection):
 		pass
 
 
-def find_port():
+def find_port(vid = 0x303A, pid = 0x1001):
 	"""Find connected controller by USB device VID:PID"""
 	for p in list_ports.comports():
-		if p.vid == 0x303A and p.pid == 0x1001:
+		if p.vid == vid and p.pid == pid:
 			return p.device
 	return None
 
@@ -392,13 +394,13 @@ if __name__ == '__main__':
 			super().__init__(port)
 
 		def on_idle(self, hidden, version):
-			print('  v.' + version.decode())
+			print('  v.%s' % version)
 
 		def on_debug_msg(self, msg):
-			print('    ' + msg.decode())
+			print('    %s' % msg)
 
 		def on_central_msg(self, msg):
-			print('[.] ' + msg.decode())
+			print('[.] %s' % msg)
 
 	port = sys.argv[1] if len(sys.argv) > 1 else find_port()
 	if not port:
