@@ -806,10 +806,14 @@ private:
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
-      struct data_chunk ch = {.data = nullptr, .len = 0};
-      if (!xQueueSend(rx_queue, &ch, 0)) {
-        ++rx_queue_full.cnt;
-        is_congested = true;
+      if (advertising_enabled) {
+        // For some unknown reason the spurious call of this
+        // function are possible on connect to peripheral device
+        struct data_chunk ch = {.data = nullptr, .len = 0};
+        if (!xQueueSend(rx_queue, &ch, 0)) {
+          ++rx_queue_full.cnt;
+          is_congested = true;
+        }
       }
       ++connected_centrals;
     };
