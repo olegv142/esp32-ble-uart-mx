@@ -81,8 +81,10 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
-static BLECharacteristic* pCharacteristic;
-static uint32_t           last_characteristic_error;
+static BLECharacteristic* char_tx; // peripheral transmit there
+static BLECharacteristic* char_rx; // peripheral receive there
+
+static uint32_t last_characteristic_error;
 
 class Peer;
 static Peer*    peers[MAX_PEERS];
@@ -613,7 +615,7 @@ public:
       xSemaphoreGive(m_wr_sem);
       return true;
     }
-    if (!remote_write_(m_remoteCharacteristic, data, len, true))
+    if (!remote_write_(m_remoteRx, data, len, true))
     {
       // failed due to congestion
       xSemaphoreGive(m_wr_sem);
@@ -671,7 +673,7 @@ public:
 
   bool notify_data(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length)
   {
-    if (pBLERemoteCharacteristic != m_remoteCharacteristic)
+    if (pBLERemoteCharacteristic != m_remoteTx)
       return false;
 
     struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
@@ -690,7 +692,7 @@ public:
   {
 #ifdef ECHO
     if (m_writable && is_connected())
-      if (!remote_write_(m_remoteCharacteristic, chunk->data, chunk->len, false)) {
+      if (!remote_write_(m_remoteRx, chunk->data, chunk->len, false)) {
         ++write_err.cnt;
         is_congested = true;
       }
@@ -766,7 +768,8 @@ public:
     , m_subscribed(false)
     , m_was_connected(false)
     , m_Client(nullptr)
-    , m_remoteCharacteristic(nullptr)
+    , m_remoteTx(nullptr)
+    , m_remoteRx(nullptr)
     , m_wr_task(nullptr)
     , m_wr_queue(xRingbufferCreateNoSplit(MAX_SIZE, TX_QUEUE * MAX_CHUNKS))
     , m_wr_sem(xSemaphoreCreateBinary())
@@ -792,7 +795,8 @@ private:
   bool        m_was_connected;
 
   BLEClient*  m_Client;
-  BLERemoteCharacteristic* m_remoteCharacteristic;
+  BLERemoteCharacteristic* m_remoteTx;
+  BLERemoteCharacteristic* m_remoteRx;
   TaskHandle_t             m_wr_task;
   RingbufHandle_t          m_wr_queue;
   SemaphoreHandle_t        m_wr_sem;
@@ -828,8 +832,10 @@ class MyServerCallbacks: public BLEServerCallbacks {
 class MyCharCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic)
   {
-    size_t const length = pCharacteristic->getLength();
-    uint8_t* const pData = pCharacteristic->getData();
+    if (pCharacteristic != char_rx)
+      return;
+    size_t const length  = char_rx->getLength();
+    uint8_t* const pData = char_rx->getData();
     struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
     if (!ch.data)
       reset_self();
@@ -840,12 +846,12 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
       is_congested = true;
     }
 #ifdef ECHO
-    pCharacteristic->setValue(pData, length);
-    pCharacteristic->notify();
+    char_tx->setValue(pData, length);
+    char_tx->notify();
 #endif
   }
   void onStatus(BLECharacteristic * ch, Status s, uint32_t code) {
-    if (ch == pCharacteristic && s == Status::ERROR_GATT)
+    if (ch == char_tx && s == Status::ERROR_GATT)
       last_characteristic_error = code;
   }
 };
@@ -963,25 +969,45 @@ static void bt_device_start()
   BLEService *pService = pServer->createService(SERVICE_UUID);
 
   // Create a BLE Characteristic
-  pCharacteristic = pService->createCharacteristic(
+  char_tx = pService->createCharacteristic(
     CHARACTERISTIC_UUID_TX,
-    BLECharacteristic::PROPERTY_NOTIFY
-    | BLECharacteristic::PROPERTY_READ
-#ifdef WRITABLE
+    BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ
+#if defined(WRITABLE) && !defined(DUAL_CHAR)
     | BLECharacteristic::PROPERTY_WRITE
     | BLECharacteristic::PROPERTY_WRITE_NR
 #endif
   );
 
-  pCharacteristic->setAccessPermissions(
+  char_tx->setAccessPermissions(
+    ESP_GATT_PERM_READ
+#if defined(WRITABLE) && !defined(DUAL_CHAR)
+    | ESP_GATT_PERM_WRITE
+#endif
+  );
+  char_tx->addDescriptor(new BLE2902());
+  char_tx->setCallbacks(new MyCharCallbacks());
+
+#ifndef DUAL_CHAR
+  char_rx = char_tx;
+#else
+  char_rx = pService->createCharacteristic(
+    CHARACTERISTIC_UUID_RX,
+    BLECharacteristic::PROPERTY_READ
+#ifdef WRITABLE
+    | BLECharacteristic::PROPERTY_WRITE
+    | BLECharacteristic::PROPERTY_WRITE_NR
+#endif
+  );
+  char_rx->setAccessPermissions(
     ESP_GATT_PERM_READ
 #ifdef WRITABLE
     | ESP_GATT_PERM_WRITE
 #endif
   );
+  char_rx->addDescriptor(new BLE2902());
+  char_rx->setCallbacks(new MyCharCallbacks());
+#endif
 
-  pCharacteristic->addDescriptor(new BLE2902());
-  pCharacteristic->setCallbacks(new MyCharCallbacks());
   pServer->setCallbacks(new MyServerCallbacks());
 
   // Start the service
@@ -1172,12 +1198,19 @@ void Peer::connect()
   if (!pRemoteService)
     fatal("Failed to find our service UUID");
   // Obtain a reference to the characteristic in the service of the remote BLE server.
-  m_remoteCharacteristic = pRemoteService->getCharacteristic(CHARACTERISTIC_UUID_TX);
-  if (!m_remoteCharacteristic)
+  m_remoteTx = pRemoteService->getCharacteristic(CHARACTERISTIC_UUID_TX);
+  if (!m_remoteTx)
     fatal("Failed to find our characteristic UUID");
-  if (!m_remoteCharacteristic->canNotify())
+  if (!m_remoteTx->canNotify())
     fatal("Notification not supported by the server");
-  m_writable = m_remoteCharacteristic->canWrite();
+#ifndef DUAL_CHAR
+  m_remoteRx = m_remoteTx;
+#else
+  m_remoteRx = pRemoteService->getCharacteristic(CHARACTERISTIC_UUID_RX);
+  if (!m_remoteRx)
+    fatal("Failed to find our characteristic UUID");
+#endif
+  m_writable = m_remoteRx->canWrite();
 
 #ifndef NO_DEBUG
   uart_begin();
@@ -1207,7 +1240,7 @@ void Peer::subscribe()
 #endif
 
   // Subscribe to updates
-  m_remoteCharacteristic->registerForNotify(peerNotifyCallback);
+  m_remoteTx->registerForNotify(peerNotifyCallback);
   m_subscribed = true;
 
 #ifndef NO_DEBUG
@@ -1240,8 +1273,8 @@ void Peer::write_worker()
 static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
 {
   last_characteristic_error = 0;
-  pCharacteristic->setValue(pdata, sz);
-  pCharacteristic->notify();
+  char_tx->setValue(pdata, sz);
+  char_tx->notify();
   if (last_characteristic_error) {
     ++notify_err.cnt;
     return false;

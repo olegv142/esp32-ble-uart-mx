@@ -132,6 +132,10 @@
 #endif
 #endif
 
+// If defined two separate characteristics will
+// be used for data flowing in two directions
+#define DUAL_CHAR
+
 // Broadcast millisecond uptime to connected central (for testing) if defined
 // The value defined is broadcast period in milliseconds
 // #define TELL_UPTIME 20

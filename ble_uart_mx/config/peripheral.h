@@ -85,6 +85,10 @@
 #define UART_BAUD_RATE 115200
 
 #ifdef HW_UART
+// If defined UART will use default port0 initialized on boot
+// #define HW_UART_DEFAULT
+// Otherwise separate port will be used
+#ifndef HW_UART_DEFAULT
 // Use even parity if defined
 #define UART_USE_PARITY
 
@@ -106,6 +110,7 @@
 // Its safe to have it enabled even in case you don't actually use it.
 #define UART_RTS_PIN 4
 #endif
+#endif
 
 // If define increase transmitter power up to the maximum
 #define TX_BOOST
@@ -126,6 +131,10 @@
 //#define PEER_ADDR3   "34:B7:DA:FB:58:E2"
 #endif
 #endif
+
+// If defined two separate characteristics will
+// be used for data flowing in two directions
+#define DUAL_CHAR
 
 // Broadcast millisecond uptime to connected central (for testing) if defined
 // The value defined is broadcast period in milliseconds

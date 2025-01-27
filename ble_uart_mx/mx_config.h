@@ -8,6 +8,9 @@
 
 #define SERVICE_UUID           "FFE0"
 #define CHARACTERISTIC_UUID_TX "FFE1"
+#ifdef DUAL_CHAR
+#define CHARACTERISTIC_UUID_RX "FFE2"
+#endif
 
 #if (CONFIG_IDF_TARGET_ESP32)
 #define MAX_CONNS 2
@@ -184,6 +187,12 @@
 #define _RDONLY ""
 #endif
 
+#ifndef DUAL_CHAR
+#define _SINGLE "s"
+#else
+#define _SINGLE ""
+#endif
+
 #ifdef ECHO
 #define _ECHO "e"
 #else
@@ -196,4 +205,4 @@
 #define _UTIME ""
 #endif
 
-#define VARIANT _XDATA _MODE _ADVERT _RDONLY _ECHO _UTIME
+#define VARIANT _XDATA _MODE _ADVERT _RDONLY _SINGLE _ECHO _UTIME
