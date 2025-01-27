@@ -157,6 +157,10 @@
 // Build version string
 //
 
+// Version info printed as part of idle status message
+#define VMAJOR    "1"
+#define VMINOR    "1"
+
 #ifdef EXT_FRAMES
 #define _XDATA "X"
 #elif defined(BINARY_DATA_SUPPORT)
