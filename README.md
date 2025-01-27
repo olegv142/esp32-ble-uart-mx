@@ -119,7 +119,7 @@ In case you are failed to flash ESP32 board from Arduino do the following:
 <h3>Compilation options</h3>
 </summary>
 
-The compilation options are placed onto the separate header **ble_uart_mx/user_config.h** which includes the particular user configuration file (**ble_uart_mx/config/peripheral.h** by default). With those options one can
+The compilation options are placed onto the separate header **ble_uart_mx/user_config.h** which includes the particular user configuration file (**ble_uart_mx/config/usb_peripheral.h** by default). With those options one can
 * choose device name
 * choose between single and dual characteristic configuration
 * choose between USB CDC (virtual serial port) and hardware UART for communications as well as configure hardware UART parameters (pins, flow control)
@@ -129,7 +129,7 @@ The compilation options are placed onto the separate header **ble_uart_mx/user_c
 
 Since configuration options are placed onto the separate file you may conveniently create you own file and include it from **ble_uart_mx/user_config.h**. The **ble_uart_mx/config/** folder contains the set of configuration files that may be used as starting points while creating your own configuration.
 
-The default configuration (**ble_uart_mx/config/peripheral.h**) corresponds to the peripheral device using USB virtual port for communicating with the host.
+The default configuration (**ble_uart_mx/config/usb_peripheral.h**) corresponds to the peripheral device using USB virtual port for communicating with the host.
 
 </details>
 

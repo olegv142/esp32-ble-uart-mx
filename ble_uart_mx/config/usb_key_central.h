@@ -5,7 +5,7 @@
 
 // Version info printed as part of idle status message
 #define VMAJOR    "1"
-#define VMINOR    "0"
+#define VMINOR    "1"
 
 // Device name (may be followed by unique suffix)
 #define DEV_NAME  "Mx-"
