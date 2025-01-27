@@ -121,6 +121,7 @@ In case you are failed to flash ESP32 board from Arduino do the following:
 
 The compilation options are placed onto the separate header **ble_uart_mx/user_config.h** which includes the particular user configuration file (**ble_uart_mx/config/peripheral.h** by default). With those options one can
 * choose device name
+* choose between single and dual characteristic configuration
 * choose between USB CDC (virtual serial port) and hardware UART for communications as well as configure hardware UART parameters (pins, flow control)
 * configure connection status LED
 * configure device behavior, for example disable discovery or configure auto-connecting on startup
@@ -215,6 +216,7 @@ Another popular Chinese BLE adapter JDY-08 (https://github.com/olegv142/esp32-bl
 <summary>
 <h2>Known issues</h2>
 </summary>
+
 The main fundamental issue with BLE regarding data transmission is the lack of the flow control. To transmit the particular data fragment the peripheral issues notification which is absolutely asynchronous (aka 'fire and forget'). The BLE stack provides the possibility to notify synchronously but its slow and so rarely used. Without flow control the capacity of BLE link may be easily exhausted. This results in an increased number of lost/corrupted BLE characteristic updates, which manifests itself as lost/corrupted data frames. So pushing adapter throughput to the limit is not recommended. The data rate should be limited by the sender. The best usage pattern is sending limited amount of data periodically.
 
 Using adapter with dual peripheral / central roles simultaneously makes the probability of data loss even higher. Possibly it is expected behavior. The central device is expected to schedule radio receive / transmit intervals for itself and for connected peripheral. So working with the same radio in two roles simultaneously is inherently problematic. Yet another issue observed in such operation mode is spurious calls to the server callback indicating connection from central device when connection to peripheral device is actually made. Hopefully the impact of this issue is minimal.
