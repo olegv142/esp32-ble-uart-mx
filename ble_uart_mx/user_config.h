@@ -7,6 +7,8 @@
 #include "config/usb_peripheral.h"
 // USB key as central device
 // #include "config/usb_key_central.h"
+// USB key dual role
+// #include "config/usb_key.h"
 
 // The following pair of config files is meant to be used for
 // creating point to point link with automatic connect.
