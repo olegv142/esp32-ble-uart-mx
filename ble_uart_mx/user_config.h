@@ -10,6 +10,11 @@
 // USB key dual role
 // #include "config/usb_key.h"
 
+// Serial adapter
+// #include "config/ble_serial.h"
+// Serial adapter as central device only
+// #include "config/ble_serial_central.h"
+
 // The following pair of config files is meant to be used for
 // creating point to point link with automatic connect.
 // The link is using simplified protocol with only data messages.
