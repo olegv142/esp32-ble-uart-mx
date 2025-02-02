@@ -57,10 +57,11 @@ class AdapterConnection:
 			timeout=self.timeout,
 			write_timeout=self.wr_timeout
 		)
-		self.com.set_buffer_size(
-			rx_size = self.rx_buf_size,
-			tx_size = self.tx_buf_size
-		)
+		if hasattr(self.com, 'set_buffer_size'):
+			self.com.set_buffer_size(
+				rx_size = self.rx_buf_size,
+				tx_size = self.tx_buf_size
+			)
 
 	def close(self):
 		if self.com:
@@ -125,7 +126,10 @@ class AdapterConnection:
 
 	def receive(self):
 		"""Receive from adapter"""
-		while rx_bytes := self.com.read(4096):
+		while True:
+			rx_bytes = self.com.read(4096)
+			if not rx_bytes:
+				return
 			self.process_rx(rx_bytes)
 
 	def can_transmit(self):
@@ -134,7 +138,8 @@ class AdapterConnection:
 	def communicate(self):
 		"""Communicate with adapter"""
 		self.receive()
-		if not (can_tx := self.can_transmit()):
+		can_tx = self.can_transmit()
+		if not can_tx:
 			return
 		tx_queue = self.tx_queue
 		self.tx_queue, delay_queue = [], []
@@ -195,13 +200,14 @@ class AdapterConnection:
 		if not self.use_tags and not self.opt_tags:
 			self.process_msg(msg)
 			return
-		if not msg or not self.is_stream_tag(topen := msg[0]):
+		if not msg or not self.is_stream_tag(msg[0]):
 			if self.opt_tags:
 				self.process_msg(msg)
 				return
 			else:
 				self.parse_errors += 1
 				return
+		topen = msg[0]
 		if len(msg) < 2:
 			self.parse_errors += 1
 			return
