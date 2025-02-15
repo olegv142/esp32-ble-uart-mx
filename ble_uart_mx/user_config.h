@@ -9,6 +9,8 @@
 // #include "config/usb_key_central.h"
 // USB key dual role
 // #include "config/usb_key.h"
+// USB key with hidden peripheral role
+// #include "config/usb_key_hidden.h"
 
 // Serial adapter
 // #include "config/ble_serial.h"
