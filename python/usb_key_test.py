@@ -12,6 +12,8 @@ class UsbKey(MutliAdapter):
 
     def on_idle(self, hidden, version):
         print('Idle, version %s' % version)
+        if hidden:
+            self.advertise()
 
     def on_connecting(self, idx):
         print('Connecting to #%d' % idx)
