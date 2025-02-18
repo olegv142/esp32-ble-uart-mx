@@ -5,7 +5,7 @@
  central for commands / responses. The controlling host uses the following protocol:
 
  Commands:
-  '#C addr0 addr1 ..' - connect to peripherals with given addresses (up to 8)
+  '#C addr0 addr1 ..' - connect to peripherals with given addresses (up to 4)
   '#A'                - start advertising if was hidden
   '#R'                - reset to idle state
   '#L r g b'          - manually control the on-board neo-pixel LED by setting rgb values
@@ -23,7 +23,7 @@
   '-message'
 
  Every in/out message on physical UART is started with '\1' end with '\0'. 
- In case USB VCP is used for communications there is no start symbol, end symbol is always '\n'
+ In case USB VCP is used for communications there is no start symbol, end symbol is '\n' by default
 
  Second symbol of out message is
   ':' for status messages
