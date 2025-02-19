@@ -63,17 +63,20 @@ Its not uncommon to use serial communication link without hardware flow control 
 
 One can define STREAM_TAGS in the configuration file to add stream tags to the protocol. With STREAM_TAGS defined the adapter is adding stream tags to the output serial data stream. It always able to recognize stream tags on input regardless of that macro definition. Yet with simple link protocol the stream tags must be present on input if and only if the STREAM_TAGS is defined since in simple link protocol the stream tags can't be discriminated from the data.
 
-Note that stream tags don't not gurantee that corrupted data frame will never be erroneously treated as valid. They just provide the way to detect them which works most of the time (roughly for 99.5% of messages). In particular the python communication class **MutliAdapter** uses them to count the number of lost (lost_frames field) and corrupted (parse_errors field) data frames. Yet some corrupted data frames may still be handled as valid. So application should implement additional data protection (by means of checksum) to relyably detect corrupted data.
+Note that stream tags don't not guarantee that corrupted data frame will never be erroneously treated as valid. They just provide the way to detect them which works most of the time (roughly for 99.5% of messages). In particular the python communication class **MutliAdapter** uses them to count the number of lost (lost_frames field) and corrupted (parse_errors field) data frames. Yet some corrupted data frames may still be handled as valid. So application should implement additional data protection (by means of checksum) to relyably detect corrupted data.
 </details>
 
 <details>
 <summary>
 <h3>Authentication</h3>
 </summary>
+The adapter authentication may be necessary in case it provides access to some sensitive information or device. The adapter code implements simple authentication algorithm with symmetric master key set at compile time. The host may pass two parameters - seed and salt with K command. After that the adapter will be appending the passkey to every idle event sent to the host. The following figure illustrates the passkey calculation algorithm.
 
 <p align="center">
-  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/auth.png?raw=true" width="70%" alt="Authentication algorithm"/>
+  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/auth.png?raw=true" width="50%" alt="Authentication algorithm"/>
 </p>
+
+The seed is combined with master key to obtain authentication key. It then combined with salt to obtain passkey which is truncated to 6 bytes and base64 encoded to 8 symbols appended to idle vents. Such two stage routine helps to avoid exposing master key in host code. The host may pre-calculate authentication key and use it for validation without storing master key. Yet the seed and authentication key be changed anytime by updating host code.
 
 </details>
 
