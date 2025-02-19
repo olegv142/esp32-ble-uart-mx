@@ -73,7 +73,7 @@ Note that stream tags don't not guarantee that corrupted data frame will never b
 The adapter authentication may be necessary in case it provides access to some sensitive information or device. The adapter code implements simple authentication algorithm with symmetric master key set at compile time. The host may pass two parameters - seed and salt with K command. After that the adapter will be appending the passkey to every idle event sent to the host. The following figure illustrates the passkey calculation algorithm.
 
 <p align="center">
-  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/auth.png?raw=true" width="40%" alt="Authentication algorithm"/>
+  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/auth.png?raw=true" width="35%" alt="Authentication algorithm"/>
 </p>
 
 The seed is combined with master key to obtain authentication key. It then combined with salt to obtain passkey which is truncated to 6 bytes and base64 encoded to 8 symbols appended to idle vents. Such two stage routine helps to avoid exposing master key in host code. The host may pre-calculate authentication key and use it for validation without storing master key. Yet the seed and authentication key be changed anytime by updating host code.
