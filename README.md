@@ -76,7 +76,7 @@ The adapter authentication may be necessary in case it provides access to some s
   <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/auth.png?raw=true" width="35%" alt="Authentication algorithm"/>
 </p>
 
-The seed is combined with master key to obtain authentication key. It then combined with salt to obtain passkey which is truncated to 6 bytes and base64 encoded to 8 symbols appended to idle vents. Such two stage routine helps to avoid exposing master key in host code. The host may pre-calculate authentication key and use it for validation without storing master key. Yet the seed and authentication key be changed anytime by updating host code.
+The seed is combined with master key to obtain authentication key. Its then combined with salt to obtain passkey which is truncated to 6 bytes and base64 encoded to 8 symbols appended to idle vents. Such two stage routine helps to avoid exposing master key in host code. The host may pre-calculate authentication key and use it for validation without storing master key. Yet the seed and authentication key may be changed anytime by updating host code.
 
 </details>
 
