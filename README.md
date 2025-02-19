@@ -14,7 +14,7 @@ Technically the BLE peripheral device consists of a collection of services (we h
 </p>
 
 ### Serial protocol
-The serial communication between controlling host and **ble_uart_mx** adapter takes place by sending and receiving messages as shown on the figure below. Every message begins with start marker shown as white circle and ends with end marker shown as black circle. While using hardware UART the start marker is represented by byte with the value of 1 while the end marker is represented by zero byte. While using ESP32 built-in USB CDC adapter the start marker is absent by default while the new line symbol plays the role of the end marker. The first variant is more robust while using new line as terminator simplify entering commands in terminal. The symbol after start marker (or the first message symbol if start marker is not used) determines the type of the input message. Symbols 0..3 indicate the index of the connection to peripheral device where the data that follows should be sent. The > symbols indicates that the data that follows should be sent to the connected central device. The # symbol indicates that the following symbol represents command. There are only 3 commands - reset (R), connect (C) to the set of addresses and advertise (A). The latter is only applicable in case the device was configured as hidden so advertising was not started automatically at startup. In case the board has serially controlled RGB led (aka neo pixel) the L command may be used to manually control it be setting RGB values.
+The serial communication between controlling host and **ble_uart_mx** adapter takes place by sending and receiving messages as shown on the figure below. Every message begins with start marker shown as white circle and ends with end marker shown as black circle. While using hardware UART the start marker is represented by byte with the value of 1 while the end marker is represented by zero byte. While using ESP32 built-in USB CDC adapter the start marker is absent by default while the new line symbol plays the role of the end marker. The first variant is more robust while using new line as terminator simplify entering commands in terminal. The symbol after start marker (or the first message symbol if start marker is not used) determines the type of the input message. Symbols 0..3 indicate the index of the connection to peripheral device where the data that follows should be sent. The > symbols indicates that the data that follows should be sent to the connected central device. The # symbol indicates that the following symbol represents command. There are 3 basic commands - reset (R), connect (C) to the set of addresses and advertise (A). The latter is only applicable in case the device was configured as hidden so advertising was not started automatically at startup. The K command may be used to authenticate adapter by validating the secret key set at compile time. In case the board has serially controlled RGB led (aka neo pixel) the L command may be used to manually control it be setting RGB values.
 
 ![The bridge architecture and communication protocol](https://github.com/olegv142/esp32-ble/blob/main/doc/mx.png)
 
@@ -64,6 +64,17 @@ Its not uncommon to use serial communication link without hardware flow control 
 One can define STREAM_TAGS in the configuration file to add stream tags to the protocol. With STREAM_TAGS defined the adapter is adding stream tags to the output serial data stream. It always able to recognize stream tags on input regardless of that macro definition. Yet with simple link protocol the stream tags must be present on input if and only if the STREAM_TAGS is defined since in simple link protocol the stream tags can't be discriminated from the data.
 
 Note that stream tags don't not gurantee that corrupted data frame will never be erroneously treated as valid. They just provide the way to detect them which works most of the time (roughly for 99.5% of messages). In particular the python communication class **MutliAdapter** uses them to count the number of lost (lost_frames field) and corrupted (parse_errors field) data frames. Yet some corrupted data frames may still be handled as valid. So application should implement additional data protection (by means of checksum) to relyably detect corrupted data.
+</details>
+
+<details>
+<summary>
+<h3>Authentication</h3>
+</summary>
+
+<p align="center">
+  <img src="https://github.com/olegv142/esp32-ble/blob/main/doc/auth.png?raw=true" width="70%" alt="Authentication algorithm"/>
+</p>
+
 </details>
 
 <details>
