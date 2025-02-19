@@ -10,7 +10,7 @@ class UsbKey(MutliAdapter):
         super().__init__(port)
         self.msg_cnt = 0
 
-    def on_idle(self, hidden, version):
+    def on_idle(self, hidden, version, passkey):
         print('Idle, version %s' % version)
         if hidden:
             self.advertise()

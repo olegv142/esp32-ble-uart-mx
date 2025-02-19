@@ -60,6 +60,7 @@
 #include <freertos/queue.h>
 #include <esp_cpu.h>
 #include <Esp.h>
+#include <rom/md5_hash.h>
 
 #include "mx_config.h"
 #include "debug.h"
@@ -91,6 +92,13 @@ static Peer*    peers[MAX_PEERS];
 static unsigned npeers;
 static int      connected_peers;
 static int      connected_centrals;
+
+static uint8_t  auth_key[] = { AUTH_KEY };
+static uint8_t  passkey[16];
+static bool     passkey_valid;
+
+#define PASSKEY_B64_LEN MAX_BASE64_ENCODED_LEN(PASSKEY_LEN)
+static char     passkey_b64[PASSKEY_B64_LEN];
 
 typedef enum {
   c_idle,
@@ -234,6 +242,8 @@ static void uart_print(const char* str)
   uart_write(str, strlen(str));
 }
 
+#define uart_print_strz(s) uart_write(s, STRZ_LEN(s))
+
 static void uart_print(String const& str)
 {
   uart_write(str.c_str(), str.length());
@@ -286,6 +296,12 @@ static inline void debug_msg(const char* msg)
 #endif
 }
 
+#ifndef NO_DEBUG
+#define debug_strz(msg) do {uart_begin(); uart_print_strz(msg); uart_end();} while (0)
+#else
+#define debug_strz(msg) do {} while (0)
+#endif
+
 static unsigned chk_error_cnt(struct err_count* e, const char* msg)
 {
   if (e->cnt != e->last) {
@@ -293,7 +309,7 @@ static unsigned chk_error_cnt(struct err_count* e, const char* msg)
     uart_begin();
     uart_print(msg);
     uart_print(e->cnt - e->last);
-    uart_print(" times");
+    uart_print_strz(" times");
     uart_end();
 #endif
     unsigned const err_cnt = e->cnt - e->last;
@@ -312,7 +328,7 @@ static unsigned chk_error_cnt2(struct err_count* e, const char* pref, char tag, 
     uart_print(tag);
     uart_print(suff);
     uart_print(e->cnt - e->last);
-    uart_print(" times");
+    uart_print_strz(" times");
     uart_end();
 #endif
     unsigned const err_cnt = e->cnt - e->last;
@@ -350,9 +366,9 @@ public:
     if (chunk->len <= XHDR_SIZE + CHKSUM_SIZE || chunk->len > MAX_SIZE) {
 #ifndef NO_DEBUG
       uart_begin();
-      uart_print("-invalid chunk size from [");
+      uart_print_strz("-invalid chunk size from [");
       uart_print(m_tag);
-      uart_print("]");
+      uart_print_strz("]");
       uart_end();
 #endif
       goto skip;
@@ -368,9 +384,9 @@ public:
     if (!chksum_validate(chunk->data, chunk->len - CHKSUM_SIZE, &chksum)) {
 #ifndef NO_DEBUG
       uart_begin();
-      uart_print("-invalid checksum from [");
+      uart_print_strz("-invalid checksum from [");
       uart_print(m_tag);
-      uart_print("]");
+      uart_print_strz("]");
       uart_end();
 #endif
       goto skip;
@@ -386,9 +402,9 @@ public:
   skip_verbose:
 #ifdef VERBOSE_DEBUG
     uart_begin();
-    uart_print("-skip chunk from [");
+    uart_print_strz("-skip chunk from [");
     uart_print(m_tag);
-    uart_print("]");
+    uart_print_strz("]");
     uart_end();
 #endif
   skip:
@@ -455,11 +471,11 @@ static bool transmit_frame(
       // All such errors may be due to uart buffer overflow while not using RTS
       // flow control. So just print debug message and return true.
       // Note that returning false means BLE stack congestion.
-      debug_msg("-encoded data size exceeds limit");
+      debug_strz("-encoded data size exceeds limit");
       return true;
     }
     if ((len % 4) != 1) {
-      debug_msg("-invalid encoded data size");
+      debug_strz("-invalid encoded data size");
       return true;
     }
     len = decode(data + 1, len - 1, tx_data = tx_buff);
@@ -467,11 +483,11 @@ static bool transmit_frame(
 #endif
 
   if (!len) {
-    debug_msg("-bad data to transmit");
+    debug_strz("-bad data to transmit");
     return true;
   }
   if (len > MAX_FRAME) {
-    debug_msg("-data size exceeds limit");
+    debug_strz("-data size exceeds limit");
     return true;
   }
 
@@ -591,7 +607,7 @@ public:
   void report_connecting() {
 #ifdef STATUS_REPORT_INTERVAL
     uart_begin();
-    uart_print(":C");
+    uart_print_strz(":C");
     uart_print(m_tag);
     uart_end();
 #endif
@@ -865,7 +881,7 @@ void fatal(const char* what)
 {
 #ifndef NO_DEBUG
   uart_begin();
-  uart_print("-fatal: ");
+  uart_print_strz("-fatal: ");
   uart_print(what);
   uart_end();
 #endif
@@ -900,11 +916,11 @@ static void add_peer(unsigned idx, String const& addr)
   ++npeers;
 #ifndef NO_DEBUG
   uart_begin();
-  uart_print("-connection [");
+  uart_print_strz("-connection [");
   uart_print(idx);
-  uart_print("] initialized, ");
+  uart_print_strz("] initialized, ");
   uart_print(ESP.getFreeHeap());
-  uart_print(" bytes free");
+  uart_print_strz(" bytes free");
   uart_end();
 #endif
 }
@@ -1024,17 +1040,17 @@ static void bt_device_start()
 
 #ifndef NO_DEBUG
   uart_begin();
-  uart_print("-BT device ");
+  uart_print_strz("-BT device ");
   uart_print(dev_name);
-  uart_print(" at ");
+  uart_print_strz(" at ");
   uart_print(dev_addr);
-  uart_print(" on ");
+  uart_print_strz(" on ");
   uart_print(ESP.getChipModel());
-  uart_print(" ");
+  uart_print_strz(" ");
   uart_print(getCpuFrequencyMhz());
-  uart_print("MHz ");
+  uart_print_strz("MHz ");
   uart_print(ESP.getFreeHeap());
-  uart_print(" bytes free");
+  uart_print_strz(" bytes free");
   uart_end();
 #endif
 }
@@ -1067,7 +1083,7 @@ static void neopix_init()
   neopix_led_data_init(neopix_led[cx_passive_congested], PASSIVE_CONGESTED_RGB);
 
   if (!neopix_led_init(NEO_PIXEL_PIN)) {
-    debug_msg("-neopixel pin init failed");
+    debug_strz("-neopixel pin init failed");
     return;
   }
   neopix_conn_set(cx_idle);
@@ -1172,7 +1188,7 @@ void Peer::connect()
 #ifndef NO_DEBUG
   uint32_t const start = millis();
   uart_begin();
-  uart_print("-connecting to ");
+  uart_print_strz("-connecting to ");
   uart_print(m_addr);
   uart_end();
 #endif
@@ -1214,16 +1230,16 @@ void Peer::connect()
 
 #ifndef NO_DEBUG
   uart_begin();
-  uart_print("-connected to ");
+  uart_print_strz("-connected to ");
   uart_print(m_addr);
-  uart_print(" in ");
+  uart_print_strz(" in ");
   uart_print(millis() - start);
-  uart_print(" msec");
+  uart_print_strz(" msec");
   if (m_writable)
-    uart_print(", writable");
+    uart_print_strz(", writable");
   else
-    uart_print(", readonly");
-  uart_print(", rssi=");
+    uart_print_strz(", readonly");
+  uart_print_strz(", rssi=");
   uart_print(m_Client->getRssi());
   uart_end();
 #endif
@@ -1234,7 +1250,7 @@ void Peer::subscribe()
 #ifndef NO_DEBUG
   uint32_t const start = millis();
   uart_begin();
-  uart_print("-subscribing to ");
+  uart_print_strz("-subscribing to ");
   uart_print(m_addr);
   uart_end();
 #endif
@@ -1245,13 +1261,13 @@ void Peer::subscribe()
 
 #ifndef NO_DEBUG
   uart_begin();
-  uart_print("-subscribed to ");
+  uart_print_strz("-subscribed to ");
   uart_print(m_addr);
-  uart_print(" in ");
+  uart_print_strz(" in ");
   uart_print(millis() - start);
-  uart_print(" msec, ");
+  uart_print_strz(" msec, ");
   uart_print(ESP.getFreeHeap());
-  uart_print(" bytes free");
+  uart_print_strz(" bytes free");
   uart_end();
 #endif
 }
@@ -1286,7 +1302,7 @@ static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
 static bool transmit_to_central(const char* data, size_t len)
 {
   if (!advertising_enabled) {
-    debug_msg("-can't transmit while hidden");
+    debug_strz("-can't transmit while hidden");
     return true;
   }
 #ifdef EXT_FRAMES
@@ -1299,7 +1315,7 @@ static bool transmit_to_central(const char* data, size_t len)
 static bool transmit_to_peer(unsigned idx, const char* str, size_t len)
 {
   if (idx >= MAX_PEERS || !peers[idx]) {
-    debug_msg("-bad peripheral index");
+    debug_strz("-bad peripheral index");
     return true;
   }
   return peers[idx]->transmit(str, len);
@@ -1309,7 +1325,7 @@ static bool transmit_to_peer(unsigned idx, const char* str, size_t len)
 static void cmd_connect(const char* param, size_t len)
 {
   if (npeers) {
-    debug_msg("-already connected");
+    debug_strz("-already connected");
     return;
   }
   String params(param, len);
@@ -1327,6 +1343,38 @@ static void cmd_connect(const char* param, size_t len)
   }
 }
 #endif
+
+static void cmd_key(const char* param, size_t len)
+{
+  const char* const sep = (const char*)memchr(param, '&', len);
+  if (!sep) {
+    debug_strz("-key separator not found");
+    return;
+  }
+  size_t const seed_len = sep - param;
+  size_t const salt_len = len - seed_len - 1;
+  if (!seed_len) {
+    debug_strz("-seed is empty");
+    return;
+  }
+  if (!salt_len) {
+    debug_strz("-salt is empty");
+    return;
+  }
+  struct MD5Context ctx;
+  unsigned char key[16];
+  MD5Init(&ctx);
+  MD5Update(&ctx, (const unsigned char*)param, seed_len);
+  MD5Update(&ctx, auth_key, sizeof(auth_key));
+  MD5Final(key, &ctx);
+  MD5Init(&ctx);
+  MD5Update(&ctx, key, sizeof(key));
+  MD5Update(&ctx, (const unsigned char*)(param + seed_len + 1), salt_len);
+  MD5Final(passkey, &ctx);
+  size_t const sz = encode(passkey, PASSKEY_LEN, passkey_b64);
+  BUG_ON(sz != PASSKEY_B64_LEN);
+  passkey_valid = true;
+}
 
 #ifdef LED_CONTROL_API
 static inline void led_cmd_auto(void)
@@ -1353,7 +1401,7 @@ static void cmd_led(const char* param, size_t len)
   if (3 == sscanf(params.c_str(), " %u %u %u", &r, &g, &b))
       led_cmd_rgb(r, g, b);
   else
-      debug_msg("-unrecognized parameter");
+      debug_strz("-unrecognized parameter");
 }
 #endif
 
@@ -1381,13 +1429,16 @@ static void process_cmd(const char* cmd, size_t len)
       advertising_enabled = true;
       break;
 #endif
+    case 'K':
+      cmd_key(cmd + 1, len - 1);
+      break;
 #ifdef LED_CONTROL_API
     case 'L':
       cmd_led(cmd + 1, len - 1);
       break;
 #endif
     default:
-      debug_msg("-unrecognized command");
+      debug_strz("-unrecognized command");
       ++parse_err.cnt;
   }
 }
@@ -1516,11 +1567,15 @@ static inline void report_idle()
 {
   uart_begin();
   if (advertising_enabled)
-    uart_print(":I " VMAJOR "." VMINOR "-");
+    uart_print_strz(":I " VMAJOR "." VMINOR "-");
   else
-    uart_print(":Ih " VMAJOR "." VMINOR "-");
+    uart_print_strz(":Ih " VMAJOR "." VMINOR "-");
   uart_print(MAX_FRAME);
-  uart_print("-" VARIANT);
+  uart_print_strz("-" VARIANT);
+  if (passkey_valid) {
+    uart_print(' ');
+    uart_write(passkey_b64, PASSKEY_B64_LEN);
+  }
   uart_end();
 }
 
@@ -1528,9 +1583,9 @@ static inline void report_connected()
 {
   uart_begin();
   if (advertising_enabled)
-    uart_print(":D");
+    uart_print_strz(":D");
   else
-    uart_print(":Dh");
+    uart_print_strz(":Dh");
   uart_end();
 }
 #endif
@@ -1625,7 +1680,7 @@ void loop()
     is_congested = !cli_process();
 
   if (advertising_enabled && start_advertising && elapsed(centr_disconn_ts, millis()) > 100) {
-    debug_msg("-start advertising");
+    debug_strz("-start advertising");
     BLEDevice::startAdvertising(); // restart advertising
     start_advertising = false;
   }

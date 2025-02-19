@@ -15,7 +15,7 @@ class UsbKeyEcho(MutliAdapter):
         self.peers = peers
         self.msg_cnt = 0
 
-    def on_idle(self, hidden, version):
+    def on_idle(self, hidden, version, passkey):
         print('Idle, version %s' % version)
         self.connect(self.peers)
 

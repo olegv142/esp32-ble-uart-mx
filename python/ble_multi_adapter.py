@@ -7,6 +7,7 @@ Author: Oleg Volkov
 import sys
 import time
 import base64
+import hashlib
 import binascii
 from serial import Serial, PARITY_NONE, PARITY_EVEN
 from serial.tools import list_ports
@@ -272,6 +273,10 @@ class MutliAdapter(AdapterConnection):
 		"""Turn on advertising if was hidden"""
 		self.submit_msg(b'#A')
 
+	def set_auth(self, seed, salt):
+		"""Setup authentication"""
+		self.submit_msg(b'#K' + seed + b'&' + salt)
+
 	def send_data(self, data, binary=False):
 		"""Send data to connected central"""
 		if binary:
@@ -308,10 +313,10 @@ class MutliAdapter(AdapterConnection):
 		tag = msg[:1]
 		if tag == b'I':
 			self.on_stable_status()
-			if msg[1:2] == b'h':
-				self.on_idle(True, msg[2:].strip())
-			else:
-				self.on_idle(False, msg[1:].strip())
+			hidden = (msg[1:2] == b'h')
+			tail = msg[2:] if hidden else msg[1:]
+			m = tail.split()
+			self.on_idle(hidden, m[0], m[1] if len(m) > 1 else None)
 		elif tag == b'C':
 			self.on_connecting(msg[1] - b'0'[0])
 		elif tag == b'D':
@@ -338,7 +343,7 @@ class MutliAdapter(AdapterConnection):
 		"""Switch to auto control of the neo-pixel LED on board"""
 		self.submit_msg(b'#L')
 
-	def on_idle(self, hidden, version):
+	def on_idle(self, hidden, version, passkey):
 		pass
 
 	def on_connecting(self, idx):
@@ -386,6 +391,27 @@ def find_port(vid = 0x303A, pid = 0x1001):
 			return p.device
 	return None
 
+def chk_auth(passkey, seed, salt, master_key=bytes(range(10))):
+	"""Verify passkey received in idle message given known master key"""
+	h = hashlib.md5()
+	h.update(seed)
+	h.update(master_key)
+	return chk_auth_key(passkey, h.digest(), salt)
+
+def chk_auth_key(passkey, auth_key, salt):
+	"""
+	Verify passkey received in idle message against auth key derived from the master key.
+	This routine may be used without exposing master key.
+	"""
+	try:
+		bkey = base64.b64decode(passkey)
+	except binascii.Error:
+		return False
+	h = hashlib.md5()
+	h.update(auth_key)
+	h.update(salt)
+	return h.digest()[:len(bkey)] == bkey
+
 
 if __name__ == '__main__':
 	#
@@ -399,7 +425,7 @@ if __name__ == '__main__':
 		def __init__(self, port):
 			super().__init__(port)
 
-		def on_idle(self, hidden, version):
+		def on_idle(self, hidden, version, passkey):
 			print('  v.%s' % version)
 
 		def on_debug_msg(self, msg):

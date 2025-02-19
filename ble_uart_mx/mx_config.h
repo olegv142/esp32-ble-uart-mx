@@ -153,6 +153,18 @@
 #endif
 #endif
 
+#ifndef AUTH_KEY
+#define AUTH_KEY 0,1,2,3,4,5,6,7,8,9
+#endif
+
+#ifndef PASSKEY_LEN
+#define PASSKEY_LEN 6
+#endif
+
+#if PASSKEY_LEN > 16
+#error "Passkey is too long"
+#endif
+
 //
 // Build version string
 //
