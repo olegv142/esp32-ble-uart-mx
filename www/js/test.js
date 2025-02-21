@@ -1,0 +1,133 @@
+'use strict';
+
+(() => {
+
+const Connection     = __ble_mx_api.Connection;
+const str2Uint8Array = __ble_mx_api.str2Uint8Array;
+const DataView2str   = __ble_mx_api.DataView2str;
+
+const bt_btn  = document.getElementById('bt-btn');
+const bt_btn2 = document.getElementById('bt-btn2');
+const rx_msg  = document.getElementById('rx-msg');
+const tx_msg  = document.getElementById('tx-msg');
+
+const rx_msg_max = parseInt(rx_msg.getAttribute('rows'));
+const query_str  = window.location.search;
+const url_param  = new URLSearchParams(query_str);
+const echo_mode  = url_param.get('echo') !== null;
+const dual_mode  = url_param.get('dual') !== null;
+
+let rx_msgs = [];
+let bt_rx_suspended = false;
+
+let bt_conn = null;
+
+function isConnected()
+{
+	return bt_char !== null;
+}
+
+function initPage()
+{
+	if (!navigator.bluetooth) {
+		document.body.innerHTML = '<div class="alert-page">The Bluetooth is not supported in this browser. Please try another one.</div>';
+		return;
+	}
+	bt_btn.textContent = 'Connect';
+	bt_btn.onclick = onBtn;
+	bt_btn2.onclick = onBtn2;
+	bt_conn = new Connection(on_rx, dual_mode);
+}
+
+function showMessage(msg)
+{
+	if (rx_msgs.length >= rx_msg_max)
+		rx_msgs.shift();
+	rx_msgs.push(msg);
+	console.log('rx:', msg);
+	rx_msg.textContent = rx_msgs.join('\n');
+}
+
+function onDisconnection(device)
+{
+	tx_msg.disabled = true;
+	rx_msg.disabled = true;
+	bt_btn.disabled = true;
+	bt_btn2.disabled = true;
+	connectTo(device);
+}
+
+function on_rx(value) {
+	if (echo_mode)
+		bt_conn.write(value);
+	if (!bt_rx_suspended)
+		showMessage(DataView2str(value));
+}
+
+function suspendRx(flag)
+{
+	bt_rx_suspended = flag;
+	bt_btn2.textContent = flag ? 'Resume' : 'Suspend';
+}
+
+function onBTConnected(device)
+{
+	tx_msg.disabled = bt_btn.disabled = bt_conn.is_redonly();
+	rx_msg.disabled = false;
+	bt_btn.textContent = 'Send';
+	bt_btn2.disabled = false;
+	bt_btn2.classList.remove('hidden');
+	suspendRx(bt_rx_suspended);
+}
+
+function connectTo(device)
+{
+	bt_conn.connect(device, onBTConnected, onDisconnection);
+}
+
+function doConnect(devname)
+{
+	console.log('doConnect', devname);
+	bt_btn.disabled = true;
+	let filters = [{services: [Connection.bt_svc_id]}];
+	if (devname) {
+		filters.push({name: devname});
+	}
+	return navigator.bluetooth.requestDevice({
+		filters: filters,
+	}).
+	then((device) => {
+		console.log(device.name, 'selected');
+		connectTo(device);
+	})
+	.catch((err) => {
+		console.log('Failed to discover BT devices');
+		bt_btn.textContent = 'Connect';
+		bt_btn.disabled = false;
+	});
+}
+
+function txString(str)
+{
+	const val = str2Uint8Array(str);
+	console.log('tx:', str);
+	bt_conn.write(val);
+}
+
+function onBtn(event)
+{
+	if (bt_conn.is_connected())
+		txString(tx_msg.value + '\r');
+	else
+		doConnect();
+}
+
+function onBtn2(event)
+{
+	suspendRx(!bt_rx_suspended);
+}
+
+initPage();
+
+})();
+
