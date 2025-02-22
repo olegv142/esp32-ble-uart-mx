@@ -3,7 +3,13 @@
 let __ble_mx_api = {};
 
 (() => {
-	class Connection {
+	//
+	// This is the interface to the esp32-ble-uart-mx adapters
+	// See https://github.com/olegv142/esp32-ble-uart-mx
+	//
+	class Connection
+	{
+		// The plain connection for message passing
 		static bt_svc_id     = 0xFFE0;
 		static bt_char_tx_id = 0xFFE1;
 		static bt_char_rx_id = 0xFFE2;
@@ -83,47 +89,183 @@ let __ble_mx_api = {};
 			return !this.bt_char.properties.write;
 		}
 
-		#bt_write(val) {
-			this.bt_char.writeValueWithoutResponse(val)
+		#bt_write(data) {
+			this.bt_char.writeValueWithoutResponse(data)
 			.then(
 				() => {this.#tx_queue_flush();},
-				(err) => {console.log('BT write failed'); this.tx_queue.push(val); this.#tx_queue_flush();}
+				(err) => {console.log('BT write failed'); this.tx_queue.push(data); this.#tx_queue_flush();}
 			);
 		}
 
 		#tx_queue_flush() {
-			const val = this.tx_queue.shift();
-			if (val)
-				this.#bt_write(val);
+			const data = this.tx_queue.shift();
+			if (data)
+				this.#bt_write(data);
 			else
 				this.bt_busy = false;
 		}
 
-		write(val) {
+		write(data) {
 			if (this.bt_busy) {
-				this.tx_queue.push(val);
+				this.tx_queue.push(data);
 				return;
 			}
 			this.bt_busy = true;
-			this.#bt_write(val);
+			this.#bt_write(data);
 		}
 
 	}
+	//
+	// Extended frames support
+	//
+	const MAX_SIZE    = 244;
+	const MAX_CHUNKS  = 9;
+	const XHDR_SIZE   = 1;
+	const CHKSUM_SIZE = 3;
+	const MAX_PAYLOAD = MAX_SIZE - XHDR_SIZE - CHKSUM_SIZE;
 
+	const XH_BINARY_BIT = 5;
+	const XH_FIRST_BIT  = 6;
+	const XH_LAST_BIT   = 7;
+
+	const XH_BINARY  = (1<<XH_BINARY_BIT);
+	const XH_FIRST   = (1<<XH_FIRST_BIT);
+	const XH_LAST    = (1<<XH_LAST_BIT);
+
+	const XH_SN_BITS = XH_BINARY_BIT;
+	const XH_SN_MASK = (1<<XH_SN_BITS)-1;
+
+	class ConnectionExt extends Connection
+	{
+		// Connection for extended frames transmission
+		next_sn = 0;
+		#write_chunk = super.write;
+
+		constructor(ext_frame_cb, dual_mode)
+		{
+			let next_sn = 0;
+			let last_chunk = -1;
+			let last_chksum = 0;
+			let total_len = 0;
+			let chunks = Array(MAX_CHUNKS);
+			// The message callback that performs packets checking and defragmentation
+			function chunk_rx_cb(data)
+			{
+				const len = data.byteLength;
+				if (len <= XHDR_SIZE + CHKSUM_SIZE || len > MAX_SIZE) {
+					console.log('invalid chunk size: ' + len);
+					return;
+				}
+				const h = data.getUint8(0);
+				if (!(h & XH_FIRST)) {
+					if (last_chunk < 0 ||
+						next_sn != (h & XH_SN_MASK) ||
+						last_chunk + 1 >= MAX_CHUNKS
+					) {
+						console.log('chunk(s) lost');
+						return;
+					}
+				}
+				let chksum = (h & XH_FIRST) ? CHKSUM_INI : last_chksum;
+				chksum = fnv1a_(data, len - CHKSUM_SIZE, chksum);
+				if (
+					data.getUint8(len-CHKSUM_SIZE)   != (chksum & 0xff) ||
+					data.getUint8(len-CHKSUM_SIZE+1) != ((chksum>>8) & 0xff) ||
+					data.getUint8(len-CHKSUM_SIZE+2) != (((chksum>>16)^(chksum>>24)) & 0xff)
+				) {
+					console.log('invalid checksum');
+					return;
+				}
+				if (h & XH_FIRST) {
+					last_chunk = -1;
+					total_len = 0;
+				}
+				total_len += len - XHDR_SIZE - CHKSUM_SIZE;
+				last_chksum = chksum;
+				next_sn = (h + 1) & XH_SN_MASK;
+				chunks[++last_chunk] = data;
+				if (!(h & XH_LAST))
+					return;
+				const buf = new Uint8Array(total_len);
+				let off = 0;
+				for (let i = 0; i <= last_chunk; ++i) {
+					const data_len   = chunks[i].byteLength - XHDR_SIZE - CHKSUM_SIZE;
+					const chunk_data = new Uint8Array(chunks[i].buffer, XHDR_SIZE, data_len);
+					buf.set(chunk_data, off);
+					off += data_len;
+				}
+				ext_frame_cb(
+						new DataView(buf.buffer, 0, total_len),
+						(h & XH_BINARY) != 0 // binary flag
+					);
+			}
+			super(chunk_rx_cb, dual_mode);
+		}
+		// Write data splitting it to chunks if necessary
+		write(data, is_binary=false)
+		{
+			let len = data.byteLength;
+			let chksum = CHKSUM_INI;
+			let first = XH_FIRST;
+			let off = 0;
+			const binary = is_binary ? XH_BINARY : 0;
+			while (len) {
+				const chunk_len = len > MAX_PAYLOAD ? MAX_PAYLOAD : len;
+				len -= chunk_len;
+				const last = !len ? XH_LAST : 0;
+				const hchunk_len = XHDR_SIZE + chunk_len;
+				const msg_len = hchunk_len + CHKSUM_SIZE;
+				const buf = new Uint8Array(msg_len);
+				buf[0] = first + last + binary + this.next_sn;
+				first = 0;
+				this.next_sn = (this.next_sn + 1) & XH_SN_MASK;
+				buf.set(new Uint8Array(data.buffer, off, chunk_len), XHDR_SIZE);
+				const msg_data = new DataView(buf.buffer, 0, msg_len);
+				chksum = fnv1a_(msg_data, hchunk_len, chksum);
+				buf[hchunk_len]   = chksum & 0xff;
+				buf[hchunk_len+1] = (chksum>>8) & 0xff;
+				buf[hchunk_len+2] = ((chksum>>16)^(chksum>>24)) & 0xff;
+				off += chunk_len;
+				this.#write_chunk(msg_data);
+			}
+		}
+	}
+	//
+	// Helper functions
+	//
 	function str2Uint8Array(str) {
 		return Uint8Array.from(Array.from(str).map(letter => letter.charCodeAt(0)));
 	}
 
 	function DataView2str(data) {
 		let str = '';
-		for (let i = 0; i < data.byteLength; i++) {
+		for (let i = 0; i < data.byteLength; ++i) {
 			const c = data.getUint8(i);
 			str += String.fromCharCode(c);
 		}
 		return str;
 	}
 
+	const FNV32_PRIME  = 16777619;
+	const FNV32_OFFSET = 2166136261;
+	const CHKSUM_INI   = FNV32_OFFSET;
+
+	function fnv1a_up(b, hash) {
+		return Math.imul(hash ^ b, FNV32_PRIME) >>> 0;
+	}
+
+	function fnv1a_(data, len, hash) {
+		for (let i = 0; i < len; ++i)
+			hash = fnv1a_up(data.getUint8(i), hash);
+		return hash;
+	}
+
+	function fnv1a(data, len) {
+		return fnv1a_(data, len, FNV32_OFFSET);
+	}
+
 	__ble_mx_api.Connection     = Connection;
+	__ble_mx_api.ConnectionExt  = ConnectionExt;
 	__ble_mx_api.str2Uint8Array = str2Uint8Array;
 	__ble_mx_api.DataView2str   = DataView2str;
 

@@ -2,7 +2,14 @@
 
 (() => {
 
-const Connection     = __ble_mx_api.Connection;
+const query_str  = window.location.search;
+const url_param  = new URLSearchParams(query_str);
+const echo_mode  = url_param.get('echo') !== null;
+const dual_mode  = url_param.get('dual') !== null;
+const xframes    = url_param.get('xf')   !== null;
+
+const Connection = xframes ? __ble_mx_api.ConnectionExt : __ble_mx_api.Connection;
+
 const str2Uint8Array = __ble_mx_api.str2Uint8Array;
 const DataView2str   = __ble_mx_api.DataView2str;
 
@@ -12,10 +19,6 @@ const rx_msg  = document.getElementById('rx-msg');
 const tx_msg  = document.getElementById('tx-msg');
 
 const rx_msg_max = parseInt(rx_msg.getAttribute('rows'));
-const query_str  = window.location.search;
-const url_param  = new URLSearchParams(query_str);
-const echo_mode  = url_param.get('echo') !== null;
-const dual_mode  = url_param.get('dual') !== null;
 
 let rx_msgs = [];
 let bt_rx_suspended = false;
@@ -57,9 +60,9 @@ function onDisconnection(device)
 	connectTo(device);
 }
 
-function on_rx(value) {
+function on_rx(value, is_binary=false) {
 	if (echo_mode)
-		bt_conn.write(value);
+		bt_conn.write(value, is_binary);
 	if (!bt_rx_suspended)
 		showMessage(DataView2str(value));
 }
