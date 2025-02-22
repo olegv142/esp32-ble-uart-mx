@@ -113,6 +113,7 @@ The connection state indicator is very useful feature for testing and debugging.
 
 ## Host API
 The host API implementation for python may be found in **python/ble_multi_adapter.py**. It supports all protocol variants using either physical serial port or USB CDC.
+The JavaScript API may be found in **docs/js/ble_mx_api.js**. Its used in the example Web BLE terminal application https://olegv142.github.io/esp32-ble-uart-mx/. The URL parameters may be used to configure the behavior of this application. For example the URL https://olegv142.github.io/esp32-ble-uart-mx/?dual&echo&xf opens terminal in dual dual characteristic configuration with extended data frames support echoing back every received frame.
 
 ## Building and flashing
 To be able to build this code examples add the following to Arduino Additional board manager URLs:
@@ -151,7 +152,7 @@ The default configuration (**ble_uart_mx/config/usb_peripheral.h**) corresponds 
 To test adapter in peripheral role one can do the following:
 * build and flash it with default configuration
 * run **python/ble_multi_adapter.py** passing USB virtual port name as parameter
-* open https://enspectr.github.io/ble-term?echo in chrome browser and connect to the adapter
+* open https://olegv142.github.io/esp32-ble-uart-mx/?dual&echo in chrome browser and connect to the adapter
 * observe messages passing in both directions between adapter and host computer running browser
 
 <details>
@@ -247,8 +248,6 @@ The ESP32H2 demonstrating lowest power consumption is failed to establish more t
 </details>
 
 ## Useful links
-
-The BLE terminal web page example: https://github.com/enspectr/ble-term
 
 Dual mode Bluetooth to serial adapter based on ESP32: https://github.com/olegv142/esp32-bt-serial
 
