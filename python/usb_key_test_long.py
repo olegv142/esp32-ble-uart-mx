@@ -4,7 +4,7 @@ import time
 import random
 
 max_len = 1024
-msg_interval = .5
+msg_interval = .25
 
 def random_bytes(len):
     return bytes((random.randrange(ord('0'), ord('z')+1) for _ in range(len)))
@@ -31,9 +31,10 @@ class UsbKey(MutliAdapter):
 
     def __init__(self, port):
         super().__init__(port)
-        self.ready = False
+        self.connected = False
         self.tx_cnt = 0
         self.rx_cnt = 0
+        self.rx_bytes = 0
         self.msg_errs = 0
         self.msg_lost = 0
         self.msg_dup = 0
@@ -57,9 +58,10 @@ class UsbKey(MutliAdapter):
     def on_central_msg(self, msg):
         print('[.] %s' % msg)
         if not msg:
-            self.ready = True
+            self.connected = True
             return
         self.rx_cnt += 1
+        self.rx_bytes += len(msg)
         sn = chk_message(msg)
         if sn is None:
             self.msg_errs += 1
@@ -86,11 +88,12 @@ with UsbKey(port) as ad:
         while True:
             ad.communicate()
             ts = time.time()
-            if ts > next_msg_ts and ad.ready:
+            if ts > next_msg_ts and ad.connected:
                 # send message to connected central
                 sn += 1
                 ad.send_msg(random_message(sn))
                 next_msg_ts = ts + msg_interval
     except KeyboardInterrupt:
-        print ('%d msg sent, %d received in %d sec' % (ad.tx_cnt, ad.rx_cnt, time.time() - start_ts))
+        elapsed = time.time() - start_ts
+        print ('%d msg sent, %d received (%d bytes) in %d sec (%d bytes/sec)' % (ad.tx_cnt, ad.rx_cnt, ad.rx_bytes, elapsed, ad.rx_bytes / elapsed))
         print ('%d msg lost, %d duplicated, %d corrupted' % (ad.msg_lost, ad.msg_dup, ad.msg_errs))
