@@ -16,10 +16,10 @@ let __ble_mx_api = {};
 		static conn_retry_tout = 500;
 
 		dual_mode = false;
-		bt_char = null;
-		bt_busy = false;
-		tx_queue = [];
-		msg_cb = null;
+		bt_char   = null;
+		bt_busy   = false;
+		tx_queue  = [];
+		msg_cb    = null;
 
 		constructor(msg_cb, dual_mode = False) {
 			this.dual_mode = dual_mode;
@@ -30,8 +30,21 @@ let __ble_mx_api = {};
 			const conn = this;
 			function on_connect(chars)
 			{
+				let listen_char = chars[0];
+				function on_disconnect(event)
+				{
+					const device = event.target;
+					console.log(device.name + ' bluetooth device disconnected');
+					listen_char.removeEventListener('characteristicvaluechanged', on_value_changed);
+					device.removeEventListener('gattserverdisconnected', on_disconnect);
+					conn.bt_char = null;
+					conn.bt_busy = false;
+					conn.tx_queue = [];
+					if (disc_cb)
+						disc_cb(device);
+				}
 				console.log(device.name, 'connected');
-				chars[0].addEventListener('characteristicvaluechanged', on_value_changed);
+				listen_char.addEventListener('characteristicvaluechanged', on_value_changed);
 				device.addEventListener('gattserverdisconnected', on_disconnect);
 				conn.bt_char = conn.dual_mode ? chars[1] : chars[0];
 				if (conn_cb)
@@ -40,16 +53,6 @@ let __ble_mx_api = {};
 			function on_value_changed(event) {
 				if (conn.msg_cb)
 					conn.msg_cb(event.target.value);
-			}
-			function on_disconnect(event)
-			{
-				const device = event.target;
-				console.log(device.name + ' bluetooth device disconnected');
-				conn.bt_char = null;
-				conn.bt_busy = false;
-				conn.tx_queue = [];
-				if (disc_cb)
-					disc_cb(device);
 			}
 			device.gatt.connect().
 			then((server) => {
@@ -105,6 +108,8 @@ let __ble_mx_api = {};
 				this.bt_busy = false;
 		}
 
+		// Transmit data packet.
+		// The data argument may be DataView or Uint8Array.
 		write(data) {
 			if (this.bt_busy) {
 				this.tx_queue.push(data);
@@ -139,7 +144,6 @@ let __ble_mx_api = {};
 	{
 		// Connection for extended frames transmission
 		next_sn = 0;
-		#write_chunk = super.write;
 
 		constructor(ext_frame_cb, dual_mode)
 		{
@@ -148,6 +152,7 @@ let __ble_mx_api = {};
 			let last_chksum = 0;
 			let total_len = 0;
 			let chunks = Array(MAX_CHUNKS);
+
 			// The message callback that performs packets checking and defragmentation
 			function chunk_rx_cb(data)
 			{
@@ -201,7 +206,9 @@ let __ble_mx_api = {};
 			}
 			super(chunk_rx_cb, dual_mode);
 		}
-		// Write data splitting it to chunks if necessary
+
+		// Transmit data frame splitting it to chunks if necessary.
+		// The data argument may be DataView or Uint8Array.
 		write(data, is_binary=false)
 		{
 			let len = data.byteLength;
@@ -226,7 +233,7 @@ let __ble_mx_api = {};
 				buf[hchunk_len+1] = (chksum>>8) & 0xff;
 				buf[hchunk_len+2] = ((chksum>>16)^(chksum>>24)) & 0xff;
 				off += chunk_len;
-				this.#write_chunk(msg_data);
+				super.write(msg_data);
 			}
 		}
 	}
