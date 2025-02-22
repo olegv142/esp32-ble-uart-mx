@@ -113,7 +113,7 @@ The connection state indicator is very useful feature for testing and debugging.
 
 ## Host API
 The host API implementation for python may be found in **python/ble_multi_adapter.py**. It supports all protocol variants using either physical serial port or USB CDC.
-The JavaScript API may be found in **docs/js/ble_mx_api.js**. Its used in the example Web BLE terminal application https://olegv142.github.io/esp32-ble-uart-mx/. The URL parameters may be used to configure the behavior of this application. For example the URL https://olegv142.github.io/esp32-ble-uart-mx/?dual&echo&xf opens terminal in dual dual characteristic configuration with extended data frames support echoing back every received frame.
+The JavaScript API may be found in **docs/js/ble_mx_api.js**. Its used in the example Web BLE terminal application https://olegv142.github.io/esp32-ble-uart-mx/. The URL parameters may be used to configure the behavior of this application. For example the URL https://olegv142.github.io/esp32-ble-uart-mx/?dual&echo&xf opens terminal in dual characteristic configuration with extended data frames support echoing back every received frame.
 
 ## Building and flashing
 To be able to build this code examples add the following to Arduino Additional board manager URLs:
