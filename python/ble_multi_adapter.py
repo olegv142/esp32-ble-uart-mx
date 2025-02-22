@@ -418,7 +418,7 @@ if __name__ == '__main__':
 	# The following example illustrates sending / receiving
 	# messages to / from connected central and controlling
 	# the on-board neo-pixel LED.
-	# One can use https://enspectr.github.io/ble-term/?echo
+	# One can use https://olegv142.github.io/esp32-ble-uart-mx/?dual&echo
 	# to receive those messages and echo them back
 	#
 	class TestAdapter(MutliAdapter):
