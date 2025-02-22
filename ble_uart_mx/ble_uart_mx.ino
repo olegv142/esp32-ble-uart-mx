@@ -361,8 +361,8 @@ public:
 
   void receive(struct data_chunk const* chunk)
   {
-    uint8_t const h = chunk->data[0];
-    uint32_t chksum = h & XH_FIRST ? CHKSUM_INI : m_last_chksum;
+    uint8_t h;
+    uint32_t chksum;
     if (chunk->len <= XHDR_SIZE + CHKSUM_SIZE || chunk->len > MAX_SIZE) {
 #ifndef NO_DEBUG
       uart_begin();
@@ -373,6 +373,7 @@ public:
 #endif
       goto skip;
     }
+    h = chunk->data[0];
     if (!(h & XH_FIRST)) {
       if (m_last_chunk < 0)
         goto skip_verbose;
@@ -381,6 +382,7 @@ public:
       if (m_last_chunk + 1 >= MAX_CHUNKS)
         goto skip_verbose;
     }
+    chksum = h & XH_FIRST ? CHKSUM_INI : m_last_chksum;
     if (!chksum_validate(chunk->data, chunk->len - CHKSUM_SIZE, &chksum)) {
 #ifndef NO_DEBUG
       uart_begin();
