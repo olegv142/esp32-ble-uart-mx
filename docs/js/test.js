@@ -7,11 +7,14 @@ const url_param  = new URLSearchParams(query_str);
 const echo_mode  = url_param.get('echo') !== null;
 const dual_mode  = url_param.get('dual') !== null;
 const xframes    = url_param.get('xf')   !== null;
+const with_csum  = url_param.get('cs')   !== null;
 
 const Connection = xframes ? __ble_mx_api.ConnectionExt : __ble_mx_api.Connection;
 
 const str2Uint8Array = __ble_mx_api.str2Uint8Array;
 const DataView2str   = __ble_mx_api.DataView2str;
+const str_csum       = __ble_mx_api.str_csum;
+const CSUM_LEN       = __ble_mx_api.CSUM_LEN;
 
 const bt_btn  = document.getElementById('bt-btn');
 const bt_btn2 = document.getElementById('bt-btn2');
@@ -60,11 +63,17 @@ function onDisconnection(device)
 	connectTo(device);
 }
 
-function on_rx(value, is_binary=false) {
+function on_rx(value, is_binary=false)
+{
+	let str = DataView2str(value);
+	if (with_csum && str.slice(-CSUM_LEN) != str_csum(str, str.length - CSUM_LEN)) {
+		console.log('bad csum:', str);
+		return;
+	}
 	if (echo_mode)
 		bt_conn.write(value, is_binary);
 	if (!bt_rx_suspended)
-		showMessage(DataView2str(value));
+		showMessage(str);
 }
 
 function suspendRx(flag)
@@ -112,9 +121,10 @@ function doConnect(devname)
 
 function txString(str)
 {
-	const val = str2Uint8Array(str);
+	if (with_csum)
+		str += str_csum(str);
 	console.log('tx:', str);
-	bt_conn.write(val);
+	bt_conn.write(str2Uint8Array(str));
 }
 
 function onBtn(event)

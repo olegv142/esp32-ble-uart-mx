@@ -412,6 +412,35 @@ def chk_auth_key(passkey, auth_key, salt):
 	h.update(salt)
 	return h.digest()[:len(bkey)] == bkey
 
+FNV32_PRIME  = 16777619
+FNV32_OFFSET = 2166136261
+
+def fnv1a_up(b, hash):
+	"""Update FNV1a hash by single byte"""
+	return ((hash ^ b) * FNV32_PRIME) & 0xffffffff
+
+def bytes_csum(buf):
+	"""Calculate FNV1a hash of the byte array"""
+	csum = FNV32_OFFSET
+	for b in buf:
+		csum = fnv1a_up(b, csum)
+	return csum
+
+CSUM_LEN = 5
+CSUM_BASE = 85
+CSUM_CODE_FIRST = 40
+
+def encode_csum(csum):
+	"""Encode checksum to 5 symbol representation"""
+	codes = []
+	for i in range(CSUM_LEN):
+		codes.append(CSUM_CODE_FIRST + csum % CSUM_BASE)
+		csum //= CSUM_BASE
+	assert csum == 0
+	return bytes(codes)
+
+def bytes_csum_encoded(buf):
+	return encode_csum(bytes_csum(buf))
 
 if __name__ == '__main__':
 	#

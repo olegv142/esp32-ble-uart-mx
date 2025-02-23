@@ -172,7 +172,7 @@ let __ble_mx_api = {};
 					}
 				}
 				let chksum = (h & XH_FIRST) ? CHKSUM_INI : last_chksum;
-				chksum = fnv1a_(data, len - CHKSUM_SIZE, chksum);
+				chksum = fnv1a(data, len - CHKSUM_SIZE, chksum);
 				if (
 					data.getUint8(len-CHKSUM_SIZE)   != (chksum & 0xff) ||
 					data.getUint8(len-CHKSUM_SIZE+1) != ((chksum>>8) & 0xff) ||
@@ -228,7 +228,7 @@ let __ble_mx_api = {};
 				this.next_sn = (this.next_sn + 1) & XH_SN_MASK;
 				buf.set(new Uint8Array(data.buffer, off, chunk_len), XHDR_SIZE);
 				const msg_data = new DataView(buf.buffer, 0, msg_len);
-				chksum = fnv1a_(msg_data, hchunk_len, chksum);
+				chksum = fnv1a(msg_data, hchunk_len, chksum);
 				buf[hchunk_len]   = chksum & 0xff;
 				buf[hchunk_len+1] = (chksum>>8) & 0xff;
 				buf[hchunk_len+2] = ((chksum>>16)^(chksum>>24)) & 0xff;
@@ -261,19 +261,39 @@ let __ble_mx_api = {};
 		return Math.imul(hash ^ b, FNV32_PRIME) >>> 0;
 	}
 
-	function fnv1a_(data, len, hash) {
+	function fnv1a(data, len, hash) {
 		for (let i = 0; i < len; ++i)
 			hash = fnv1a_up(data.getUint8(i), hash);
 		return hash;
 	}
 
-	function fnv1a(data, len) {
-		return fnv1a_(data, len, FNV32_OFFSET);
+	const CSUM_LEN = 5;
+	const CSUM_BASE = 85;
+	const CSUM_CODE_FIRST = 40;
+
+	function encode_csum(csum) {
+		let str = '';
+		for (let i = 0; i < CSUM_LEN; ++i) {
+			str += String.fromCharCode(CSUM_CODE_FIRST + (csum % CSUM_BASE));
+			csum = (csum / CSUM_BASE) >>> 0;
+		}
+		return str;
+	}
+
+	function str_csum(str, len) {
+		let csum = CHKSUM_INI;
+		if (len === undefined)
+			len = str.length;
+		for (let i = 0; i < len; ++i)
+			csum = fnv1a_up(str.charCodeAt(i), csum);
+		return encode_csum(csum);
 	}
 
 	__ble_mx_api.Connection     = Connection;
 	__ble_mx_api.ConnectionExt  = ConnectionExt;
 	__ble_mx_api.str2Uint8Array = str2Uint8Array;
 	__ble_mx_api.DataView2str   = DataView2str;
+	__ble_mx_api.str_csum       = str_csum;
+	__ble_mx_api.CSUM_LEN       = CSUM_LEN;
 
 })();

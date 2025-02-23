@@ -3,15 +3,16 @@ Long messages echo test using ESP32 PICO-D4 USB KEY as adapter
 Use https://olegv142.github.io/esp32-ble-uart-mx/?dual&echo&xf for testing
 """
 
-from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE
+from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, CSUM_LEN, bytes_csum_encoded
 import sys
 import time
 import random
 
 max_data_len = 1024
 msg_interval = .25
-binary = True
-bin_tail = b'\0\1\2\3'
+binary    = False
+bin_tail  = b'\0\1\2\3'
+with_csum = True
 
 def random_bytes(len):
     return bytes((random.randrange(ord('0'), ord('z')+1) for _ in range(len)))
@@ -57,6 +58,8 @@ class UsbKey(MutliAdapter):
 
     def send_msg(self, msg):
         self.tx_cnt += 1
+        if with_csum:
+            msg += bytes_csum_encoded(msg)
         self.send_data(msg, binary)
 
     def on_idle(self, hidden, version, passkey):
@@ -71,12 +74,20 @@ class UsbKey(MutliAdapter):
         print('    %s' % msg)
 
     def on_central_msg(self, msg):
-        print('[.] %s' % msg)
         if not msg:
             self.connected = True
             return
         self.rx_cnt += 1
         self.rx_bytes += len(msg)
+        if with_csum:
+            msg_full, msg, csum = msg, msg[:-CSUM_LEN], msg[-CSUM_LEN:]
+            if bytes_csum_encoded(msg) != csum:
+                print('bad csum: %s' % msg_full)
+                self.msg_errs += 1
+                return
+        else:
+            msg_full = msg
+        print('[.] %s' % msg_full)
         sn = chk_message(msg)
         if sn is None:
             self.msg_errs += 1
