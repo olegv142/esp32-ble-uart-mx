@@ -1,6 +1,11 @@
-from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, chk_auth
+from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, chk_auth, master_key_default
 import sys
 import random
+
+try:
+	from master_key import master_key
+except:
+	master_key = master_key_default
 
 class UsbKey(MutliAdapter):
     """
@@ -20,7 +25,7 @@ class UsbKey(MutliAdapter):
         if not passkey:
             self.set_auth(self.seed, self.salt)
         else:
-            matched = chk_auth(passkey, self.seed, self.salt)
+            matched = chk_auth(passkey, self.seed, self.salt, master_key)
             assert matched
             print ('passkey %s is valid' % passkey)
             self.done = True

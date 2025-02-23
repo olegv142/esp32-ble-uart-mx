@@ -391,12 +391,18 @@ def find_port(vid = 0x303A, pid = 0x1001):
 			return p.device
 	return None
 
-def chk_auth(passkey, seed, salt, master_key=bytes(range(10))):
-	"""Verify passkey received in idle message given known master key"""
+master_key_default = bytes(range(10))
+
+def mk_auth_key(seed, master_key=master_key_default):
+	"""Make auth key given master key and seed value"""
 	h = hashlib.md5()
 	h.update(seed)
 	h.update(master_key)
-	return chk_auth_key(passkey, h.digest(), salt)
+	return h.digest()
+
+def chk_auth(passkey, seed, salt, master_key=master_key_default):
+	"""Verify passkey received in idle message given known master key"""
+	return chk_auth_key(passkey, mk_auth_key(seed, master_key), salt)
 
 def chk_auth_key(passkey, auth_key, salt):
 	"""
