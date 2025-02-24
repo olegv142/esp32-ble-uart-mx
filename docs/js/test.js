@@ -50,7 +50,6 @@ function showMessage(msg)
 	if (rx_msgs.length >= rx_msg_max)
 		rx_msgs.shift();
 	rx_msgs.push(msg);
-	console.log('rx:', msg);
 	rx_msg.textContent = rx_msgs.join('\n');
 }
 
@@ -66,9 +65,13 @@ function onDisconnection(device)
 function on_rx(value, is_binary=false)
 {
 	let str = DataView2str(value);
-	if (with_csum && str.slice(-CSUM_LEN) != str_csum(str, str.length - CSUM_LEN)) {
-		console.log('bad csum:', str);
-		return;
+	console.log('rx:', str);
+	if (with_csum) {
+		if (str.slice(-CSUM_LEN) != str_csum(str, str.length - CSUM_LEN)) {
+			console.log('bad csum:', str);
+			return;
+		}
+		str = str.slice(0, -CSUM_LEN);
 	}
 	if (echo_mode)
 		bt_conn.write(value, is_binary);
