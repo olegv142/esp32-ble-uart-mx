@@ -43,6 +43,10 @@ function initPage()
 	bt_btn.onclick = onBtn;
 	bt_btn2.onclick = onBtn2;
 	bt_conn = new Connection(on_rx, dual_mode);
+	tx_msg.addEventListener('keypress', (e) => {
+		if (e.keyCode == 13)
+			bt_btn.click();
+	});
 }
 
 function showMessage(msg)
