@@ -151,7 +151,7 @@ The default configuration (**ble_uart_mx/config/usb_peripheral.h**) corresponds 
 ## Testing
 To test adapter in peripheral role one can do the following:
 * build and flash it with default configuration
-* run **python/ble_multi_adapter.py** passing USB virtual port name as parameter
+* run **python/blink.py** passing USB virtual port name as parameter
 * open https://olegv142.github.io/esp32-ble-uart-mx/?dual&echo in chrome browser and connect to the adapter
 * observe messages passing in both directions between adapter and host computer running browser
 
