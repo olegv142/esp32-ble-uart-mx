@@ -1,3 +1,7 @@
+"""
+The example illustrates adapter authentication by master key
+"""
+
 from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, chk_auth, master_key_default
 import sys
 import random
@@ -8,9 +12,6 @@ except:
 	master_key = master_key_default
 
 class UsbKey(MutliAdapter):
-    """
-    Check authentication with default master key
-    """
     parity = PARITY_NONE
     rtscts = False
 
