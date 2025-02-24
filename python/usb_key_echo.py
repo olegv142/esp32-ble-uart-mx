@@ -1,5 +1,5 @@
 """
-Using USB key connect to the peripheral and echo back all received messages
+Using USB key to connect to the peripheral and echo back all received messages
 """
 
 from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE
