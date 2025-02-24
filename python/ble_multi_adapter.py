@@ -418,18 +418,11 @@ def chk_auth_key(passkey, auth_key, salt):
 	h.update(salt)
 	return h.digest()[:len(bkey)] == bkey
 
-FNV32_PRIME  = 16777619
-FNV32_OFFSET = 2166136261
-
-def fnv1a_up(b, hash):
-	"""Update FNV1a hash by single byte"""
-	return ((hash ^ b) * FNV32_PRIME) & 0xffffffff
-
 def bytes_csum(buf):
 	"""Calculate FNV1a hash of the byte array"""
-	csum = FNV32_OFFSET
+	csum = 2166136261
 	for b in buf:
-		csum = fnv1a_up(b, csum)
+		csum = ((csum ^ b) * 16777619) & 0xffffffff
 	return csum
 
 CSUM_LEN = 5
