@@ -15,9 +15,6 @@ except:
 	key  = b'\x0c)j\x90\xfe\x9f\x1d\x159$\xea$\x1f\x84\xa6q'
 
 class UsbKey(MutliAdapter):
-    """
-    Check authentication with default master key
-    """
     parity = PARITY_NONE
     rtscts = False
 
