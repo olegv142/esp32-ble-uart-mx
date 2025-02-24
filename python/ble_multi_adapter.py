@@ -1,5 +1,6 @@
 """
-BLE multi adapter (ble_uart_mx) host interface
+BLE multi adapter host interface
+The project home is https://github.com/olegv142/esp32-ble-uart-mx
 
 Author: Oleg Volkov
 """
