@@ -7,12 +7,13 @@ from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, CSUM_LEN, by
 import sys
 import time
 import random
+import zlib
 
 max_data_len = 1024
 msg_interval = .25
-binary    = False
-bin_tail  = b'\0\1\2\3'
 with_csum = True
+zthreshold = 512
+ztag = b'$'
 
 def random_bytes(len):
     return bytes((random.randrange(ord('0'), ord('z')+1) for _ in range(len)))
@@ -20,17 +21,10 @@ def random_bytes(len):
 def random_message(sn):
     data = random_bytes(random.randrange(1, max_data_len+1))
     msg = (b'%d#' % sn) + data + b'#' + data
-    if binary:
-        msg += bin_tail
     return msg
 
 def chk_message(msg):
     """Returns message sn if message is valid or None otherwise"""
-    if binary:
-        tail_len = len(bin_tail)
-        if msg[-tail_len:] != bin_tail:
-            return None
-        msg = msg[:-tail_len]
     s = msg.split(b'#')
     if len(s) != 3:
         return None
@@ -60,7 +54,10 @@ class UsbKey(MutliAdapter):
         self.tx_cnt += 1
         if with_csum:
             msg += bytes_csum_encoded(msg)
-        self.send_data(msg, binary)
+        if zthreshold is not None and len(msg) >= zthreshold:
+            self.send_data(zlib.compress(msg) + ztag, True)
+        else:
+            self.send_data(msg, False)
 
     def on_idle(self, hidden, version, passkey):
         print('Idle, version %s' % version)
@@ -79,6 +76,12 @@ class UsbKey(MutliAdapter):
             return
         self.rx_cnt += 1
         self.rx_bytes += len(msg)
+        if msg[-1:] == ztag:
+            try:
+                msg = zlib.decompress(msg[:-1])
+            except zlib.error:
+                self.msg_errs += 1
+                return
         if with_csum:
             msg_full, msg, csum = msg, msg[:-CSUM_LEN], msg[-CSUM_LEN:]
             if bytes_csum_encoded(msg) != csum:
