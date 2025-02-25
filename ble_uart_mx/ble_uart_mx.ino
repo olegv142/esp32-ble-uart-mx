@@ -1520,18 +1520,18 @@ static bool process_msg_(const char* str, size_t len)
 static bool cli_process()
 {
   size_t const len = cli_buff_data_sz;
-  const char  *str = (const char*)cli_buff;
-  const char  *next = str, *end = str + len;
+  const char * const buff = (const char*)cli_buff;
+  const char *next = buff, *end = buff + len;
   bool done = true;
 
 #ifdef UART_BEGIN
-  const char* begin = (const char*)memchr(str, UART_BEGIN, len);
+  const char* begin = (const char*)memchr(buff, UART_BEGIN, len);
 #else
-  const char* begin = str;
+  const char* begin = buff;
 #endif
   while (begin && begin < end)
   {
-    char* const tail = (char*)memchr(begin, UART_END, len - (begin - str));
+    char* const tail = (char*)memchr(begin, UART_END, len - (begin - buff));
     if (!tail)
       break;
     BUG_ON(tail >= end);
@@ -1539,7 +1539,7 @@ static bool cli_process()
     begin += 1;
     char* next_begin;
     for (;;) {
-      next_begin = (char*)memchr(begin, UART_BEGIN, len - (begin - str));
+      next_begin = (char*)memchr(begin, UART_BEGIN, len - (begin - buff));
       if (next_begin && next_begin < tail)
         begin = next_begin + 1;
       else
@@ -1561,7 +1561,12 @@ static bool cli_process()
     begin = next;
 #endif
   }
-  memmove(cli_buff, next, cli_buff_data_sz = end - next);
+  if (next != buff) {
+    memmove(cli_buff, next, cli_buff_data_sz = end - next);
+  } else if (cli_buff_data_sz >= CLI_BUFF_SZ) {
+    debug_strz("-rx buffer reset");
+    cli_buff_data_sz = 0;
+  }
   return done;
 }
 
