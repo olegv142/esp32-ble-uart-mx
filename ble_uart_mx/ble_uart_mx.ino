@@ -10,11 +10,12 @@
   '#R'                - reset to idle state
   '#L r g b'          - manually control the on-board neo-pixel LED by setting rgb values
   '#L'                - switch to auto control of the on-board neo-pixel LED
+  'Kseed&salt'        - set authentication key
  Connect command will be disabled if AUTOCONNECT is defined. The L command is not available
  unless NEO_PIXEL_PIN and LED_CONTROL_API are defined.
 
  Status messages:
-  ':I[h] vmaj.vmin-maxframe-variant' - idle, not connected, 'h' if hidden
+  ':I[h] vmaj.vmin-maxframe-variant [passkey]' - idle, not connected, 'h' if hidden
   ':Cn'      - connecting to the n-th peripheral
   ':D[h]'    - all peripherals connected, data receiving, 'h' if hidden
   Status messages will be disabled if STATUS_REPORT_INTERVAL is undefined
