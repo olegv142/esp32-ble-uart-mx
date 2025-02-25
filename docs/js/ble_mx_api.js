@@ -124,7 +124,7 @@ let __ble_mx_api = {};
 	// Extended frames support
 	//
 	const MAX_SIZE    = 244;
-	const MAX_CHUNKS  = 9;
+	const MAX_CHUNKS  = 34;
 	const XHDR_SIZE   = 1;
 	const CHKSUM_SIZE = 3;
 	const MAX_PAYLOAD = MAX_SIZE - XHDR_SIZE - CHKSUM_SIZE;
