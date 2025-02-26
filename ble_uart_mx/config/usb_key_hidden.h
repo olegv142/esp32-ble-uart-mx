@@ -147,7 +147,7 @@
 
 #ifdef EXT_FRAMES
 // Max chunks in single data frame
-#define MAX_CHUNKS 34
+#define MAX_CHUNKS 35
 #endif
 
 // How many messages may be submitted at once
