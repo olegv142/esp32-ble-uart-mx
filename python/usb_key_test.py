@@ -3,32 +3,42 @@ Long messages echo test using ESP32 PICO-D4 USB KEY as adapter
 Use https://olegv142.github.io/esp32-ble-uart-mx/?dual&echo&xf for testing
 """
 
-from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, CSUM_LEN, bytes_csum_encoded
 import sys
 import time
 import random
 import zlib
+from collections import Counter
+from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, CSUM_LEN, bytes_csum_encoded
 
-max_data_len = 1024
-msg_interval = .25
-with_csum = True
-zthreshold = 512
+min_msg_interval = .5
+max_msg_interval = 2
+max_msg_burst = 2
+
+use_compression = False
+if use_compression:
+    zthreshold = 512 # messages of greater length will be compressed
+else:
+    zthreshold = None # disable compression
 ztag = b'$'
 
 def random_bytes(len):
     return bytes((random.randrange(ord('0'), ord('z')+1) for _ in range(len)))
 
-def random_message(sn):
-    data = random_bytes(random.randrange(1, max_data_len+1))
-    msg = (b'%d#' % sn) + data + b'#' + data
-    return msg
+def sometimes():
+    """Return True with 10% probability"""
+    return not random.randrange(0, 10)
 
-def chk_message(msg):
+def random_message(sn, max_size):
+    hdr = b'%d#' % sn
+    max_len = max_size - len(hdr)
+    # use maximum length for every 10th message
+    data_len = max_len if sometimes() else random.randrange(1, max_len+1)
+    return hdr + random_bytes(data_len)
+
+def get_message_sn(msg):
     """Returns message sn if message is valid or None otherwise"""
     s = msg.split(b'#')
-    if len(s) != 3:
-        return None
-    if s[1] != s[2]:
+    if len(s) != 2:
         return None
     try:
         return int(s[0])
@@ -42,25 +52,41 @@ class UsbKey(MutliAdapter):
     def __init__(self, port):
         super().__init__(port)
         self.connected = False
+        self.max_msg = 0
         self.tx_cnt = 0
         self.rx_cnt = 0
         self.rx_bytes = 0
         self.msg_errs = 0
         self.msg_lost = 0
         self.msg_dup = 0
-        self.last_sn = None
+        self.last_sn = 0
+        self.last_tx_ts = 0
+        self.messages = Counter()
 
-    def send_msg(self, msg):
+    def send_random_msg(self):
         self.tx_cnt += 1
-        if with_csum:
-            msg += bytes_csum_encoded(msg)
-        if zthreshold is not None and len(msg) >= zthreshold:
-            self.send_data(zlib.compress(msg) + ztag, True)
-        else:
-            self.send_data(msg, False)
+        msg = random_message(self.tx_cnt, self.max_msg - CSUM_LEN)
+        msg += bytes_csum_encoded(msg)
+        if zthreshold is not None and len(msg) >= zthreshold and not sometimes():
+            zmsg = zlib.compress(msg) + ztag
+            if len(zmsg) < len(msg):
+                self.send_data(zmsg, True)
+                self.last_tx_ts = time.time()
+                return
+        self.send_data(msg, False)
+        self.last_tx_ts = time.time()
+
+    def parse_version(self, version):
+        try:
+            self.max_msg = int(version.split(b'-')[1])
+            print('  max_msg=%d' % self.max_msg)
+        except:
+            print('  invalid version')
 
     def on_idle(self, hidden, version, passkey):
         print('Idle, version %s' % version)
+        if not self.max_msg:
+            self.parse_version(version)
         if hidden:
             self.advertise()
 
@@ -69,6 +95,21 @@ class UsbKey(MutliAdapter):
 
     def on_debug_msg(self, msg):
         print('    %s' % msg)
+        self.messages.update([msg])
+
+    def ready_to_send(self):
+        if not self.connected or not self.max_msg:
+            return False
+        if self.last_sn == self.tx_cnt:
+            return True
+        idle_time = time.time() - self.last_tx_ts
+        if self.last_sn + max_msg_burst > self.tx_cnt:
+            if idle_time > min_msg_interval:
+                return True
+        else:
+            if idle_time > max_msg_interval:
+                return True
+        return False
 
     def on_central_msg(self, msg):
         if not msg:
@@ -82,19 +123,16 @@ class UsbKey(MutliAdapter):
             except zlib.error:
                 self.msg_errs += 1
                 return
-        if with_csum:
-            msg_full, msg, csum = msg, msg[:-CSUM_LEN], msg[-CSUM_LEN:]
-            if bytes_csum_encoded(msg) != csum:
-                print('bad csum: %s' % msg_full)
-                self.msg_errs += 1
-                return
-        else:
-            msg_full = msg
+        msg_full, msg, csum = msg, msg[:-CSUM_LEN], msg[-CSUM_LEN:]
+        if bytes_csum_encoded(msg) != csum:
+            print('bad csum: %s' % msg_full)
+            self.msg_errs += 1
+            return
         print('[.] %s' % msg_full)
-        sn = chk_message(msg)
+        sn = get_message_sn(msg)
         if sn is None:
             self.msg_errs += 1
-        elif self.last_sn is not None:
+        elif self.last_sn:
             expect_sn = self.last_sn + 1
             if sn != expect_sn:
                 if sn > expect_sn:
@@ -108,21 +146,19 @@ if not port:
     print ('Controller not found', file=sys.stderr)
     sys.exit(-1)
 
-sn = 0
 with UsbKey(port) as ad:
     ad.reset()
     start_ts = time.time()
-    next_msg_ts = start_ts + msg_interval
     try:
         while True:
             ad.communicate()
-            ts = time.time()
-            if ts > next_msg_ts and ad.connected:
-                # send message to connected central
-                sn += 1
-                ad.send_msg(random_message(sn))
-                next_msg_ts = ts + msg_interval
+            if ad.ready_to_send():
+                ad.send_random_msg()
     except KeyboardInterrupt:
         elapsed = time.time() - start_ts
+        print ('--------------------------------------------------------------')
         print ('%d msg sent, %d received (%d bytes) in %d sec (%d bytes/sec)' % (ad.tx_cnt, ad.rx_cnt, ad.rx_bytes, elapsed, ad.rx_bytes / elapsed))
         print ('%d msg lost, %d duplicated, %d corrupted' % (ad.msg_lost, ad.msg_dup, ad.msg_errs))
+        print ('messages:')
+        for msg, cnt in ad.messages.items():
+            print ('%dx\t%s' % (cnt, msg))
