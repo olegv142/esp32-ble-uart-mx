@@ -8,7 +8,6 @@ const echo_mode  = url_param.get('echo') !== null;
 const dual_mode  = url_param.get('dual') !== null;
 const xframes    = url_param.get('xf')   !== null;
 const with_csum  = url_param.get('cs')   !== null;
-const verbose    = url_param.get('v')    !== null;
 
 const Connection = xframes ? __ble_mx_api.ConnectionExt : __ble_mx_api.Connection;
 
@@ -70,8 +69,7 @@ function onDisconnection(device)
 function on_rx(value, is_binary=false)
 {
 	let str = DataView2str(value);
-	if (verbose)
-		console.log('rx:', str);
+	console.debug('rx:', str);
 	if (with_csum) {
 		if (str.slice(-CSUM_LEN) != str_csum(str, str.length - CSUM_LEN)) {
 			console.log('bad csum:', str);
@@ -132,8 +130,7 @@ function txString(str)
 {
 	if (with_csum)
 		str += str_csum(str);
-	if (verbose)
-		console.log('tx:', str);
+	console.debug('tx:', str);
 	bt_conn.write(str2Uint8Array(str));
 }
 
