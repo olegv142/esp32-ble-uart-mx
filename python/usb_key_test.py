@@ -1,6 +1,6 @@
 """
 Long messages echo test using ESP32 PICO-D4 USB KEY as adapter
-Use https://olegv142.github.io/esp32-ble-uart-mx/?dual&echo&xf for testing
+Use https://olegv142.github.io/esp32-ble-uart-mx/?dual&echo&xf&cs for testing
 """
 
 import sys
