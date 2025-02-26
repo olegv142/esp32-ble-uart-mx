@@ -6,7 +6,7 @@ Use https://olegv142.github.io/esp32-ble-uart-mx/?dual&echo&xf for testing
 import sys
 import time
 import random
-import zlib
+import gzip
 from collections import Counter
 from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, CSUM_LEN, bytes_csum_encoded
 
@@ -14,7 +14,7 @@ min_msg_interval = .5
 max_msg_interval = 2
 max_msg_burst = 2
 
-use_compression = False
+use_compression = True
 if use_compression:
     zthreshold = 512 # messages of greater length will be compressed
 else:
@@ -68,7 +68,7 @@ class UsbKey(MutliAdapter):
         msg = random_message(self.tx_cnt, self.max_msg - CSUM_LEN)
         msg += bytes_csum_encoded(msg)
         if zthreshold is not None and len(msg) >= zthreshold and not sometimes():
-            zmsg = zlib.compress(msg) + ztag
+            zmsg = gzip.compress(msg) + ztag
             if len(zmsg) < len(msg):
                 self.send_data(zmsg, True)
                 self.last_tx_ts = time.time()
@@ -119,8 +119,8 @@ class UsbKey(MutliAdapter):
         self.rx_bytes += len(msg)
         if msg[-1:] == ztag:
             try:
-                msg = zlib.decompress(msg[:-1])
-            except zlib.error:
+                msg = gzip.decompress(msg[:-1])
+            except:
                 self.msg_errs += 1
                 return
         msg_full, msg, csum = msg, msg[:-CSUM_LEN], msg[-CSUM_LEN:]

@@ -270,6 +270,7 @@ let __ble_mx_api = {};
 	const CSUM_LEN = 5;
 	const CSUM_BASE = 85;
 	const CSUM_CODE_FIRST = 40;
+	const COMPRESS_TAG = 36; // $ code
 
 	function encode_csum(csum) {
 		let str = '';
@@ -289,11 +290,30 @@ let __ble_mx_api = {};
 		return encode_csum(csum);
 	}
 
+	async function compress(data) {
+		const b = new Blob([data]);
+		const flt = new CompressionStream("gzip");
+		const dst = b.stream().pipeThrough(flt);
+		const res = await new Response(dst).blob();
+		return new DataView(await res.arrayBuffer());
+	}
+
+	async function decompress(data) {
+		const b = new Blob([data]);
+		const flt = new DecompressionStream("gzip");
+		const dst = b.stream().pipeThrough(flt);
+		const res = await new Response(dst).blob();
+		return new DataView(await res.arrayBuffer());
+	}
+
 	__ble_mx_api.Connection     = Connection;
 	__ble_mx_api.ConnectionExt  = ConnectionExt;
 	__ble_mx_api.str2Uint8Array = str2Uint8Array;
 	__ble_mx_api.DataView2str   = DataView2str;
 	__ble_mx_api.str_csum       = str_csum;
 	__ble_mx_api.CSUM_LEN       = CSUM_LEN;
+	__ble_mx_api.COMPRESS_TAG   = COMPRESS_TAG;
+	__ble_mx_api.compress       = compress;
+	__ble_mx_api.decompress     = decompress;
 
 })();

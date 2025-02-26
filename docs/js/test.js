@@ -15,6 +15,9 @@ const str2Uint8Array = __ble_mx_api.str2Uint8Array;
 const DataView2str   = __ble_mx_api.DataView2str;
 const str_csum       = __ble_mx_api.str_csum;
 const CSUM_LEN       = __ble_mx_api.CSUM_LEN;
+const COMPRESS_TAG   = __ble_mx_api.COMPRESS_TAG;
+const compress       = __ble_mx_api.compress;
+const decompress     = __ble_mx_api.decompress;
 
 const bt_btn  = document.getElementById('bt-btn');
 const bt_btn2 = document.getElementById('bt-btn2');
@@ -42,7 +45,7 @@ function initPage()
 	bt_btn.textContent = 'Connect';
 	bt_btn.onclick = onBtn;
 	bt_btn2.onclick = onBtn2;
-	bt_conn = new Connection(on_rx, dual_mode);
+	bt_conn = new Connection(rx_cb, dual_mode);
 	tx_msg.addEventListener('keypress', (e) => {
 		if (e.keyCode == 13)
 			bt_btn.click();
@@ -66,9 +69,9 @@ function onDisconnection(device)
 	connectTo(device);
 }
 
-function on_rx(value, is_binary=false)
+function do_receive(data)
 {
-	let str = DataView2str(value);
+	let str = DataView2str(data);
 	console.debug('rx:', str);
 	if (with_csum) {
 		if (str.slice(-CSUM_LEN) != str_csum(str, str.length - CSUM_LEN)) {
@@ -77,10 +80,26 @@ function on_rx(value, is_binary=false)
 		}
 		str = str.slice(0, -CSUM_LEN);
 	}
-	if (echo_mode)
-		bt_conn.write(value, is_binary);
 	if (!bt_rx_suspended)
 		showMessage(str);
+}
+
+function rx_cb(data, is_binary=false)
+{
+	const len = data.byteLength;
+	if (!with_csum || data.getUint8(len - 1) != COMPRESS_TAG) {
+		do_receive(data);
+		if (echo_mode)
+			bt_conn.write(data, is_binary);
+		return;
+	}
+	decompress(new DataView(data.buffer, 0, len - 1)).then(d => {
+		console.log("unzip:", len - 1, '->', d.byteLength);
+		do_receive(d);
+		if (echo_mode)
+			bt_conn.write(data, is_binary);
+	})
+	.catch((err) => {console.error('failed to decompress', err);});
 }
 
 function suspendRx(flag)
