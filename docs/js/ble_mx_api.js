@@ -73,13 +73,13 @@ let __ble_mx_api = {};
 						on_connect(chars);
 					},
 					(err) => {
-						console.log('Failed to subscribe to ' + device.name + ':', err.message);
+						console.error('Failed to subscribe to ' + device.name + ':', err.message);
 						return Promise.reject(err);
 					}
 				);
 			})
 			.catch((err) => {
-				console.log('Failed to connect to ' + device.name + ':', err.message);
+				console.error('Failed to connect to ' + device.name + ':', err.message);
 				setTimeout(() => { conn.connect(device, conn_cb, disc_cb); }, Connection.conn_retry_tout);
 			});
 		}
@@ -96,7 +96,7 @@ let __ble_mx_api = {};
 			this.bt_char.writeValueWithoutResponse(data)
 			.then(
 				() => {this.#tx_queue_flush();},
-				(err) => {console.log('BT write failed'); this.tx_queue.push(data); this.#tx_queue_flush();}
+				(err) => {console.error('BT write failed'); this.tx_queue.push(data); this.#tx_queue_flush();}
 			);
 		}
 
@@ -158,7 +158,7 @@ let __ble_mx_api = {};
 			{
 				const len = data.byteLength;
 				if (len <= XHDR_SIZE + CHKSUM_SIZE || len > MAX_SIZE) {
-					console.log('invalid chunk size: ' + len);
+					console.error('invalid chunk size: ' + len);
 					return;
 				}
 				const h = data.getUint8(0);
@@ -167,7 +167,7 @@ let __ble_mx_api = {};
 						next_sn != (h & XH_SN_MASK) ||
 						last_chunk + 1 >= MAX_CHUNKS
 					) {
-						console.log('chunk(s) lost');
+						console.error('chunk(s) lost');
 						return;
 					}
 				}
@@ -178,7 +178,7 @@ let __ble_mx_api = {};
 					data.getUint8(len-CHKSUM_SIZE+1) != ((chksum>>8) & 0xff) ||
 					data.getUint8(len-CHKSUM_SIZE+2) != (((chksum>>16)^(chksum>>24)) & 0xff)
 				) {
-					console.log('invalid checksum');
+					console.error('invalid checksum');
 					return;
 				}
 				if (h & XH_FIRST) {

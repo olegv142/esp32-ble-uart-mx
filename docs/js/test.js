@@ -72,7 +72,7 @@ function on_rx(value, is_binary=false)
 	console.debug('rx:', str);
 	if (with_csum) {
 		if (str.slice(-CSUM_LEN) != str_csum(str, str.length - CSUM_LEN)) {
-			console.log('bad csum:', str);
+			console.error('bad csum:', str);
 			return;
 		}
 		str = str.slice(0, -CSUM_LEN);
@@ -120,7 +120,7 @@ function doConnect(devname)
 		connectTo(device);
 	})
 	.catch((err) => {
-		console.log('Failed to discover BT devices');
+		console.error('Failed to discover BT devices');
 		bt_btn.textContent = 'Connect';
 		bt_btn.disabled = false;
 	});
