@@ -31,11 +31,6 @@ let bt_rx_suspended = false;
 
 let bt_conn = null;
 
-function isConnected()
-{
-	return bt_char !== null;
-}
-
 function initPage()
 {
 	if (!navigator.bluetooth) {
