@@ -310,15 +310,18 @@ static inline void debug_msg(const char* msg)
 
 static unsigned chk_error_cnt(struct err_count* e, const char* msg)
 {
-  if (e->cnt != e->last) {
+  unsigned const err_cnt = e->cnt - e->last;
+  if (err_cnt) {
 #ifndef NO_DEBUG
     uart_begin();
     uart_print(msg);
-    uart_print(e->cnt - e->last);
-    uart_print_strz(" times");
+    if (err_cnt > 1) {
+      uart_print(' ');
+      uart_print(err_cnt);
+      uart_print_strz(" times");
+    }
     uart_end();
 #endif
-    unsigned const err_cnt = e->cnt - e->last;
     e->last = e->cnt;
     return err_cnt;
   }
@@ -327,17 +330,20 @@ static unsigned chk_error_cnt(struct err_count* e, const char* msg)
 
 static unsigned chk_error_cnt2(struct err_count* e, const char* pref, char tag, const char* suff)
 {
-  if (e->cnt != e->last) {
+  unsigned const err_cnt = e->cnt - e->last;
+  if (err_cnt) {
 #ifndef NO_DEBUG
     uart_begin();
     uart_print(pref);
     uart_print(tag);
     uart_print(suff);
-    uart_print(e->cnt - e->last);
-    uart_print_strz(" times");
+    if (err_cnt > 1) {
+      uart_print(' ');
+      uart_print(err_cnt);
+      uart_print_strz(" times");
+    }
     uart_end();
 #endif
-    unsigned const err_cnt = e->cnt - e->last;
     e->last = e->cnt;
     return err_cnt;
   }
@@ -774,8 +780,8 @@ public:
 
   unsigned chk_errors()
   {
-    return chk_error_cnt2(&m_rx_queue_full, "-rx queue [", m_tag, "] full ")
-         + chk_error_cnt2(&m_tx_queue_full, "-tx queue [", m_tag, "] full ");
+    return chk_error_cnt2(&m_rx_queue_full, "-rx queue [", m_tag, "] full")
+         + chk_error_cnt2(&m_tx_queue_full, "-tx queue [", m_tag, "] full");
   }
 
   void write_worker();
@@ -1673,11 +1679,11 @@ static bool cli_receive()
 static unsigned chk_errors()
 {
   unsigned err_cnt = chk_error_flag(&unknown_data_src, "-got data from unknown source")
-    + chk_error_cnt(&rx_queue_full, "-rx queue full ")
-    + chk_error_cnt(&write_err,     "-write failed ")
-    + chk_error_cnt(&notify_err,    "-notify failed ")
-    + chk_error_cnt(&parse_err,     "-parse error ")
-    + chk_error_cnt(&lost_frames,   "-serial frame lost ")
+    + chk_error_cnt(&rx_queue_full, "-rx queue full")
+    + chk_error_cnt(&write_err,     "-write failed")
+    + chk_error_cnt(&notify_err,    "-notify failed")
+    + chk_error_cnt(&parse_err,     "-parse error")
+    + chk_error_cnt(&lost_frames,   "-serial frame lost")
     ;
   for (unsigned i = 0; i < MAX_PEERS; ++i)
     if (peers[i])
