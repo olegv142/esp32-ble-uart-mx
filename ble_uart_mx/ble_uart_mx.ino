@@ -288,6 +288,11 @@ static inline uint32_t elapsed(uint32_t from, uint32_t to)
   return to < from ? 0 : to - from;
 }
 
+static inline uint32_t elapsed_since(uint32_t from_ms)
+{
+  return elapsed(from_ms, millis());
+}
+
 static inline void debug_msg(const char* msg)
 {
 #ifndef NO_DEBUG
@@ -1687,7 +1692,7 @@ void loop()
   if (received || is_congested)
     is_congested = !cli_process();
 
-  if (advertising_enabled && start_advertising && elapsed(centr_disconn_ts, millis()) > 100) {
+  if (advertising_enabled && start_advertising && elapsed_since(centr_disconn_ts) > 100) {
     debug_strz("-start advertising");
     BLEDevice::startAdvertising(); // restart advertising
     start_advertising = false;
@@ -1717,8 +1722,15 @@ void loop()
 
   monitor_peers();
 
-  unsigned const err_cnt = chk_errors();
-  show_conn_status(was_congested || is_congested || err_cnt);
+  static uint32_t last_err_ts;
+  static unsigned last_err_cnt;
+  uint32_t const now = millis();
+  if (elapsed(last_err_ts, now) > 1000) {
+    last_err_cnt = chk_errors();
+    if (last_err_cnt)
+      last_err_ts = now;
+  }
+  show_conn_status(was_congested || is_congested || last_err_cnt);
 #ifdef NEO_PIXEL_PIN
   neopix_process();
 #endif
