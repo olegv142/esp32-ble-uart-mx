@@ -143,11 +143,12 @@ let __ble_mx_api = {};
 	class ConnectionExt extends Connection
 	{
 		// Connection for extended frames transmission
-		next_sn = 0;
+		next_tx_sn = 0;
 
 		constructor(ext_frame_cb, dual_mode)
 		{
-			let next_sn = 0;
+			let next_sn = -1;
+			let bad_frame = false;
 			let last_chunk = -1;
 			let last_chksum = 0;
 			let total_len = 0;
@@ -162,15 +163,24 @@ let __ble_mx_api = {};
 					return;
 				}
 				const h = data.getUint8(0);
-				if (!(h & XH_FIRST)) {
-					if (last_chunk < 0 ||
-						next_sn != (h & XH_SN_MASK) ||
-						last_chunk + 1 >= MAX_CHUNKS
-					) {
-						console.error('chunk(s) lost');
-						return;
+				const sn = h & XH_SN_MASK;
+				if (next_sn >= 0 && next_sn != sn) {
+					console.error((sn - next_sn) & XH_SN_MASK, 'chunk(s) lost');
+					bad_frame = true;
+				}
+				next_sn = (sn + 1) & XH_SN_MASK;				
+				if (h & XH_FIRST) {
+					bad_frame = false;
+					last_chunk = -1;
+					total_len = 0;
+				} else if (!bad_frame) {
+					if (last_chunk < 0 || last_chunk + 1 >= MAX_CHUNKS) {
+						console.error('bad header');
+						bad_frame = true;
 					}
 				}
+				if (bad_frame)
+					return;
 				let chksum = (h & XH_FIRST) ? CHKSUM_INI : last_chksum;
 				chksum = fnv1a(data, len - CHKSUM_SIZE, chksum);
 				if (
@@ -179,15 +189,11 @@ let __ble_mx_api = {};
 					data.getUint8(len-CHKSUM_SIZE+2) != (((chksum>>16)^(chksum>>24)) & 0xff)
 				) {
 					console.error('invalid checksum');
+					bad_frame = true;
 					return;
-				}
-				if (h & XH_FIRST) {
-					last_chunk = -1;
-					total_len = 0;
 				}
 				total_len += len - XHDR_SIZE - CHKSUM_SIZE;
 				last_chksum = chksum;
-				next_sn = (h + 1) & XH_SN_MASK;
 				chunks[++last_chunk] = data;
 				if (!(h & XH_LAST))
 					return;
@@ -199,6 +205,7 @@ let __ble_mx_api = {};
 					buf.set(chunk_data, off);
 					off += data_len;
 				}
+				last_chunk = -1;
 				ext_frame_cb(
 						new DataView(buf.buffer, 0, total_len),
 						(h & XH_BINARY) != 0 // binary flag
@@ -223,9 +230,9 @@ let __ble_mx_api = {};
 				const hchunk_len = XHDR_SIZE + chunk_len;
 				const msg_len = hchunk_len + CHKSUM_SIZE;
 				const buf = new Uint8Array(msg_len);
-				buf[0] = first + last + binary + this.next_sn;
+				buf[0] = first + last + binary + this.next_tx_sn;
 				first = 0;
-				this.next_sn = (this.next_sn + 1) & XH_SN_MASK;
+				this.next_tx_sn = (this.next_tx_sn + 1) & XH_SN_MASK;
 				buf.set(new Uint8Array(data.buffer, off, chunk_len), XHDR_SIZE);
 				const msg_data = new DataView(buf.buffer, 0, msg_len);
 				chksum = fnv1a(msg_data, hchunk_len, chksum);
