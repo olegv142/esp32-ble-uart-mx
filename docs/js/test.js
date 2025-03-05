@@ -89,6 +89,8 @@ function rx_cb(data, is_binary=false)
 		return;
 	}
 	decompress(new DataView(data.buffer, 0, len - 1)).then(d => {
+		// Since the following code is executed asynchronously this may
+		// lead to reordering of the messages.
 		console.log("unzip:", len - 1, '->', d.byteLength);
 		do_receive(d);
 		if (echo_mode)
