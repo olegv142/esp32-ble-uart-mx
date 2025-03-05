@@ -120,14 +120,11 @@ function connectTo(device)
 	bt_conn.connect(device, onBTConnected, onDisconnection);
 }
 
-function doConnect(devname)
+function doConnect()
 {
-	console.log('doConnect', devname);
+	console.log('doConnect');
 	bt_btn.disabled = true;
 	let filters = [{services: [Connection.bt_svc_id]}];
-	if (devname) {
-		filters.push({name: devname});
-	}
 	return navigator.bluetooth.requestDevice({
 		filters: filters,
 	}).
