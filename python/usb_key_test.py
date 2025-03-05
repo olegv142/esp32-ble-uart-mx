@@ -10,7 +10,7 @@ import gzip
 from collections import Counter
 from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, CSUM_LEN, bytes_csum_encoded
 
-min_msg_interval = .5
+min_msg_interval = .2
 max_msg_interval = 2
 max_msg_burst = 2
 
@@ -132,7 +132,8 @@ class UsbKey(MutliAdapter):
         sn = get_message_sn(msg)
         if sn is None:
             self.msg_errs += 1
-        elif self.last_sn:
+            return
+        if self.last_sn:
             expect_sn = self.last_sn + 1
             if sn != expect_sn:
                 if sn > expect_sn:
@@ -159,6 +160,7 @@ with UsbKey(port) as ad:
         print ('--------------------------------------------------------------')
         print ('%d msg sent, %d received (%d bytes) in %d sec (%d bytes/sec)' % (ad.tx_cnt, ad.rx_cnt, ad.rx_bytes, elapsed, ad.rx_bytes / elapsed))
         print ('%d msg lost, %d duplicated, %d corrupted' % (ad.msg_lost, ad.msg_dup, ad.msg_errs))
+        print ('%d serial frames lost, %d parse errors' % (ad.lost_frames, ad.parse_errors))
         print ('messages:')
         for msg, cnt in ad.messages.items():
             print ('%dx\t%s' % (cnt, msg))
