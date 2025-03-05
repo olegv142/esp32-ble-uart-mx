@@ -13,6 +13,7 @@ from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, CSUM_LEN, by
 min_msg_interval = .2
 max_msg_interval = 2
 max_msg_burst = 2
+ooo_buff_sz = max_msg_burst*2
 
 use_compression = True
 if use_compression:
@@ -61,6 +62,7 @@ class UsbKey(MutliAdapter):
         self.msg_dup = 0
         self.last_sn = 0
         self.last_tx_ts = 0
+        self.ooo_buff = [None] * ooo_buff_sz
         self.messages = Counter()
 
     def send_random_msg(self):
@@ -129,18 +131,48 @@ class UsbKey(MutliAdapter):
             self.msg_errs += 1
             return
         print('[.] %s' % msg_full)
+        self.receive_msg(msg)
+
+    def receive_msg(self, msg):
         sn = get_message_sn(msg)
         if sn is None:
             self.msg_errs += 1
             return
-        if self.last_sn:
-            expect_sn = self.last_sn + 1
-            if sn != expect_sn:
-                if sn > expect_sn:
-                    self.msg_lost += sn - expect_sn
-                else:
-                    self.msg_dup += 1
-        self.last_sn = sn
+        if not self.last_sn:
+            # accept very first message unconditionally
+            self.last_sn = sn
+            return
+        if sn <= self.last_sn: # too late
+            self.msg_dup += 1
+            return
+        # process backlog
+        while sn > self.last_sn + ooo_buff_sz:
+            next_sn = self.last_sn + 1
+            next_i = next_sn % ooo_buff_sz
+            if self.ooo_buff[next_i]: # accept buffered message
+                assert self.ooo_buff[next_i][0] == next_sn
+                self.ooo_buff[next_i] = None
+            else:
+                self.msg_lost += 1
+            self.last_sn = next_sn
+        i = sn % ooo_buff_sz
+        if self.ooo_buff[i]: # ignore duplicate
+            assert self.ooo_buff[i][0] == sn
+            self.msg_dup += 1
+            return
+        # put message to the buffer
+        self.ooo_buff[i] = sn, msg
+        # accept buffered messages
+        while True:
+            next_sn = self.last_sn + 1
+            next_i = next_sn % ooo_buff_sz
+            if self.ooo_buff[next_i]: # accept buffered message
+                assert self.ooo_buff[next_i][0] == next_sn
+                self.ooo_buff[next_i] = None
+            else:
+                break
+            self.last_sn = next_sn
+
 
 port = sys.argv[1] if len(sys.argv) > 1 else find_port(0x1a86, 0x55d3)
 if not port:
@@ -159,7 +191,7 @@ with UsbKey(port) as ad:
         elapsed = time.time() - start_ts
         print ('--------------------------------------------------------------')
         print ('%d msg sent, %d received (%d bytes) in %d sec (%d bytes/sec)' % (ad.tx_cnt, ad.rx_cnt, ad.rx_bytes, elapsed, ad.rx_bytes / elapsed))
-        print ('%d msg lost, %d duplicated, %d corrupted' % (ad.msg_lost, ad.msg_dup, ad.msg_errs))
+        print ('%d msg lost, %d duplicated/delayed, %d corrupted' % (ad.msg_lost, ad.msg_dup, ad.msg_errs))
         print ('%d serial frames lost, %d parse errors' % (ad.lost_frames, ad.parse_errors))
         print ('messages:')
         for msg, cnt in ad.messages.items():
