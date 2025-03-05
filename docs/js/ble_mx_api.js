@@ -34,7 +34,7 @@ let __ble_mx_api = {};
 				function on_disconnect(event)
 				{
 					const device = event.target;
-					console.log(device.name + ' bluetooth device disconnected');
+					console.warn(device.name + ' bluetooth device disconnected');
 					listen_char.removeEventListener('characteristicvaluechanged', on_value_changed);
 					device.removeEventListener('gattserverdisconnected', on_disconnect);
 					conn.bt_char = null;
