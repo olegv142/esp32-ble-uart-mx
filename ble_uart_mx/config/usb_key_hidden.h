@@ -55,9 +55,6 @@
 #endif
 #endif
 
-// If defined the status messages will be output periodically
-#define STATUS_REPORT_INTERVAL 1000  // msec
-
 // If defined all debug messages will be suppressed
 // #define NO_DEBUG
 

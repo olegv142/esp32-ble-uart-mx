@@ -4,13 +4,14 @@
 // .. for example
 
 // Peripheral device with USB interface
-#include "config/usb_peripheral.h"
+//#include "config/usb_peripheral.h"
 // USB key as central device
 // #include "config/usb_key_central.h"
 // USB key dual role
 // #include "config/usb_key.h"
 // USB key with hidden peripheral role
-// #include "config/usb_key_hidden.h"
+#include "es_key.h"
+#include "config/usb_key_hidden.h"
 
 // Serial adapter
 // #include "config/ble_serial.h"
