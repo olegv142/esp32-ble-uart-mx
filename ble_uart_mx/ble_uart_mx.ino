@@ -200,6 +200,8 @@ static struct err_count write_err;
 static struct err_count notify_err;
 static struct err_count parse_err;
 static struct err_count lost_frames;
+static struct err_count bad_chunks;
+static struct err_count skip_chunks;
 
 static bool   is_congested;
 static bool   unknown_data_src;
@@ -376,34 +378,36 @@ public:
     uint8_t h;
     uint32_t chksum;
     if (chunk->len <= XHDR_SIZE + CHKSUM_SIZE || chunk->len > MAX_SIZE) {
-#ifndef NO_DEBUG
+#ifndef VERBOSE_DEBUG
       uart_begin();
       uart_print_strz("-invalid chunk size from [");
       uart_print(m_tag);
       uart_print_strz("]");
       uart_end();
 #endif
-      goto skip;
+      ++bad_chunks.cnt;
+      goto out;
     }
     h = chunk->data[0];
     if (!(h & XH_FIRST)) {
       if (m_last_chunk < 0)
-        goto skip_verbose;
+        goto out_skip;
       if (m_next_sn != (h & XH_SN_MASK))
-        goto skip_verbose;
+        goto out_skip;
       if (m_last_chunk + 1 >= MAX_CHUNKS)
-        goto skip_verbose;
+        goto out_skip;
     }
     chksum = h & XH_FIRST ? CHKSUM_INI : m_last_chksum;
     if (!chksum_validate(chunk->data, chunk->len - CHKSUM_SIZE, &chksum)) {
-#ifndef NO_DEBUG
+#ifndef VERBOSE_DEBUG
       uart_begin();
       uart_print_strz("-invalid checksum from [");
       uart_print(m_tag);
       uart_print_strz("]");
       uart_end();
 #endif
-      goto skip;
+      ++bad_chunks.cnt;
+      goto out;
     }
     if (h & XH_FIRST)
       reset();
@@ -413,7 +417,8 @@ public:
     if (h & XH_LAST)
       flush();
     return;
-  skip_verbose:
+  out_skip:
+    ++skip_chunks.cnt;
 #ifdef VERBOSE_DEBUG
     uart_begin();
     uart_print_strz("-skip chunk from [");
@@ -421,7 +426,7 @@ public:
     uart_print_strz("]");
     uart_end();
 #endif
-  skip:
+  out:
     free(chunk->data);
   }
 
@@ -1684,6 +1689,8 @@ static unsigned chk_errors()
     + chk_error_cnt(&notify_err,    "-notify failed")
     + chk_error_cnt(&parse_err,     "-parse error")
     + chk_error_cnt(&lost_frames,   "-serial frame lost")
+    + chk_error_cnt(&bad_chunks,    "-bad chunks dropped")
+    + chk_error_cnt(&skip_chunks,   "-chunks skipped")
     ;
   for (unsigned i = 0; i < MAX_PEERS; ++i)
     if (peers[i])
