@@ -75,8 +75,6 @@
 // #define UART_END '\n'
 #endif
 
-#define UART_BAUD_RATE 115200
-
 #ifdef HW_UART
 // If defined UART will use default port0 initialized on boot
 #define HW_UART_DEFAULT
@@ -141,14 +139,6 @@
 // - automatic large frames fragmentation
 // - binary data support
 #define EXT_FRAMES
-
-#ifdef EXT_FRAMES
-// Max chunks in single data frame
-#define MAX_CHUNKS 9
-#endif
-
-// How many messages may be submitted at once
-#define MAX_BURST 1
 
 // If defined echo all data received back to sender (for testing)
 // #define ECHO

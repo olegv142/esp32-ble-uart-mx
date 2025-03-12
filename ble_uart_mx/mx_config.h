@@ -106,14 +106,14 @@
 
 #ifndef EXT_FRAMES
 #define MAX_CHUNKS 1
-#endif
-
-#ifndef EXT_FRAMES
 #define XHDR_SIZE 0
 #define CHKSUM_SIZE 0
 #define MAX_CHUNK MAX_SIZE
 #define MAX_FRAME MAX_CHUNK
 #else
+#ifndef MAX_CHUNKS
+#define MAX_CHUNKS 35
+#endif
 #define XHDR_SIZE 1
 #define CHKSUM_SIZE 3
 #define MAX_CHUNK (MAX_SIZE-XHDR_SIZE-CHKSUM_SIZE)
@@ -123,8 +123,17 @@
 #endif
 #endif
 
+#ifndef MAX_BURST
+// How many messages may be submitted at once
+#define MAX_BURST 1
+#endif
+
 #define UART_RX_BUFFER_SZ ((1+(MAX_FRAME*MAX_BURST+2048)/4096)*4096)
 #define UART_TX_BUFFER_SZ (4*UART_RX_BUFFER_SZ)
+
+#ifndef UART_BAUD_RATE
+#define UART_BAUD_RATE 115200
+#endif
 
 #ifndef SIMPLE_LINK
 #ifndef STATUS_REPORT_INTERVAL
