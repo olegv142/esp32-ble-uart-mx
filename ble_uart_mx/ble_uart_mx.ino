@@ -191,8 +191,8 @@ static QueueHandle_t rx_queue;
 
 struct err_count {
   unsigned cnt;
-  unsigned last;
-  err_count() : cnt(0), last(0) {}
+  unsigned reported;
+  err_count() : cnt(0), reported(0) {}
 };
 
 static struct err_count rx_queue_full;
@@ -202,9 +202,9 @@ static struct err_count parse_err;
 static struct err_count lost_frames;
 static struct err_count bad_chunks;
 static struct err_count skip_chunks;
+static struct err_count unknown_data_src;
 
 static bool   is_congested;
-static bool   unknown_data_src;
 
 static inline void uart_begin()
 {
@@ -312,7 +312,7 @@ static inline void debug_msg(const char* msg)
 
 static unsigned chk_error_cnt(struct err_count* e, const char* msg)
 {
-  unsigned const err_cnt = e->cnt - e->last;
+  unsigned const err_cnt = e->cnt - e->reported;
   if (err_cnt) {
 #ifndef NO_DEBUG
     uart_begin();
@@ -324,7 +324,7 @@ static unsigned chk_error_cnt(struct err_count* e, const char* msg)
     }
     uart_end();
 #endif
-    e->last = e->cnt;
+    e->reported = e->cnt;
     return err_cnt;
   }
   return 0;
@@ -332,7 +332,7 @@ static unsigned chk_error_cnt(struct err_count* e, const char* msg)
 
 static unsigned chk_error_cnt2(struct err_count* e, const char* pref, char tag, const char* suff)
 {
-  unsigned const err_cnt = e->cnt - e->last;
+  unsigned const err_cnt = e->cnt - e->reported;
   if (err_cnt) {
 #ifndef NO_DEBUG
     uart_begin();
@@ -346,18 +346,8 @@ static unsigned chk_error_cnt2(struct err_count* e, const char* pref, char tag, 
     }
     uart_end();
 #endif
-    e->last = e->cnt;
+    e->reported = e->cnt;
     return err_cnt;
-  }
-  return 0;
-}
-
-static unsigned chk_error_flag(bool* flag, const char* msg)
-{
-  if (*flag) {
-    debug_msg(msg);
-    *flag = false;
-    return 1;
   }
   return 0;
 }
@@ -1197,7 +1187,7 @@ static void peerNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic
     if (peers[i] && peers[i]->notify_data(pBLERemoteCharacteristic, pData, length))
       return;
 
-  unknown_data_src = true;
+  ++unknown_data_src.cnt;
 }
 
 void Peer::connect()
@@ -1683,7 +1673,8 @@ static bool cli_receive()
 
 static unsigned chk_errors()
 {
-  unsigned err_cnt = chk_error_flag(&unknown_data_src, "-got data from unknown source")
+  unsigned err_cnt =
+      chk_error_cnt(&unknown_data_src, "-got data from unknown source")
     + chk_error_cnt(&rx_queue_full, "-rx queue full")
     + chk_error_cnt(&write_err,     "-write failed")
     + chk_error_cnt(&notify_err,    "-notify failed")
