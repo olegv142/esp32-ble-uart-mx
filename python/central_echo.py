@@ -2,8 +2,9 @@
 Using USB key to connect to the peripheral and echo back all received messages
 """
 
-from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE
 import sys
+from collections import Counter
+from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE
 
 class CentralEcho(MutliAdapter):
     parity = PARITY_NONE
@@ -14,6 +15,7 @@ class CentralEcho(MutliAdapter):
         print('Start connecting to %s' % peers)
         self.peers = peers
         self.msg_cnt = 0
+        self.messages = Counter()
 
     def on_idle(self, hidden, version, passkey):
         print('Idle, version %s' % version)
@@ -24,6 +26,7 @@ class CentralEcho(MutliAdapter):
 
     def on_debug_msg(self, msg):
         print('    %s' % msg)
+        self.messages.update([msg])
 
     def on_peer_msg(self, idx, msg):
         print('[%d] %s' % (idx, msg))
@@ -48,6 +51,10 @@ if __name__ == '__main__':
             while True:
                 ad.communicate()
         except KeyboardInterrupt:
+            print ('--------------------------------------------------------------')
             print('%u messages received, %d serial frames lost, %d parse errors' % (
                 ad.msg_cnt, ad.lost_frames, ad.parse_errors
             ))
+            print('messages:')
+            for msg, cnt in ad.messages.items():
+                print ('%dx\t%s' % (cnt, msg))
