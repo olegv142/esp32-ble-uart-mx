@@ -225,9 +225,7 @@ Two modules with external monopole antennas soldered this way have demonstrated 
 </details>
 
 ## Interoperability
-The adapters may be used either to connect to the similar adapter or another BLE adapter or application (Web BLE in particular). Note that using extended data frames requires decoding/encoding them at the other side of the connection if its not using the same **ble_uart_mx** adapter. Though this feature may be disabled at compile time. Apart from that the adapter works flawlessly with Web BLE applications.
-
-Another popular Chinese BLE adapter JDY-08 (https://github.com/olegv142/esp32-ble/blob/main/doc/JDY-08.pdf) may be used as peripheral device with **ble_uart_mx** adapter acting as central. Note though that it splits data stream onto chunks with up to 20 bytes each. An attempt to send more than 20 bytes to JDY-08 will fail. Extended data frames and dual characteristic mode should be disabled if interoperability with JDY-08 is required.
+The adapters may be used either to connect to the similar adapter or another BLE adapter or application (Web BLE in particular). Note that using extended data frames requires decoding/encoding them at the other side of the connection. In case the interoperability with other hardware is required the extended data frames feature may be disabled at compile time. For example the popular Chinese BLE adapter JDY-08 (https://github.com/olegv142/esp32-ble/blob/main/doc/JDY-08.pdf) may be used as peripheral device with **ble_uart_mx** adapter acting as central. Note though that it splits data stream onto chunks with up to 20 bytes each. An attempt to send more than 20 bytes to JDY-08 will fail. Extended data frames and dual characteristic mode should be disabled if interoperability with JDY-08 is required.
 
 <details>
 <summary>
