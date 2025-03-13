@@ -240,6 +240,12 @@ static inline void uart_print(char c)
   uart_write(&c, 1);
 }
 
+static inline void uart_debug_begin()
+{
+  uart_begin();
+  uart_print('-');
+}
+
 static void uart_print(const char* str)
 {
   uart_write(str, strlen(str));
@@ -298,14 +304,14 @@ static inline uint32_t elapsed_since(uint32_t from_ms)
 static inline void debug_msg(const char* msg)
 {
 #ifndef NO_DEBUG
-  uart_begin();
+  uart_debug_begin();
   uart_print(msg);
   uart_end();
 #endif
 }
 
 #ifndef NO_DEBUG
-#define debug_strz(msg) do {uart_begin(); uart_print_strz(msg); uart_end();} while (0)
+#define debug_strz(msg) do {uart_debug_begin(); uart_print_strz(msg); uart_end();} while (0)
 #else
 #define debug_strz(msg) do {} while (0)
 #endif
@@ -315,7 +321,7 @@ static unsigned chk_error_cnt(struct err_count* e, const char* msg)
   unsigned const err_cnt = e->cnt - e->reported;
   if (err_cnt) {
 #ifndef NO_DEBUG
-    uart_begin();
+    uart_debug_begin();
     uart_print(msg);
     if (err_cnt > 1) {
       uart_print(' ');
@@ -335,7 +341,7 @@ static unsigned chk_error_cnt2(struct err_count* e, const char* pref, char tag, 
   unsigned const err_cnt = e->cnt - e->reported;
   if (err_cnt) {
 #ifndef NO_DEBUG
-    uart_begin();
+    uart_debug_begin();
     uart_print(pref);
     uart_print(tag);
     uart_print(suff);
@@ -369,8 +375,8 @@ public:
     uint32_t chksum;
     if (chunk->len <= XHDR_SIZE + CHKSUM_SIZE || chunk->len > MAX_SIZE) {
 #ifndef VERBOSE_DEBUG
-      uart_begin();
-      uart_print_strz("-invalid chunk size from [");
+      uart_debug_begin();
+      uart_print_strz("invalid chunk size from [");
       uart_print(m_tag);
       uart_print_strz("]");
       uart_end();
@@ -390,8 +396,8 @@ public:
     chksum = h & XH_FIRST ? CHKSUM_INI : m_last_chksum;
     if (!chksum_validate(chunk->data, chunk->len - CHKSUM_SIZE, &chksum)) {
 #ifndef VERBOSE_DEBUG
-      uart_begin();
-      uart_print_strz("-invalid checksum from [");
+      uart_debug_begin();
+      uart_print_strz("invalid checksum from [");
       uart_print(m_tag);
       uart_print_strz("]");
       uart_end();
@@ -410,8 +416,8 @@ public:
   out_skip:
     ++skip_chunks.cnt;
 #ifdef VERBOSE_DEBUG
-    uart_begin();
-    uart_print_strz("-skip chunk from [");
+    uart_debug_begin();
+    uart_print_strz("skip chunk from [");
     uart_print(m_tag);
     uart_print_strz("]");
     uart_end();
@@ -480,11 +486,11 @@ static bool transmit_frame(
       // All such errors may be due to uart buffer overflow while not using RTS
       // flow control. So just print debug message and return true.
       // Note that returning false means BLE stack congestion.
-      debug_strz("-encoded data size exceeds limit");
+      debug_strz("encoded data size exceeds limit");
       return true;
     }
     if ((len % 4) != 1) {
-      debug_strz("-invalid encoded data size");
+      debug_strz("invalid encoded data size");
       return true;
     }
     len = decode(data + 1, len - 1, tx_data = tx_buff);
@@ -492,11 +498,11 @@ static bool transmit_frame(
 #endif
 
   if (!len) {
-    debug_strz("-bad data to transmit");
+    debug_strz("bad data to transmit");
     return true;
   }
   if (len > MAX_FRAME) {
-    debug_strz("-data size exceeds limit");
+    debug_strz("data size exceeds limit");
     return true;
   }
 
@@ -734,7 +740,7 @@ public:
   {
     if (m_connected != m_was_connected) {
       m_was_connected = m_connected;
-      String msg("-peripheral [");
+      String msg("peripheral [");
       msg += m_tag;
       msg += "] ";
       msg += m_addr;
@@ -775,8 +781,8 @@ public:
 
   unsigned chk_errors()
   {
-    return chk_error_cnt2(&m_rx_queue_full, "-rx queue [", m_tag, "] full")
-         + chk_error_cnt2(&m_tx_queue_full, "-tx queue [", m_tag, "] full");
+    return chk_error_cnt2(&m_rx_queue_full, "rx queue [", m_tag, "] full")
+         + chk_error_cnt2(&m_tx_queue_full, "tx queue [", m_tag, "] full");
   }
 
   void write_worker();
@@ -889,13 +895,13 @@ static void reset_self()
 void fatal(const char* what)
 {
 #ifndef NO_DEBUG
-  uart_begin();
-  uart_print_strz("-fatal: ");
+  uart_debug_begin();
+  uart_print_strz("fatal: ");
   uart_print(what);
   uart_end();
 #endif
 #ifdef HW_UART // Duplicate msg to other uart
-  Serial.print("-fatal: ");
+  Serial.print("fatal: ");
   Serial.println(what);
 #endif
   delay(100); // give host a chance to read message
@@ -924,8 +930,8 @@ static void add_peer(unsigned idx, String const& addr)
   peers[idx] = new Peer(idx, addr);
   ++npeers;
 #ifndef NO_DEBUG
-  uart_begin();
-  uart_print_strz("-connection [");
+  uart_debug_begin();
+  uart_print_strz("connection [");
   uart_print(idx);
   uart_print_strz("] initialized, ");
   uart_print(ESP.getFreeHeap());
@@ -1048,8 +1054,8 @@ static void bt_device_start()
   dev_addr = BLEDevice::getAddress().toString();
 
 #ifndef NO_DEBUG
-  uart_begin();
-  uart_print_strz("-BT device ");
+  uart_debug_begin();
+  uart_print_strz("BT device ");
   uart_print(dev_name);
   uart_print_strz(" at ");
   uart_print(dev_addr);
@@ -1092,7 +1098,7 @@ static void neopix_init()
   neopix_led_data_init(neopix_led[cx_passive_congested], PASSIVE_CONGESTED_RGB);
 
   if (!neopix_led_init(NEO_PIXEL_PIN)) {
-    debug_strz("-neopixel pin init failed");
+    debug_strz("neopixel pin init failed");
     return;
   }
   neopix_conn_set(cx_idle);
@@ -1196,8 +1202,8 @@ void Peer::connect()
 
 #ifndef NO_DEBUG
   uint32_t const start = millis();
-  uart_begin();
-  uart_print_strz("-connecting to ");
+  uart_debug_begin();
+  uart_print_strz("connecting to ");
   uart_print(m_addr);
   uart_end();
 #endif
@@ -1238,8 +1244,8 @@ void Peer::connect()
   m_writable = m_remoteRx->canWrite();
 
 #ifndef NO_DEBUG
-  uart_begin();
-  uart_print_strz("-connected to ");
+  uart_debug_begin();
+  uart_print_strz("connected to ");
   uart_print(m_addr);
   uart_print_strz(" in ");
   uart_print(millis() - start);
@@ -1258,8 +1264,8 @@ void Peer::subscribe()
 {
 #ifndef NO_DEBUG
   uint32_t const start = millis();
-  uart_begin();
-  uart_print_strz("-subscribing to ");
+  uart_debug_begin();
+  uart_print_strz("subscribing to ");
   uart_print(m_addr);
   uart_end();
 #endif
@@ -1269,8 +1275,8 @@ void Peer::subscribe()
   m_subscribed = true;
 
 #ifndef NO_DEBUG
-  uart_begin();
-  uart_print_strz("-subscribed to ");
+  uart_debug_begin();
+  uart_print_strz("subscribed to ");
   uart_print(m_addr);
   uart_print_strz(" in ");
   uart_print(millis() - start);
@@ -1311,7 +1317,7 @@ static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
 static bool transmit_to_central(const char* data, size_t len)
 {
   if (!advertising_enabled) {
-    debug_strz("-can't transmit while hidden");
+    debug_strz("can't transmit while hidden");
     return true;
   }
 #ifdef EXT_FRAMES
@@ -1324,7 +1330,7 @@ static bool transmit_to_central(const char* data, size_t len)
 static bool transmit_to_peer(unsigned idx, const char* str, size_t len)
 {
   if (idx >= MAX_PEERS || !peers[idx]) {
-    debug_strz("-bad peripheral index");
+    debug_strz("bad peripheral index");
     return true;
   }
   return peers[idx]->transmit(str, len);
@@ -1334,7 +1340,7 @@ static bool transmit_to_peer(unsigned idx, const char* str, size_t len)
 static void cmd_connect(const char* param, size_t len)
 {
   if (npeers) {
-    debug_strz("-already connected");
+    debug_strz("already connected");
     return;
   }
   String params(param, len);
@@ -1357,17 +1363,17 @@ static void cmd_key(const char* param, size_t len)
 {
   const char* const sep = (const char*)memchr(param, '&', len);
   if (!sep) {
-    debug_strz("-key separator not found");
+    debug_strz("key separator not found");
     return;
   }
   size_t const seed_len = sep - param;
   size_t const salt_len = len - seed_len - 1;
   if (!seed_len) {
-    debug_strz("-seed is empty");
+    debug_strz("seed is empty");
     return;
   }
   if (!salt_len) {
-    debug_strz("-salt is empty");
+    debug_strz("salt is empty");
     return;
   }
   struct MD5Context ctx;
@@ -1410,7 +1416,7 @@ static void cmd_led(const char* param, size_t len)
   if (3 == sscanf(params.c_str(), " %u %u %u", &r, &g, &b))
       led_cmd_rgb(r, g, b);
   else
-      debug_strz("-unrecognized parameter");
+      debug_strz("unrecognized parameter");
 }
 #endif
 
@@ -1447,7 +1453,7 @@ static void process_cmd(const char* cmd, size_t len)
       break;
 #endif
     default:
-      debug_strz("-unrecognized command");
+      debug_strz("unrecognized command");
       ++parse_err.cnt;
   }
 }
@@ -1570,7 +1576,7 @@ static bool cli_process()
   if (next != buff) {
     memmove(cli_buff, next, cli_buff_data_sz = end - next);
   } else if (cli_buff_data_sz >= CLI_BUFF_SZ) {
-    debug_strz("-rx buffer reset");
+    debug_strz("rx buffer reset");
     cli_buff_data_sz = 0;
   }
   return done;
@@ -1674,14 +1680,14 @@ static bool cli_receive()
 static unsigned chk_errors()
 {
   unsigned err_cnt =
-      chk_error_cnt(&unknown_data_src, "-got data from unknown source")
-    + chk_error_cnt(&rx_queue_full, "-rx queue full")
-    + chk_error_cnt(&write_err,     "-write failed")
-    + chk_error_cnt(&notify_err,    "-notify failed")
-    + chk_error_cnt(&parse_err,     "-parse error")
-    + chk_error_cnt(&lost_frames,   "-serial frame lost")
-    + chk_error_cnt(&bad_chunks,    "-bad chunks dropped")
-    + chk_error_cnt(&skip_chunks,   "-chunks skipped")
+      chk_error_cnt(&unknown_data_src, "got data from unknown source")
+    + chk_error_cnt(&rx_queue_full, "rx queue full")
+    + chk_error_cnt(&write_err,     "write failed")
+    + chk_error_cnt(&notify_err,    "notify failed")
+    + chk_error_cnt(&parse_err,     "parse error")
+    + chk_error_cnt(&lost_frames,   "serial frame lost")
+    + chk_error_cnt(&bad_chunks,    "bad chunks dropped")
+    + chk_error_cnt(&skip_chunks,   "chunks skipped")
     ;
   for (unsigned i = 0; i < MAX_PEERS; ++i)
     if (peers[i])
@@ -1697,7 +1703,7 @@ void loop()
     is_congested = !cli_process();
 
   if (advertising_enabled && start_advertising && elapsed_since(centr_disconn_ts) > 100) {
-    debug_strz("-start advertising");
+    debug_strz("start advertising");
     BLEDevice::startAdvertising(); // restart advertising
     start_advertising = false;
   }
