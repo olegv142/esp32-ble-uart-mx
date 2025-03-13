@@ -128,8 +128,9 @@
 #define MAX_BURST 1
 #endif
 
-#define UART_RX_BUFFER_SZ ((1+(MAX_FRAME*MAX_BURST+2048)/4096)*4096)
-#define UART_TX_BUFFER_SZ (4*UART_RX_BUFFER_SZ)
+// Consider the possibility of base64 encoding, add small space to header and align
+#define UART_RX_BUFFER_SZ (((((MAX_FRAME/3)*4+128)*MAX_BURST+255)/256)*256)
+#define UART_TX_BUFFER_SZ (2*UART_RX_BUFFER_SZ)
 
 #ifndef UART_BAUD_RATE
 #define UART_BAUD_RATE 115200

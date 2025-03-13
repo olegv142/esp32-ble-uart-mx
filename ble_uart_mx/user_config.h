@@ -1,5 +1,9 @@
 #pragma once
 
+// Include any additional header before device config
+// for example secret key for authentication
+// #include "es_key.h"
+
 // Here you can include the configuration of your choice
 // .. for example
 
