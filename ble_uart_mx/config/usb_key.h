@@ -55,14 +55,6 @@
 #endif
 #endif
 
-// If defined all debug messages will be suppressed
-// #define NO_DEBUG
-
-#ifndef NO_DEBUG
-// Enable more debug messages
-// #define VERBOSE_DEBUG
-#endif
-
 // If HW_UART is defined the hardware serial port will be used for communications.
 // Otherwise the USB virtual serial port will be utilized.
 #define HW_UART
@@ -117,9 +109,6 @@
 #ifdef AUTOCONNECT
 // Peer device address to connect to
 #define PEER_ADDR    "EC:DA:3B:BB:CE:02"
-//#define PEER_ADDR1   "34:B7:DA:F6:44:B2"
-//#define PEER_ADDR2   "D8:3B:DA:13:0F:7A"
-//#define PEER_ADDR3   "34:B7:DA:FB:58:E2"
 #endif
 #endif
 
@@ -127,18 +116,8 @@
 // be used for data flowing in two directions
 #define DUAL_CHAR
 
-// Broadcast millisecond uptime to connected central (for testing) if defined
-// The value defined is broadcast period in milliseconds
-// #define TELL_UPTIME 20
-
-// If defined the binary data transmission is supported
-// #define BINARY_DATA_SUPPORT
-
 // If define adapter will transparently use extended data frames with the following features:
 // - checksums to detect data lost or corrupted in transit
 // - automatic large frames fragmentation
 // - binary data support
 #define EXT_FRAMES
-
-// If defined echo all data received back to sender (for testing)
-// #define ECHO
