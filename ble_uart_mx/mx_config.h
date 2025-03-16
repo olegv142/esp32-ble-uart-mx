@@ -51,6 +51,7 @@
 #undef MAX_PEERS
 #define MAX_PEERS 1
 #undef STATUS_REPORT_INTERVAL
+#undef LED_CONTROL_API
 #define NO_DEBUG
 #endif
 
@@ -62,6 +63,22 @@
 #define ACTIVE_CONGESTED_RGB  LED_BRIGHT, 0, LED_BRIGHT
 #define PASSIVE_RGB           0, LED_BRIGHT, 0
 #define PASSIVE_CONGESTED_RGB LED_BRIGHT, LED_BRIGHT, 0
+#else
+// NEO_PIXEL_PIN not defined, use plain LED
+#ifndef CONNECTED_LED
+#if (CONFIG_IDF_TARGET_ESP32)
+#ifdef ESP32_USB_KEY
+#define CONNECTED_LED 10
+#define CONNECTED_LED_LVL LOW
+#else
+#define CONNECTED_LED 2
+#define CONNECTED_LED_LVL HIGH
+#endif
+#else
+#define CONNECTED_LED 8
+#define CONNECTED_LED_LVL LOW
+#endif
+#endif
 #endif
 
 #ifdef HW_UART

@@ -34,25 +34,9 @@
 // Define if board has serially controlled RGB led (WS2812)
 // #define NEO_PIXEL_PIN 10
 
-#ifdef NEO_PIXEL_PIN
+#if defined(NEO_PIXEL_PIN) && !defined(SIMPLE_LINK)
 // Allow user to control LED
 #define LED_CONTROL_API
-#endif
-//
-// Connected LED parameters
-#ifndef NEO_PIXEL_PIN
-#if (CONFIG_IDF_TARGET_ESP32)
-#ifdef ESP32_USB_KEY
-#define CONNECTED_LED 10
-#define CONNECTED_LED_LVL LOW
-#else
-#define CONNECTED_LED 2
-#define CONNECTED_LED_LVL HIGH
-#endif
-#else
-#define CONNECTED_LED 8
-#define CONNECTED_LED_LVL LOW
-#endif
 #endif
 
 // If HW_UART is defined the hardware serial port will be used for communications.
