@@ -50,8 +50,8 @@ function initPage()
 function showMessage(msg)
 {
 	if (rx_msgs.length >= rx_msg_max)
-		rx_msgs.shift();
-	rx_msgs.push(msg);
+		rx_msgs.pop();
+	rx_msgs.unshift(msg);
 	rx_msg.textContent = rx_msgs.join('\n');
 }
 
