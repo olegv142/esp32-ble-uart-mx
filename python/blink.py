@@ -16,6 +16,8 @@ class TestAdapter(MutliAdapter):
 
 	def on_idle(self, hidden, version, passkey):
 		print('  v.%s' % version)
+		if hidden:
+			self.advertise()
 
 	def on_debug_msg(self, msg):
 		print('    %s' % msg)
