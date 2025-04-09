@@ -250,7 +250,7 @@ class MutliAdapter(AdapterConnection):
 
 	def chk_stall(self):
 		"""Adapter is considered stall if its not sending status messages at expected interval (1 sec)"""
-		now = time.time()
+		now = time.monotonic()
 		if not self.is_stall and now > self.status_ts + self.stall_tout:
 			self.is_stall = True
 			self.stall_ts = now
@@ -303,11 +303,11 @@ class MutliAdapter(AdapterConnection):
 			self.parse_errors += 1
 
 	def on_stable_status(self):
-		self.status_ts = time.time()
+		self.status_ts = time.monotonic()
 		if self.is_stall:
 			self.is_stall = False
 			if self.stall_ts:
-				self.stall_time += time.time() - self.stall_ts
+				self.stall_time += time.monotonic() - self.stall_ts
 
 	def on_status_msg(self, msg):
 		tag = msg[:1]
