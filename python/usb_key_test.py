@@ -179,12 +179,19 @@ if not port:
     print ('Controller not found', file=sys.stderr)
     sys.exit(-1)
 
+blink = 'blink' in sys.argv[2:]
+blink_rgb = [(255, 0, 0), (255, 255, 0), (0, 255, 0), (0, 255, 255),  (0, 0, 255), (255, 0, 255)]
+blink_idx = 0
+
 with UsbKey(port) as ad:
     ad.reset()
     start_ts = time.time()
     try:
         while True:
             ad.communicate()
+            if blink:
+                ad.led_set_rgb(*blink_rgb[blink_idx])
+                blink_idx = (blink_idx + 1) % len(blink_rgb)
             if ad.ready_to_send():
                 ad.send_random_msg()
     except KeyboardInterrupt:
