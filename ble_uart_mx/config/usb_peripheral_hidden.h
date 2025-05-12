@@ -1,0 +1,107 @@
+#ifdef __USER_CONFIG__
+#error "Can't have two configuration at once"
+#endif
+#define __USER_CONFIG__
+
+// Device name (may be followed by unique suffix)
+#define DEV_NAME  "Mx-"
+
+// If defined the unique suffix based on MAC is added to device name to make it distinguishable
+#define DEV_NAME_SUFF_LEN  6
+
+// If defined the device will not advertise so central will be unable to connect to it.
+// The connections to peers may be created though. The #A command will unhide device and
+// start advertising unless CENTRAL_ONLY is defined
+#define HIDDEN
+
+// If defined the device will be hidden without the possibility to unhide it
+// #define CENTRAL_ONLY
+
+// If defined the connected central may write to this device
+#define WRITABLE
+
+// If defined the simplified version of the communication protocol will be used
+// with only data messages without protocol prefix.
+// #define SIMPLE_LINK
+
+// If defined every output message will be enclosed between the pair of opening and closing
+// message tags that helps to detect data stream corruption.
+#define STREAM_TAGS
+
+// Define if target platform is ESP32 USB key
+// #define ESP32_USB_KEY
+//
+// Define if board has serially controlled RGB led (WS2812)
+#define NEO_PIXEL_PIN 10
+
+#if defined(NEO_PIXEL_PIN) && !defined(SIMPLE_LINK)
+// Allow user to control LED
+#define LED_CONTROL_API
+#endif
+
+// If HW_UART is defined the hardware serial port will be used for communications.
+// Otherwise the USB virtual serial port will be utilized.
+// #define HW_UART
+
+#ifndef HW_UART
+// Use new line terminated messages.
+// Though its more convenient while entering commands from terminal,
+// the '\1' '\0' message delimiters are more robust. Undefine the following
+// to use them by default.
+// #define UART_END '\n'
+#endif
+
+#ifdef HW_UART
+// If defined UART will use default port0 initialized on boot
+// #define HW_UART_DEFAULT
+// Otherwise separate port will be used
+#ifndef HW_UART_DEFAULT
+// Use even parity if defined
+#define UART_USE_PARITY
+
+#define UART_TX_PIN  7
+#define UART_RX_PIN  6
+#ifndef UART_USE_PARITY
+#define UART_MODE SERIAL_8N1
+#else
+#define UART_MODE SERIAL_8E1
+#endif
+// The following defines may be used to configure hardware UART flow control.
+// CTS prevents overflow of the host receiving buffer. Be ware that using both
+// CTS and RTS flow control may lead to deadlock when both adapter and the host
+// are blocked while writing to the serial link with their receiving buffers full.
+// The adapter is able to recover from such freeze due to watchdog which reset
+// it after 20 seconds of main loop inactivity.
+// #define UART_CTS_PIN 5
+// RTS prevents overflow of the esp32 receiving buffer.
+// Its safe to have it enabled even in case you don't actually use it.
+#define UART_RTS_PIN 4
+#endif
+#endif
+
+// If define increase transmitter power up to the maximum
+#define TX_BOOST
+
+// If defined creating connections to other peripherals will be disabled
+#define PASSIVE_ONLY
+
+#ifndef PASSIVE_ONLY
+// If AUTOCONNECT is defined it will connect on startup to the predefined set of peers.
+// The host commands will be disabled. One may use AUTOCONNECT with no target peers
+// to disable creating connections.
+// #define AUTOCONNECT
+#ifdef AUTOCONNECT
+// Peer device address to connect to
+#define PEER_ADDR    "EC:DA:3B:BB:CE:02"
+#endif
+#endif
+
+// If defined two separate characteristics will
+// be used for data flowing in two directions
+#define DUAL_CHAR
+
+// If define adapter will transparently use extended data frames with the following features:
+// - checksums to detect data lost or corrupted in transit
+// - automatic large frames fragmentation
+// - binary data support
+#define EXT_FRAMES

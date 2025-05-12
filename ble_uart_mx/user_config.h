@@ -8,9 +8,11 @@
 // .. for example
 
 // Peripheral device with USB interface
-// #include "config/usb_peripheral.h"
+#include "config/usb_peripheral.h"
 // Device with USB interface having hidden peripheral role
-#include "config/usb_hidden.h"
+// #include "config/usb_hidden.h"
+// Device with USB interface having only hidden peripheral role
+// #include "config/usb_peripheral_hidden.h"
 
 // USB key as central device
 // #include "config/usb_key_central.h"
