@@ -27,7 +27,8 @@ class AdapterConnection:
 	opt_tags    = True
 	rtscts      = True
 	timeout     = .01
-	wr_timeout  = 20
+	rx_timeout  = .05
+	wr_timeout  = 10
 	rx_buf_size = 4*4096
 	tx_buf_size = 4096
 	congest_thr = 16
@@ -127,11 +128,17 @@ class AdapterConnection:
 
 	def receive(self):
 		"""Receive from adapter"""
+		deadline = None
 		while True:
 			rx_bytes = self.com.read(4096)
 			if not rx_bytes:
 				return
 			self.process_rx(rx_bytes)
+			now = time.monotonic()
+			if deadline is None:
+				deadline = now + self.rx_timeout
+			elif now > deadline:
+				break
 
 	def can_transmit(self):
 		return True
