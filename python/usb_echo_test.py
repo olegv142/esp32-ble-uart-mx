@@ -10,10 +10,12 @@ import gzip
 from collections import Counter
 from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, CSUM_LEN, bytes_csum_encoded
 
-min_msg_interval = .2
-max_msg_interval = 2
+min_msg_interval = 1
+max_msg_interval = 4
 max_msg_burst = 2
 ooo_buff_sz = max_msg_burst*2
+# set to 0 to use maximum allowed by adapter
+max_msg_sz = 1024
 
 use_compression = True
 if use_compression:
@@ -53,7 +55,7 @@ class UsbKey(MutliAdapter):
     def __init__(self, port):
         super().__init__(port)
         self.connected = False
-        self.max_msg = 0
+        self.max_msg = max_msg_sz
         self.tx_cnt = 0
         self.rx_cnt = 0
         self.rx_bytes = 0
@@ -174,13 +176,21 @@ class UsbKey(MutliAdapter):
             self.last_sn = next_sn
 
 
+args = sys.argv[1:]
+blink = '--blink' in args
+if blink:
+	args.remove('--blink')
+
+if '--max-size' in args:
+	args.remove('--max-size')
+	max_msg_sz = 0
+
 # Searching ESP32 PICO-D4 USB KEY as adapter if port not specified in command line
-port = sys.argv[1] if len(sys.argv) > 1 else find_port(0x1a86, 0x55d3)
+port = args[0] if len(args) > 0 else find_port(0x1a86, 0x55d3)
 if not port:
     print ('Controller not found', file=sys.stderr)
     sys.exit(-1)
 
-blink = 'blink' in sys.argv[2:]
 blink_rgb = [(255, 0, 0), (255, 255, 0), (0, 255, 0), (0, 255, 255),  (0, 0, 255), (255, 0, 255)]
 blink_idx = 0
 
