@@ -1,5 +1,5 @@
 """
-Using USB key to connect to the peripheral and echo back all received messages
+Connect to one or more peripheral(s) and echo back all received messages
 """
 
 import sys
@@ -36,16 +36,14 @@ class CentralEcho(MutliAdapter):
 
 if __name__ == '__main__':
     # port = find_port(0x1a86, 0x55d3) # USB key
-    port = find_port(0x303a, 0x1001) # USB CDC
-    if not port:
-        print('Adapter not found')
-        sys.exit(-1)
+    # port = find_port(0x303a, 0x1001) # USB CDC
 
-    if len(sys.argv) <= 1:
-        print('Target address(es) required')
+    if len(sys.argv) <= 2:
+        print('port name and target address(es) must be passed as parameters')
         sys.exit(1)
 
-    with CentralEcho(port, [p.encode() for p in sys.argv[1:]]) as ad:
+    port = sys.argv[1]
+    with CentralEcho(port, [p.encode() for p in sys.argv[2:]]) as ad:
         ad.reset()
         try:
             while True:
