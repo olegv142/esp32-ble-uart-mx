@@ -1,5 +1,5 @@
 """
-Long messages echo test using ESP32 PICO-D4 USB KEY as adapter
+Long messages echo test.
 Use https://olegv142.github.io/esp32-ble-uart-mx/?dual&echo&xf&cs for testing
 """
 
@@ -174,6 +174,7 @@ class UsbKey(MutliAdapter):
             self.last_sn = next_sn
 
 
+# Searching ESP32 PICO-D4 USB KEY as adapter if port not specified in command line
 port = sys.argv[1] if len(sys.argv) > 1 else find_port(0x1a86, 0x55d3)
 if not port:
     print ('Controller not found', file=sys.stderr)
