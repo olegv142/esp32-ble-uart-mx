@@ -479,7 +479,7 @@ static bool transmit_frame(
 {
   uint8_t* tx_data = (uint8_t*)data;
 #ifdef BINARY_DATA_SUPPORT
-  static uint8_t tx_buff[MAX_FRAME];
+  static uint8_t* tx_buff;
   uint8_t binary = 0;
   if (len && (binary = (data[0] == ENCODED_DATA_START_TAG))) {
     if (len > 1 + MAX_ENCODED_FRAME_LEN) {
@@ -492,6 +492,13 @@ static bool transmit_frame(
     if ((len % 4) != 1) {
       debug_strz("invalid encoded data size");
       return true;
+    }
+    if (!tx_buff) {
+        tx_buff = (uint8_t*)malloc(MAX_FRAME);
+        if (!tx_buff) {
+            debug_strz("failed to allocate transmit buffer");
+            return true;
+        }
     }
     len = decode(data + 1, len - 1, tx_data = tx_buff);
   }
