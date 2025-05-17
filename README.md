@@ -244,7 +244,9 @@ Care should be taken when using the same USB CDC port for communicating with ada
 
 When operating at maximum transmission power, the transceiver may fail due to output overload. To avoid such errors, the adapter does not use the maximum possible power, setting the power level 5..6 dB lower.
 
-The ESP32H2 demonstrating lowest power consumption is failed to establish more than one connection to peripheral device. Its yet unknown if this is the bug or just platform limitation.
+The ESP32H2 demonstrating lowest power consumption is failed to establish more than one connection to peripheral device. Its yet unknown if this is the bug or just platform limitation. Same issue is observed with ESP32 PICO-D4 chip used in 'USB Key' device.
+
+While using boards powered from USB care should be taken to provide stable power to the device. The problem is that the peak power consumption during radio frequency transmission may way exceed the USB port power sourcing capabilities. This may lead to random crashes or just to breaking connection for no visible reason. To prevent such behavior one can add 10uF tantalum capacitor between 3.3V power rail and the ground circuitry. It will amortize power consumption spikes so that only averaged current will be sourced from USB port.
 </details>
 
 ## Useful links
