@@ -931,7 +931,7 @@ static inline void watchdog_init()
 static void add_peer(unsigned idx, String const& addr)
 {
   if (idx >= MAX_PEERS)
-    fatal("Bad peripheral index");
+    fatal("Only " STRINGIZE(MAX_PEERS) " peer(s) allowed");
   if (peers[idx])
     fatal("Peer already exist");
   peers[idx] = new Peer(idx, addr);
