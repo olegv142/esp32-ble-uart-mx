@@ -12,7 +12,9 @@
 #define CHARACTERISTIC_UUID_RX "FFE2"
 #endif
 
-#if (CONFIG_IDF_TARGET_ESP32)
+#ifdef ESP32_USB_KEY
+#define MAX_CONNS 1
+#elif (CONFIG_IDF_TARGET_ESP32)
 #define MAX_CONNS 2
 #else
 #define MAX_CONNS 4
