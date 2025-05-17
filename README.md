@@ -1,7 +1,7 @@
 # esp32-ble-uart-mx
-This is the multipurpose dual role BLE to serial bridge capable of creating multiple connections to other peripheral devices as well as acting as peripheral accepting connections from other central device. Its operation is controlled by the host via the same serial link as used for data transfers. Multiple compile time configuration options are provided to meet requirements in a variety of applications. For example it may be used for gathering telemetry data from some set of devices, providing communication link for commands / responses from controlling application or for creating bidirectional wireless communication channel between the pair of devices. It uses Arduino as building platform to keep code compact and make building and flashing as simple as possible. The adapter was tested on ESP32, ESP32C3, ESP32C6 and ESP32S3 with Espressif board support package version 3.0.3.
+This is the multipurpose dual role BLE to serial bridge capable of creating multiple connections to other peripheral devices as well as acting as peripheral accepting connections from other central device. Its operation is controlled by the host via the same serial link as used for data transfers. Multiple compile time configuration options are provided to meet requirements in a variety of applications. For example it may be used for gathering telemetry data from some set of devices, providing communication link for commands / responses from controlling application or for creating bidirectional wireless communication channel between the pair of devices. It uses Arduino as building platform to keep code compact and make building and flashing as simple as possible. The adapter was tested on ESP32, ESP32C3, ESP32C6 and ESP32S3 with Espressif board support package versions 3.0.3 and 3.0.7.
 
-Yet another patr of the project is versatile JS library that can be used to communicate with the adapter from Web BLE application running in a browser.
+Yet another part of the project is versatile JS library that can be used to communicate with the adapter from Web BLE application running in a browser.
 
 ## Architecture and communication protocol
 
@@ -122,7 +122,7 @@ To be able to build this code examples add the following to Arduino Additional b
 ```
 https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
 ```
-Then go to Boards Manager and install **esp32 by Espressif Systems**. Open **ble_uart_mx** project in Arduino. Select **ESP32C3/ESP32C6/ESP32S3 Dev Module** depending on your board and enable **USB CDC On Boot**. After that you can build and flash the adapter code.
+Then go to Boards Manager and install **esp32 by Espressif Systems**. The recommended version is 3.0.7. Though higher versions are perfectly suitable as well they consume increasingly more memory without providing significant benefits. Open **ble_uart_mx** project in Arduino. Select **ESP32C3/ESP32C6/ESP32S3 Dev Module** depending on your board and enable **USB CDC On Boot**. After that you can build and flash the adapter code.
 
 In case you are failed to flash ESP32 board from Arduino do the following:
 * press BOOT button
