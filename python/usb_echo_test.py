@@ -16,12 +16,9 @@ max_msg_burst = 2
 ooo_buff_sz = max_msg_burst*2
 # set to 0 to use maximum allowed by adapter
 max_msg_sz = 1024
-
-use_compression = True
-if use_compression:
-    zthreshold = 512 # messages of greater length will be compressed
-else:
-    zthreshold = None # disable compression
+slow = False
+compress_threshold = 512 # messages of smaller length will never be compressed
+zthreshold = None # disable compression by default
 ztag = b'$'
 
 def random_bytes(len):
@@ -104,9 +101,11 @@ class UsbKey(MutliAdapter):
     def ready_to_send(self):
         if not self.connected or not self.max_msg:
             return False
+        idle_time = time.time() - self.last_tx_ts
+        if slow and idle_time < min_msg_interval:
+            return False
         if self.last_sn == self.tx_cnt:
             return True
-        idle_time = time.time() - self.last_tx_ts
         if self.last_sn + max_msg_burst > self.tx_cnt:
             if idle_time > min_msg_interval:
                 return True
@@ -184,6 +183,15 @@ if blink:
 if '--max-size' in args:
 	args.remove('--max-size')
 	max_msg_sz = 0
+
+if '--slow' in args:
+	args.remove('--slow')
+	slow = True
+
+if '--compress' in args:
+    args.remove('--compress')
+    zthreshold = compress_threshold
+
 
 # Searching ESP32 PICO-D4 USB KEY as adapter if port not specified in command line
 port = args[0] if len(args) > 0 else find_port(0x1a86, 0x55d3)
