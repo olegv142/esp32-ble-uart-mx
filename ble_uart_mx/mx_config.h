@@ -179,7 +179,7 @@
 #endif
 
 #ifndef TX_QUEUE
-#define TX_QUEUE 4
+#define TX_QUEUE 2
 #endif
 
 #ifdef CENTRAL_ONLY
