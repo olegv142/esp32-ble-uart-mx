@@ -246,6 +246,8 @@ When operating at maximum transmission power, the transceiver may fail due to ou
 
 The ESP32H2 demonstrating lowest power consumption is failed to establish more than one connection to peripheral device. Its yet unknown if this is the bug or just platform limitation. Same issue is observed with ESP32 PICO-D4 chip used in 'USB Key' device.
 
+The ESP IDF framework handling of multiple connections seems to be flawed in some cases. The adapter is able to receive data from multiple connected peripherals simultaneously but can transmit data reliably to the last open one only. An attempt to transmit data to multiple connections simultaneously for some time may break one of the connections open before the last one. This issue is observed with all framework versions up to the 3.2.0.
+
 While using boards powered from USB care should be taken to provide stable power to the device. The problem is that the peak power consumption during radio frequency transmission may way exceed the USB port power sourcing capabilities. This may lead to random crashes or just to breaking connection for no visible reason. To prevent such behavior one can add 10uF tantalum capacitor between 3.3V power rail and the ground circuitry. It will amortize power consumption spikes so that only averaged current will be sourced from USB port.
 </details>
 
