@@ -31,7 +31,8 @@ class CentralEcho(MutliAdapter):
     def on_peer_msg(self, idx, msg):
         print('[%d] %s' % (idx, msg))
         if msg:
-            self.send_data_to(idx, msg, binary=True)
+            if idx == len(self.peers) - 1:
+                self.send_data_to(idx, msg, binary=True)
             self.msg_cnt += 1
 
 if __name__ == '__main__':
