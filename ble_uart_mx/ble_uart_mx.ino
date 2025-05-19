@@ -60,6 +60,7 @@
 #include <malloc.h>
 #include <freertos/queue.h>
 #include <esp_cpu.h>
+#include <esp_gap_ble_api.h>
 #include <Esp.h>
 #include <rom/md5_hash.h>
 
@@ -641,6 +642,25 @@ public:
     uart_print(m_tag);
 #endif
     uart_end();
+#ifndef NO_DEBUG
+    BLEAddress addr(m_addr);
+    esp_gap_conn_params_t params;
+    esp_err_t const err = esp_ble_get_current_conn_params(*addr.getNative(), &params);
+    if (err == ESP_OK) {
+        uart_debug_begin();
+        uart_print_strz("[");
+        uart_print(m_tag);
+        uart_print_strz("] interval=");
+        uart_print(params.interval);
+        uart_print_strz(" latency=");
+        uart_print(params.latency);
+        uart_print_strz(" timeout=");
+        uart_print(params.timeout);
+        uart_end();
+    } else {
+        debug_strz("failed to query connection params");
+    }
+#endif
   }
 
   void connect();
