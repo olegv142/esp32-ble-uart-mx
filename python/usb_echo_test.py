@@ -10,8 +10,8 @@ import gzip
 from collections import Counter
 from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, CSUM_LEN, bytes_csum_encoded
 
-min_msg_interval = 1
-max_msg_interval = 4
+min_msg_interval = .5
+max_msg_interval = 2
 max_msg_burst = 2
 ooo_buff_sz = max_msg_burst*2
 # set to 0 to use maximum allowed by adapter
