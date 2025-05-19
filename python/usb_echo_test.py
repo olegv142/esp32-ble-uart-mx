@@ -11,8 +11,8 @@ from collections import Counter
 from ble_multi_adapter import MutliAdapter, find_port, PARITY_NONE, CSUM_LEN, bytes_csum_encoded
 
 min_msg_interval = .5
-max_msg_interval = 2
-max_msg_burst = 2
+max_msg_interval = 10
+max_msg_burst = 1
 ooo_buff_sz = max_msg_burst*2
 # set to 0 to use maximum allowed by adapter
 max_msg_sz = 1024
