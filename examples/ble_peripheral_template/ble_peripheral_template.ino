@@ -1,0 +1,296 @@
+/*
+ Author: Oleg Volkov
+*/
+
+#include "mx_config.h"
+#include "mx_types.h"
+#include "mx_uart.h"
+#include "bt_device.h"
+#include "stream_tags.h"
+#include "watchdog.h"
+#include "debug.h"
+
+#include <string.h>
+#include <malloc.h>
+
+#ifdef NEO_PIXEL_PIN
+#include "neopix.h"
+#endif
+
+#ifdef BINARY_DATA_SUPPORT
+#include "mx_encoding.h"
+#endif
+
+#ifdef EXT_FRAMES
+#include "checksum.h"
+#include "xframe.h"
+#endif
+
+#ifdef SIMPLE_LINK
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+
+#ifndef TELL_UPTIME
+#define TELL_UPTIME 1000
+#endif
+
+static inline c_status_t get_connect_status()
+{
+  return !bt_connected_centrals ? c_idle : c_passive;
+}
+
+static inline cx_status_t get_connect_status_ex(bool congested)
+{
+  switch (get_connect_status()) {
+  case c_idle:
+    return cx_idle;
+  case c_establishing:
+    return cx_establishing;
+  case c_active:
+    return congested ? cx_active_congested : cx_active;
+  case c_passive:
+    return congested ? cx_passive_congested : cx_passive;
+  default:
+    BUG();
+    return cx_status_cnt;
+  }
+}
+
+static bool is_congested;
+
+static inline bool get_connected_indicator()
+{
+  return get_connect_status() >= c_active;
+}
+
+static inline bool transmit_plain(
+    uint8_t* pdata, size_t len,
+    uint8_t* (*get_chunk)(size_t sz, void* ctx),
+    bool (*tx_chunk)(uint8_t* chunk, size_t sz, void* ctx),
+    void* ctx
+  )
+{
+  if (get_chunk) {
+    uint8_t* const chunk_buff = get_chunk(len, ctx);
+    if (!chunk_buff)
+      return false;
+    memcpy(chunk_buff, pdata, len);
+    pdata = chunk_buff;
+  }
+  return tx_chunk(pdata, len, ctx);
+}
+
+// Optionally split frame onto fragments and transmit it by calling provided callback.
+// Returns false if callback returns false which means BLE stack congestion detected.
+static bool transmit_frame(
+    const char* data, size_t len,
+    uint8_t* (*get_chunk)(size_t sz, void* ctx),
+    bool (*tx_chunk)(uint8_t* chunk, size_t sz, void* ctx),
+    void* ctx
+  )
+{
+  uint8_t* tx_data = (uint8_t*)data;
+#ifdef BINARY_DATA_SUPPORT
+  static uint8_t* tx_buff;
+  uint8_t binary = 0;
+  if (len && (binary = (data[0] == ENCODED_DATA_START_TAG))) {
+    if (len > 1 + MAX_ENCODED_FRAME_LEN) {
+      // All such errors may be due to uart buffer overflow while not using RTS
+      // flow control. So just print debug message and return true.
+      // Note that returning false means BLE stack congestion.
+      debug_strz("encoded data size exceeds limit");
+      return true;
+    }
+    if ((len % 4) != 1) {
+      debug_strz("invalid encoded data size");
+      return true;
+    }
+    if (!tx_buff) {
+        tx_buff = (uint8_t*)malloc(MAX_FRAME);
+        if (!tx_buff) {
+            debug_strz("failed to allocate transmit buffer");
+            return true;
+        }
+    }
+    len = decode(data + 1, len - 1, tx_data = tx_buff);
+  }
+#endif
+
+  if (!len) {
+    debug_strz("bad data to transmit");
+    return true;
+  }
+  if (len > MAX_FRAME) {
+    debug_strz("data size exceeds limit");
+    return true;
+  }
+
+#ifdef EXT_FRAMES
+  return transmit_xframe(tx_data, len, binary, get_chunk, tx_chunk, ctx);
+#else
+  return transmit_plain(tx_data, len, get_chunk, tx_chunk, ctx);
+#endif
+}
+
+#if defined(EXT_FRAMES)
+static uint8_t* get_chunk_buff(size_t sz, void* ctx)
+{
+  static uint8_t buff[MAX_SIZE];
+  BUG_ON(sz > MAX_SIZE);
+  return buff;
+}
+#endif
+
+#ifdef NEO_PIXEL_PIN
+#define NPX_LED_BITS (3*8)
+#define NPX_IDLE_DELAY 2
+static rmt_data_t  neopix_led[cx_status_cnt][NPX_LED_BITS];
+static rmt_data_t* neopix_write_data;
+static cx_status_t neopix_conn_status;
+static bool        neopix_user_controlled;
+
+static inline void neopix_conn_set(cx_status_t sta)
+{
+  if (!neopix_user_controlled)
+    neopix_write_data = neopix_led[sta];
+  neopix_conn_status = sta;
+}
+
+static void neopix_init()
+{
+  neopix_led_data_init(neopix_led[cx_idle],              IDLE_RGB);
+  neopix_led_data_init(neopix_led[cx_establishing],      CONNECTING_RGB);
+  neopix_led_data_init(neopix_led[cx_active],            ACTIVE_RGB);
+  neopix_led_data_init(neopix_led[cx_passive],           PASSIVE_RGB);
+  neopix_led_data_init(neopix_led[cx_active_congested],  ACTIVE_CONGESTED_RGB);
+  neopix_led_data_init(neopix_led[cx_passive_congested], PASSIVE_CONGESTED_RGB);
+
+  if (!neopix_led_init(NEO_PIXEL_PIN)) {
+    debug_strz("neopixel pin init failed");
+    return;
+  }
+  neopix_conn_set(cx_idle);
+  delay(NPX_IDLE_DELAY+1);
+}
+
+static void neopix_process()
+{
+  if (!neopix_write_data)
+    return;
+  static uint32_t last_set;
+  uint32_t const now = millis();
+  if (elapsed(last_set, now) < NPX_IDLE_DELAY)
+    return;
+  neopix_led_write(NEO_PIXEL_PIN, neopix_write_data);
+  neopix_write_data = NULL;
+  last_set = now;
+}
+
+static inline void neopix_conn_up(cx_status_t sta)
+{
+  if (neopix_conn_status != sta)
+    neopix_conn_set(sta);
+}
+#endif
+
+static void show_conn_status(bool congested = false)
+{
+#ifdef NEO_PIXEL_PIN
+  neopix_conn_up(get_connect_status_ex(congested));
+#elif defined(CONNECTED_LED)
+  digitalWrite(CONNECTED_LED, get_connected_indicator() ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
+#endif
+}
+
+static void hw_init()
+{
+  uart_init();
+
+  Serial.begin(UART_BAUD_RATE);
+
+#ifdef NEO_PIXEL_PIN
+  neopix_init();
+#elif defined(CONNECTED_LED)
+  pinMode(CONNECTED_LED, OUTPUT);
+  digitalWrite(CONNECTED_LED, !(CONNECTED_LED_LVL));
+#endif
+}
+
+void setup()
+{
+  hw_init();
+  watchdog_init();
+  bt_device_init(nullptr);
+  bt_device_start();
+}
+
+static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
+{
+  bool const res = bt_transmit_to_central(pdata, sz);
+  if (res)
+    taskYIELD();
+  return res;
+}
+
+static bool transmit_to_central(const char* data, size_t len)
+{
+  if (!bt_advertising_enabled) {
+    debug_strz("can't transmit while hidden");
+    return true;
+  }
+#ifdef EXT_FRAMES
+  return transmit_frame(data, len, get_chunk_buff, transmit_chunk_to_central, nullptr);
+#else
+  return transmit_frame(data, len, nullptr, transmit_chunk_to_central, nullptr);
+#endif
+}
+
+static void tell_uptime()
+{
+  static uint32_t last_uptime;
+  static uint32_t last_uptime_sn;
+  uint32_t const uptime = millis();
+  if (uptime >= last_uptime + TELL_UPTIME) {
+    last_uptime = uptime;
+    String msg(++last_uptime_sn);
+    msg += "#";
+    msg += uptime;
+    msg += "#";
+    msg += bt_dev_addr;
+    msg += "#";
+    msg += bt_dev_name;
+    if (!transmit_to_central(msg.c_str(), msg.length()))
+      is_congested = true;
+  }
+}
+
+static unsigned chk_errors()
+{
+  return chk_error_cnt(&bt_notify_err, "notify failed");
+}
+
+void loop()
+{
+  bool const was_congested = is_congested;
+  is_congested = false;
+
+  bt_maybe_start_advertising();
+
+  if (bt_advertising_enabled)
+    tell_uptime();
+
+  static uint32_t last_err_ts;
+  static unsigned last_err_cnt;
+  uint32_t const now = millis();
+  if (elapsed(last_err_ts, now) > 1000) {
+    last_err_cnt = chk_errors();
+    if (last_err_cnt)
+      last_err_ts = now;
+  }
+  show_conn_status(was_congested || is_congested || last_err_cnt);
+#ifdef NEO_PIXEL_PIN
+  neopix_process();
+#endif
+  if (!is_congested)
+    watchdog_reset();
+}
