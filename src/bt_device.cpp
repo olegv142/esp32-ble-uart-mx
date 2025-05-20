@@ -29,6 +29,12 @@ bool bt_advertising_enabled = true;
 bool bt_advertising_enabled = false;
 #endif
 
+#ifdef WRITABLE
+static bool writable = true;
+#else
+static bool writable = false;
+#endif
+
 static bool     start_advertising = true;
 static uint32_t centr_disconn_ts;
 static uint32_t last_char_error;
@@ -112,6 +118,8 @@ void bt_device_init(bt_rx_cb_t rx_cb)
 {
   // Create the BLE Device
   bt_rx_cb = rx_cb;
+  if (!rx_cb)
+    writable = false;
   init_dev_name();
   BLEDevice::init(bt_dev_name);
   BLEDevice::setMTU(MAX_SIZE+3);
@@ -126,20 +134,22 @@ void bt_device_start(void)
   // Create the BLE Service
   BLEService *pService = pServer->createService(SERVICE_UUID);
 
+  const uint32_t prop_write = writable ? BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR : 0;
+  const uint32_t perm_write = writable ? ESP_GATT_PERM_WRITE : 0;
+
   // Create a BLE Characteristic
   bt_char_tx = pService->createCharacteristic(
     CHARACTERISTIC_UUID_TX,
     BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ
-#if defined(WRITABLE) && !defined(DUAL_CHAR)
-    | BLECharacteristic::PROPERTY_WRITE
-    | BLECharacteristic::PROPERTY_WRITE_NR
+#ifndef DUAL_CHAR
+    | prop_write
 #endif
   );
 
   bt_char_tx->setAccessPermissions(
     ESP_GATT_PERM_READ
-#if defined(WRITABLE) && !defined(DUAL_CHAR)
-    | ESP_GATT_PERM_WRITE
+#ifndef DUAL_CHAR
+    | perm_write
 #endif
   );
   bt_char_tx->addDescriptor(new BLE2902());
@@ -150,17 +160,10 @@ void bt_device_start(void)
 #else
   bt_char_rx = pService->createCharacteristic(
     CHARACTERISTIC_UUID_RX,
-    BLECharacteristic::PROPERTY_READ
-#ifdef WRITABLE
-    | BLECharacteristic::PROPERTY_WRITE
-    | BLECharacteristic::PROPERTY_WRITE_NR
-#endif
+    BLECharacteristic::PROPERTY_READ | prop_write
   );
   bt_char_rx->setAccessPermissions(
-    ESP_GATT_PERM_READ
-#ifdef WRITABLE
-    | ESP_GATT_PERM_WRITE
-#endif
+    ESP_GATT_PERM_READ | perm_write
   );
   bt_char_rx->addDescriptor(new BLE2902());
   bt_char_rx->setCallbacks(new MyCharCallbacks());
