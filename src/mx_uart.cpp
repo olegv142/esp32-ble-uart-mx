@@ -1,5 +1,5 @@
 #include "mx_uart.h"
-#include "debug.h"
+#include "mx_types.h"
 
 #ifdef STREAM_TAGS
 uint8_t  uart_last_tx_tag = STREAM_TAG_FIRST - 1;
