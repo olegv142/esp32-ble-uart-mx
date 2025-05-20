@@ -190,12 +190,6 @@ static inline uint8_t closing_stream_tag(uint8_t open_tag, size_t msg_sz)
 
 static QueueHandle_t rx_queue;
 
-struct err_count {
-  unsigned cnt;
-  unsigned reported;
-  err_count() : cnt(0), reported(0) {}
-};
-
 static struct err_count rx_queue_full;
 static struct err_count write_err;
 static struct err_count notify_err;
