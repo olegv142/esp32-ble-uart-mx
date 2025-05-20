@@ -101,24 +101,6 @@ static bool     passkey_valid;
 #define PASSKEY_B64_LEN MAX_BASE64_ENCODED_LEN(PASSKEY_LEN)
 static char     passkey_b64[PASSKEY_B64_LEN];
 
-typedef enum {
-  c_idle,
-  c_establishing,
-  c_active,
-  c_passive,
-  c_status_cnt
-} c_status_t;
-
-typedef enum {
-  cx_idle,
-  cx_establishing,
-  cx_active,
-  cx_passive,
-  cx_active_congested,
-  cx_passive_congested,
-  cx_status_cnt
-} cx_status_t;
-
 static inline c_status_t get_connect_status()
 {
   if (!npeers)
