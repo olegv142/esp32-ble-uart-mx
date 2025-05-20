@@ -6,6 +6,53 @@
 struct err_count bad_chunks;
 struct err_count skip_chunks;
 
+bool transmit_xframe(
+    uint8_t* tx_data, size_t len, uint8_t binary,
+    uint8_t* (*get_chunk)(size_t sz, void* ctx),
+    bool (*tx_chunk)(uint8_t* chunk, size_t sz, void* ctx),
+    void* ctx
+  )
+{
+  static uint8_t last_frame_sn;
+  static uint8_t last_chunk_sn;
+  uint8_t tx_sn = last_frame_sn;
+  // The following flag is set in case previous transmission was incomplete
+  bool incomplete = (last_chunk_sn != last_frame_sn);
+  uint32_t chksum = CHKSUM_INI;
+  uint8_t first = 1, last;
+  while (len) {
+    size_t chunk = len;
+    uint8_t* pdata = tx_data;
+    if (!(last = (chunk <= MAX_CHUNK)))
+      chunk = MAX_CHUNK;
+    uint8_t const chunk_hdr = mk_xframe_hdr(++tx_sn, binary, first, last);
+    chksum = chksum_up(chunk_hdr, chksum);
+    if (!incomplete) {
+      uint8_t* const chunk_buff = get_chunk(XHDR_SIZE + chunk + CHKSUM_SIZE, ctx);
+      if (!chunk_buff)
+        return false;
+      chunk_buff[0] = chunk_hdr;
+      chksum = chksum_copy(tx_data, chunk, chunk_buff + 1, chksum);
+      pdata = chunk_buff;
+    } else {
+      // already transmitted chunk, just update checksum
+      chksum = chksum_update(tx_data, chunk, chksum);
+      pdata = nullptr;
+    }
+    first = 0;
+    if (pdata && !tx_chunk(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE, ctx))
+      return false;
+    tx_data += chunk;
+    len -= chunk;
+    if (!incomplete)
+      last_chunk_sn = tx_sn;
+    else if (last_chunk_sn == tx_sn)
+      incomplete = false;
+  }
+  last_frame_sn = tx_sn;
+  return true;
+}
+
 void XFrameReceiver::receive(struct data_chunk const* chunk)
 {
   uint8_t h;

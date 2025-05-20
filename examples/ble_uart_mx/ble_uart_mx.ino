@@ -183,6 +183,23 @@ static inline bool get_connected_indicator()
 static XFrameReceiver centr_xrx('<');
 #endif
 
+static inline bool transmit_plain(
+    uint8_t* pdata, size_t len,
+    uint8_t* (*get_chunk)(size_t sz, void* ctx),
+    bool (*tx_chunk)(uint8_t* chunk, size_t sz, void* ctx),
+    void* ctx
+  )
+{
+  if (get_chunk) {
+    uint8_t* const chunk_buff = get_chunk(len, ctx);
+    if (!chunk_buff)
+      return false;
+    memcpy(chunk_buff, pdata, len);
+    pdata = chunk_buff;
+  }
+  return tx_chunk(pdata, len, ctx);
+}
+
 // Optionally split frame onto fragments and transmit it by calling provided callback.
 // Returns false if callback returns false which means BLE stack congestion detected.
 static bool transmit_frame(
@@ -229,57 +246,10 @@ static bool transmit_frame(
   }
 
 #ifdef EXT_FRAMES
-  static uint8_t last_frame_sn;
-  static uint8_t last_chunk_sn;
-  uint8_t tx_sn = last_frame_sn;
-  bool incomplete = (last_chunk_sn != last_frame_sn);
-  uint32_t chksum = CHKSUM_INI;
-  uint8_t first = 1, last;
-#endif
-  while (len) {
-    size_t chunk = len;
-    uint8_t* pdata = tx_data;
-#ifdef EXT_FRAMES
-    if (!(last = (chunk <= MAX_CHUNK)))
-      chunk = MAX_CHUNK;
-    uint8_t const chunk_hdr = mk_xframe_hdr(++tx_sn, binary, first, last);
-    chksum = chksum_up(chunk_hdr, chksum);
-    if (!incomplete) {
-      uint8_t* const chunk_buff = get_chunk(XHDR_SIZE + chunk + CHKSUM_SIZE, ctx);
-      if (!chunk_buff)
-        return false;
-      chunk_buff[0] = chunk_hdr;
-      chksum = chksum_copy(tx_data, chunk, chunk_buff + 1, chksum);
-      pdata = chunk_buff;
-    } else {
-      chksum = chksum_update(tx_data, chunk, chksum);
-      pdata = nullptr;
-    }
-    first = 0;
+  return transmit_xframe(tx_data, len, binary, get_chunk, tx_chunk, ctx);
 #else
-    if (get_chunk) {
-      uint8_t* const chunk_buff = get_chunk(chunk, ctx);
-      if (!chunk_buff)
-        return false;
-      memcpy(chunk_buff, pdata, chunk);
-      pdata = chunk_buff;
-    }
+  return transmit_plain(tx_data, len, get_chunk, tx_chunk, ctx);
 #endif
-    if (pdata && !tx_chunk(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE, ctx))
-      return false;
-    tx_data += chunk;
-    len -= chunk;
-#ifdef EXT_FRAMES
-    if (!incomplete)
-      last_chunk_sn = tx_sn;
-    else if (last_chunk_sn == tx_sn)
-      incomplete = false;
-  }
-  last_frame_sn = tx_sn;
-#else
-  }
-#endif
-  return true;
 }
 
 #if defined(EXT_FRAMES)

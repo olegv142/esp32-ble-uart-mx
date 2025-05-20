@@ -28,9 +28,18 @@ static inline uint8_t mk_xframe_hdr(uint8_t sn, uint8_t binary, uint8_t first, u
 }
 
 /*
- * Frame receiver class. It validates and combines chunks reconstructing data frame.
+ * Transmits extended frame by breaking it into fragments that fit within the MTU
  */
+bool transmit_xframe(
+    uint8_t* tx_data, size_t len, uint8_t binary,
+    uint8_t* (*get_chunk)(size_t sz, void* ctx),
+    bool (*tx_chunk)(uint8_t* chunk, size_t sz, void* ctx),
+    void* ctx
+  );
 
+/*
+ * Frame receiver class. It validates and combines chunks reconstructing the data frame.
+ */
 class XFrameReceiver {
 public:
   XFrameReceiver(char tag)
