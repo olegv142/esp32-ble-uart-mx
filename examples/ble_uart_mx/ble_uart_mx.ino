@@ -53,7 +53,6 @@
 #include <BLEAdvertisedDevice.h>
 #include <BLE2902.h>
 #include <esp_mac.h>
-#include <esp_task_wdt.h>
 #include <esp_gatt_defs.h>
 #include <esp_gattc_api.h>
 #include <string.h>
@@ -67,6 +66,7 @@
 #include "mx_config.h"
 #include "mx_uart.h"
 #include "stream_tags.h"
+#include "watchdog.h"
 #include "debug.h"
 
 #ifdef NEO_PIXEL_PIN
@@ -761,39 +761,6 @@ class MyCharCallbacks : public BLECharacteristicCallbacks {
   }
 };
 
-static void reset_self()
-{
-  esp_restart();
-}
-
-void fatal(const char* what)
-{
-#ifndef NO_DEBUG
-  uart_debug_begin();
-  uart_print_strz("fatal: ");
-  uart_print(what);
-  uart_end();
-#endif
-#ifdef HW_UART // Duplicate msg to other uart
-  Serial.print("fatal: ");
-  Serial.println(what);
-#endif
-  delay(100); // give host a chance to read message
-  reset_self();
-}
-
-void esp_task_wdt_isr_user_handler(void)
-{
-  reset_self();
-}
-
-static inline void watchdog_init()
-{
-  esp_task_wdt_config_t wdt_cfg = {.timeout_ms = WDT_TIMEOUT, .idle_core_mask = 0, .trigger_panic = true};
-  esp_task_wdt_reconfigure(&wdt_cfg); // enable panic so ESP32 restarts
-  esp_task_wdt_add(NULL);             // add current thread to WDT watch
-}
-
 #ifndef PASSIVE_ONLY
 static void add_peer(unsigned idx, String const& addr)
 {
@@ -917,7 +884,7 @@ static void bt_device_start()
 
   // Start the service
   pService->start();
-  // Start advertising
+  // Initialize advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   BLEAdvertisementData data;
   data.setName(dev_name);
@@ -1601,7 +1568,7 @@ void loop()
   neopix_process();
 #endif
   if (!is_congested)
-    esp_task_wdt_reset();
+    watchdog_reset();
 #ifdef UART_THROTTLE
   else
     delay(CONGESTION_DELAY);

@@ -6,6 +6,7 @@
 
 #include "mx_config.h"
 #include "stream_tags.h"
+#include "util.h"
 #include "Arduino.h"
 
 #ifdef STREAM_TAGS
