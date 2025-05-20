@@ -1,6 +1,8 @@
 #pragma once
 
+#ifndef __USER_CONFIG__
 #include "user_config.h"
+#endif
 
 //
 // Miscellaneous settings

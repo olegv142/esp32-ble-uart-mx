@@ -66,6 +66,7 @@
 #include "mx_config.h"
 #include "mx_types.h"
 #include "mx_uart.h"
+#include "bt_device.h"
 #include "stream_tags.h"
 #include "watchdog.h"
 #include "debug.h"
@@ -87,16 +88,11 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
-static BLECharacteristic* char_tx; // peripheral transmit there
-static BLECharacteristic* char_rx; // peripheral receive there
-
-static uint32_t last_characteristic_error;
 
 class Peer;
 static Peer*    peers[MAX_PEERS];
 static unsigned npeers;
 static int      connected_peers;
-static int      connected_centrals;
 
 static uint8_t  auth_key[] = { AUTH_KEY };
 static uint8_t  passkey[16];
@@ -126,7 +122,7 @@ typedef enum {
 static inline c_status_t get_connect_status()
 {
   if (!npeers)
-    return !connected_centrals ? c_idle : c_passive;
+    return !bt_connected_centrals ? c_idle : c_passive;
   else
     return connected_peers < npeers ? c_establishing : c_active;
 }
@@ -148,20 +144,9 @@ static inline cx_status_t get_connect_status_ex(bool congested)
   }
 }
 
-#ifndef HIDDEN
-static bool     advertising_enabled = true;
-#else
-static bool     advertising_enabled = false;
-#endif
-static bool     start_advertising = true;
-static uint32_t centr_disconn_ts;
-
 #ifdef STATUS_REPORT_INTERVAL
 static uint32_t last_status_ts;
 #endif
-
-static String   dev_name(DEV_NAME);
-static String   dev_addr;
 
 #define CLI_BUFF_SZ UART_RX_BUFFER_SZ
 static uint8_t   cli_buff[CLI_BUFF_SZ];
@@ -173,7 +158,6 @@ static QueueHandle_t rx_queue;
 
 static struct err_count rx_queue_full;
 static struct err_count write_err;
-static struct err_count notify_err;
 static struct err_count parse_err;
 static struct err_count lost_frames;
 static struct err_count unknown_data_src;
@@ -193,16 +177,6 @@ static inline bool is_connected()
 static inline bool get_connected_indicator()
 {
   return get_connect_status() >= c_active;
-}
-
-static inline uint32_t elapsed(uint32_t from, uint32_t to)
-{
-  return to < from ? 0 : to - from;
-}
-
-static inline uint32_t elapsed_since(uint32_t from_ms)
-{
-  return elapsed(from_ms, millis());
 }
 
 #ifdef EXT_FRAMES
@@ -476,7 +450,7 @@ public:
 
     struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
     if (!ch.data)
-      reset_self();
+      fatal("No memory");
     memcpy(ch.data, pData, length);
     if (!xQueueSend(m_rx_queue, &ch, 0)) {
       free(ch.data);
@@ -606,54 +580,6 @@ private:
 #endif
 };
 
-class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-      if (advertising_enabled) {
-        // For some unknown reason the spurious call of this
-        // function are possible on connect to peripheral device
-        struct data_chunk ch = {.data = nullptr, .len = 0};
-        if (!xQueueSend(rx_queue, &ch, 0)) {
-          ++rx_queue_full.cnt;
-          is_congested = true;
-        }
-      }
-      ++connected_centrals;
-    };
-
-    void onDisconnect(BLEServer* pServer) {
-      centr_disconn_ts = millis();
-      start_advertising = true;
-      --connected_centrals;
-    }
-};
-
-class MyCharCallbacks : public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic)
-  {
-    if (pCharacteristic != char_rx)
-      return;
-    size_t const length  = char_rx->getLength();
-    uint8_t* const pData = char_rx->getData();
-    struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
-    if (!ch.data)
-      reset_self();
-    memcpy(ch.data, pData, length);
-    if (!xQueueSend(rx_queue, &ch, 0)) {
-      free(ch.data);
-      ++rx_queue_full.cnt;
-      is_congested = true;
-    }
-#ifdef ECHO
-    char_tx->setValue(pData, length);
-    char_tx->notify();
-#endif
-  }
-  void onStatus(BLECharacteristic * ch, Status s, uint32_t code) {
-    if (ch == char_tx && s == Status::ERROR_GATT)
-      last_characteristic_error = code;
-  }
-};
-
 #ifndef PASSIVE_ONLY
 static void add_peer(unsigned idx, String const& addr)
 {
@@ -675,133 +601,11 @@ static void add_peer(unsigned idx, String const& addr)
 }
 #endif
 
-static inline char hex_digit(uint8_t v)
-{
-    return v < 10 ? '0' + v : 'A' + v - 10;
-}
-
-static inline char byte_signature(uint8_t v)
-{
-    return hex_digit((v & 0xf) ^ (v >> 4));
-}
-
-static void init_dev_name()
-{
-#ifdef DEV_NAME_SUFF_LEN
-  uint8_t mac[8] = {0};
-  if (ESP_OK == esp_efuse_mac_get_default(mac)) {
-    for (int i = 0; i < DEV_NAME_SUFF_LEN && i < ESP_BD_ADDR_LEN; ++i)
-      dev_name += byte_signature(mac[i]);
-  }
-#endif
-}
-
-static void setup_tx_power()
-{
-#ifdef TX_PW_BOOST
-  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, TX_PW_BOOST); 
-  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,     TX_PW_BOOST);
-  esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN,    TX_PW_BOOST);
-#endif
-}
-
 static void bt_gattc_event_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param)
 {
   for (unsigned i = 0; i < MAX_PEERS; ++i)
     if (peers[i] && peers[i]->on_gattc_evt(event, gattc_if, param))
       return;
-}
-
-static void bt_device_init()
-{
-  // Create the BLE Device
-  init_dev_name();
-  BLEDevice::init(dev_name);
-  BLEDevice::setCustomGattcHandler(bt_gattc_event_cb);
-  BLEDevice::setMTU(MAX_SIZE+3);
-  setup_tx_power();
-  rx_queue = xQueueCreate(RX_QUEUE, sizeof(struct data_chunk));
-  if (!rx_queue)
-    fatal("No memory");
-}
-
-static void bt_device_start()
-{
-  // Create the BLE Server
-  BLEServer* pServer = BLEDevice::createServer();
-
-  // Create the BLE Service
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-
-  // Create a BLE Characteristic
-  char_tx = pService->createCharacteristic(
-    CHARACTERISTIC_UUID_TX,
-    BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ
-#if defined(WRITABLE) && !defined(DUAL_CHAR)
-    | BLECharacteristic::PROPERTY_WRITE
-    | BLECharacteristic::PROPERTY_WRITE_NR
-#endif
-  );
-
-  char_tx->setAccessPermissions(
-    ESP_GATT_PERM_READ
-#if defined(WRITABLE) && !defined(DUAL_CHAR)
-    | ESP_GATT_PERM_WRITE
-#endif
-  );
-  char_tx->addDescriptor(new BLE2902());
-  char_tx->setCallbacks(new MyCharCallbacks());
-
-#ifndef DUAL_CHAR
-  char_rx = char_tx;
-#else
-  char_rx = pService->createCharacteristic(
-    CHARACTERISTIC_UUID_RX,
-    BLECharacteristic::PROPERTY_READ
-#ifdef WRITABLE
-    | BLECharacteristic::PROPERTY_WRITE
-    | BLECharacteristic::PROPERTY_WRITE_NR
-#endif
-  );
-  char_rx->setAccessPermissions(
-    ESP_GATT_PERM_READ
-#ifdef WRITABLE
-    | ESP_GATT_PERM_WRITE
-#endif
-  );
-  char_rx->addDescriptor(new BLE2902());
-  char_rx->setCallbacks(new MyCharCallbacks());
-#endif
-
-  pServer->setCallbacks(new MyServerCallbacks());
-
-  // Start the service
-  pService->start();
-  // Initialize advertising
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  BLEAdvertisementData data;
-  data.setName(dev_name);
-  pAdvertising->setAdvertisementData(data);
-  pAdvertising->setScanResponse(true);
-  pAdvertising->addServiceUUID(SERVICE_UUID);
-
-  dev_addr = BLEDevice::getAddress().toString();
-
-#ifndef NO_DEBUG
-  uart_debug_begin();
-  uart_print_strz("BT device ");
-  uart_print(dev_name);
-  uart_print_strz(" at ");
-  uart_print(dev_addr);
-  uart_print_strz(" on ");
-  uart_print(ESP.getChipModel());
-  uart_print_strz(" ");
-  uart_print(getCpuFrequencyMhz());
-  uart_print_strz("MHz ");
-  uart_print(ESP.getFreeHeap());
-  uart_print_strz(" bytes free");
-  uart_end();
-#endif
 }
 
 #ifdef NEO_PIXEL_PIN
@@ -882,8 +686,21 @@ static void hw_init()
 #endif
 }
 
+static void bt_rx_cb(struct data_chunk* ch)
+{
+   if (!xQueueSend(rx_queue, ch, 0)) {
+      free(ch->data);
+      ++rx_queue_full.cnt;
+      is_congested = true;
+    }
+}
+
 void setup()
 {
+  rx_queue = xQueueCreate(RX_QUEUE, sizeof(struct data_chunk));
+  if (!rx_queue)
+    fatal("No memory");
+
 #ifdef PEER_ADDR
   add_peer(0, PEER_ADDR);
 #endif
@@ -899,7 +716,8 @@ void setup()
 
   hw_init();
   watchdog_init();
-  bt_device_init();
+  bt_device_init(bt_rx_cb);
+  BLEDevice::setCustomGattcHandler(bt_gattc_event_cb);
   bt_device_start();
 }
 
@@ -1019,20 +837,15 @@ void Peer::write_worker()
 
 static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
 {
-  last_characteristic_error = 0;
-  char_tx->setValue(pdata, sz);
-  char_tx->notify();
-  if (last_characteristic_error) {
-    ++notify_err.cnt;
-    return false;
-  }
-  taskYIELD();
-  return true;
+  bool const res = bt_transmit_to_central(pdata, sz);
+  if (res)
+    taskYIELD();
+  return res;
 }
 
 static bool transmit_to_central(const char* data, size_t len)
 {
-  if (!advertising_enabled) {
+  if (!bt_advertising_enabled) {
     debug_strz("can't transmit while hidden");
     return true;
   }
@@ -1157,7 +970,7 @@ static void process_cmd(const char* cmd, size_t len)
         ++parse_err.cnt;
         return;
       }
-      advertising_enabled = true;
+      bt_advertising_enabled = true;
       break;
 #endif
     case 'K':
@@ -1302,7 +1115,7 @@ static bool cli_process()
 static inline void report_idle()
 {
   uart_begin();
-  if (advertising_enabled)
+  if (bt_advertising_enabled)
     uart_print_strz(":I " VMAJOR "." VMINOR "-");
   else
     uart_print_strz(":Ih " VMAJOR "." VMINOR "-");
@@ -1318,7 +1131,7 @@ static inline void report_idle()
 static inline void report_connected()
 {
   uart_begin();
-  if (advertising_enabled)
+  if (bt_advertising_enabled)
     uart_print_strz(":D");
   else
     uart_print_strz(":Dh");
@@ -1358,9 +1171,9 @@ static void tell_uptime()
     msg += "#";
     msg += uptime;
     msg += "#";
-    msg += dev_addr;
+    msg += bt_dev_addr;
     msg += "#";
-    msg += dev_name;
+    msg += bt_dev_name;
     if (!transmit_to_central(msg.c_str(), msg.length()))
       is_congested = true;
   }
@@ -1399,7 +1212,7 @@ static unsigned chk_errors()
       chk_error_cnt(&unknown_data_src, "got data from unknown source")
     + chk_error_cnt(&rx_queue_full, "rx queue full")
     + chk_error_cnt(&write_err,     "write failed")
-    + chk_error_cnt(&notify_err,    "notify failed")
+    + chk_error_cnt(&bt_notify_err, "notify failed")
     + chk_error_cnt(&parse_err,     "parse error")
     + chk_error_cnt(&lost_frames,   "serial frame lost")
     + chk_error_cnt(&bad_chunks,    "bad chunks dropped")
@@ -1418,14 +1231,10 @@ void loop()
   if (received || is_congested)
     is_congested = !cli_process();
 
-  if (advertising_enabled && start_advertising && elapsed_since(centr_disconn_ts) > 100) {
-    debug_strz("start advertising");
-    BLEDevice::startAdvertising(); // restart advertising
-    start_advertising = false;
-  }
+  bt_maybe_start_advertising();
 
 #ifdef TELL_UPTIME
-  if (advertising_enabled)
+  if (bt_advertising_enabled)
     tell_uptime();
 #endif
 

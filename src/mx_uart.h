@@ -7,7 +7,7 @@
 #include "mx_config.h"
 #include "stream_tags.h"
 #include "util.h"
-#include "Arduino.h"
+#include <Arduino.h>
 
 #ifdef STREAM_TAGS
 extern uint8_t  uart_last_tx_tag;
