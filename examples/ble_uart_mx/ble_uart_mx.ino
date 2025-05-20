@@ -65,6 +65,8 @@
 #include <rom/md5_hash.h>
 
 #include "mx_config.h"
+#include "mx_uart.h"
+#include "stream_tags.h"
 #include "debug.h"
 
 #ifdef NEO_PIXEL_PIN
@@ -166,28 +168,6 @@ static size_t    cli_buff_data_sz;
 
 static uint8_t last_rx_tag;
 
-#ifdef STREAM_TAGS
-static uint8_t  last_tx_tag = STREAM_TAG_FIRST - 1;
-static unsigned tx_msg_sz;
-#endif
-
-static inline bool is_stream_tag(uint8_t c)
-{
-  return c >= STREAM_TAG_FIRST && c < STREAM_TAG_FIRST + STREAM_TAGS_MOD;
-}
-
-static inline uint8_t next_stream_tag(uint8_t c)
-{
-  if (++c < STREAM_TAG_FIRST + STREAM_TAGS_MOD)
-    return c;
-  return STREAM_TAG_FIRST;
-}
-
-static inline uint8_t closing_stream_tag(uint8_t open_tag, size_t msg_sz)
-{
-  return STREAM_TAG_FIRST + (open_tag - STREAM_TAG_FIRST + msg_sz) % STREAM_TAGS_MOD;
-}
-
 static QueueHandle_t rx_queue;
 
 static struct err_count rx_queue_full;
@@ -200,76 +180,6 @@ static struct err_count skip_chunks;
 static struct err_count unknown_data_src;
 
 static bool   is_congested;
-
-static inline void uart_begin()
-{
-#ifdef UART_BEGIN
-  DataSerial.print(UART_BEGIN);
-#endif
-#ifdef STREAM_TAGS
-  uint8_t const next_tag = next_stream_tag(last_tx_tag);
-  DataSerial.print((char)next_tag);
-  last_tx_tag = next_tag;
-  tx_msg_sz = 0;
-#endif
-}
-
-static inline void uart_end()
-{
-#ifdef STREAM_TAGS
-  DataSerial.print((char)closing_stream_tag(last_tx_tag, tx_msg_sz));
-#endif
-  DataSerial.print(UART_END);
-}
-
-static inline void uart_write(const char* data, size_t sz)
-{
-  DataSerial.write(data, sz);
-#ifdef STREAM_TAGS
-  tx_msg_sz += sz;
-#endif
-}
-
-static inline void uart_print(char c)
-{
-  uart_write(&c, 1);
-}
-
-static inline void uart_debug_begin()
-{
-  uart_begin();
-  uart_print('-');
-}
-
-static void uart_print(const char* str)
-{
-  uart_write(str, strlen(str));
-}
-
-#define uart_print_strz(s) uart_write(s, STRZ_LEN(s))
-
-static void uart_print(String const& str)
-{
-  uart_write(str.c_str(), str.length());
-}
-
-static void uart_print(int val)
-{
-  String s(val);
-  uart_write(s.c_str(), s.length());
-}
-
-static void uart_print(unsigned val)
-{
-  String s(val);
-  uart_write(s.c_str(), s.length());
-}
-
-static void uart_print(unsigned long val)
-{
-  String s(val);
-  uart_write(s.c_str(), s.length());
-}
 
 static inline bool is_idle()
 {
@@ -294,63 +204,6 @@ static inline uint32_t elapsed(uint32_t from, uint32_t to)
 static inline uint32_t elapsed_since(uint32_t from_ms)
 {
   return elapsed(from_ms, millis());
-}
-
-static inline void debug_msg(const char* msg)
-{
-#ifndef NO_DEBUG
-  uart_debug_begin();
-  uart_print(msg);
-  uart_end();
-#endif
-}
-
-#ifndef NO_DEBUG
-#define debug_strz(msg) do {uart_debug_begin(); uart_print_strz(msg); uart_end();} while (0)
-#else
-#define debug_strz(msg) do {} while (0)
-#endif
-
-static unsigned chk_error_cnt(struct err_count* e, const char* msg)
-{
-  unsigned const err_cnt = e->cnt - e->reported;
-  if (err_cnt) {
-#ifndef NO_DEBUG
-    uart_debug_begin();
-    uart_print(msg);
-    if (err_cnt > 1) {
-      uart_print(' ');
-      uart_print(err_cnt);
-      uart_print_strz(" times");
-    }
-    uart_end();
-#endif
-    e->reported = e->cnt;
-    return err_cnt;
-  }
-  return 0;
-}
-
-static unsigned chk_error_cnt2(struct err_count* e, const char* pref, char tag, const char* suff)
-{
-  unsigned const err_cnt = e->cnt - e->reported;
-  if (err_cnt) {
-#ifndef NO_DEBUG
-    uart_debug_begin();
-    uart_print(pref);
-    uart_print(tag);
-    uart_print(suff);
-    if (err_cnt > 1) {
-      uart_print(' ');
-      uart_print(err_cnt);
-      uart_print_strz(" times");
-    }
-    uart_end();
-#endif
-    e->reported = e->cnt;
-    return err_cnt;
-  }
-  return 0;
 }
 
 struct data_chunk {
@@ -1157,25 +1010,7 @@ static void show_conn_status(bool congested = false)
 
 static void hw_init()
 {
-  DataSerial.setRxBufferSize(UART_RX_BUFFER_SZ);
-  DataSerial.setTxBufferSize(UART_TX_BUFFER_SZ);
-#ifdef HW_UART
-  DataSerial.begin(UART_BAUD_RATE, UART_MODE, UART_RX_PIN, UART_TX_PIN);
-#if defined(UART_CTS_PIN) && defined(UART_RTS_PIN)
-  DataSerial.setPins(UART_RX_PIN, UART_TX_PIN, UART_CTS_PIN, UART_RTS_PIN);
-  DataSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_CTS_RTS);
-#else
-#ifdef UART_CTS_PIN
-  DataSerial.setPins(UART_RX_PIN, UART_TX_PIN, UART_CTS_PIN, -1);
-  DataSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_CTS);
-#endif
-#ifdef UART_RTS_PIN
-  DataSerial.setPins(UART_RX_PIN, UART_TX_PIN, -1, UART_RTS_PIN);
-  DataSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_RTS);
-#endif
-#endif
-#endif
-  DataSerial.setTimeout(UART_TIMEOUT);
+  uart_init();
 
   Serial.begin(UART_BAUD_RATE);
 
