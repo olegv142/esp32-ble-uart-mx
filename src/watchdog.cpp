@@ -1,6 +1,6 @@
 #include "watchdog.h"
+#include "debug.h"
 #include "mx_config.h"
-#include <Esp.h>
 #include <esp_task_wdt.h>
 
 void watchdog_init(void)
@@ -18,9 +18,4 @@ void watchdog_reset(void)
 void esp_task_wdt_isr_user_handler(void)
 {
   reset_self();
-}
-
-void reset_self(void)
-{
-  esp_restart();
 }
