@@ -78,6 +78,7 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
+//----- Static data ----------------
 
 class Peer;
 static Peer*    peers[MAX_PEERS];
@@ -124,6 +125,8 @@ static bool        neopix_user_controlled;
 #ifdef LED_CONTROL_API
 static rmt_data_t  neopix_user_data[NPX_LED_BITS];
 #endif
+
+//----- Helper functions ----------------
 
 static inline void neopix_conn_set(cx_status_t sta)
 {
@@ -317,6 +320,8 @@ static void uart_print_data(uint8_t const* data, size_t len, char tag)
   uart_end();
 }
 #endif
+
+//----- Remote client connection class ----------------
 
 class Peer : public RemoteClient
 {
@@ -602,6 +607,8 @@ static void add_peer(unsigned idx, String const& addr)
 }
 #endif
 
+//----- Initialization routines ----------------
+
 static void bt_gattc_event_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param)
 {
   for (unsigned i = 0; i < MAX_PEERS; ++i)
@@ -657,6 +664,8 @@ void setup()
   BLEDevice::setCustomGattcHandler(bt_gattc_event_cb);
   bt_device_start();
 }
+
+//----- Message parsing and API implementation ----------------
 
 static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
 {
@@ -1046,6 +1055,8 @@ static unsigned chk_errors()
       err_cnt += peers[i]->chk_errors();
   return err_cnt;
 }
+
+//----- Main loop ----------------
 
 void loop()
 {
