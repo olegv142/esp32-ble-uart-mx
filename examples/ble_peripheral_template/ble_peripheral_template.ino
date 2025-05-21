@@ -34,6 +34,60 @@
 #define TELL_UPTIME 1000
 #endif
 
+static bool is_congested;
+
+#ifdef NEO_PIXEL_PIN
+#define NPX_LED_BITS (3*8)
+#define NPX_IDLE_DELAY 2
+static rmt_data_t  neopix_led[cx_status_cnt][NPX_LED_BITS];
+static rmt_data_t* neopix_write_data;
+static cx_status_t neopix_conn_status;
+static bool        neopix_user_controlled;
+
+static inline void neopix_conn_set(cx_status_t sta)
+{
+  if (!neopix_user_controlled)
+    neopix_write_data = neopix_led[sta];
+  neopix_conn_status = sta;
+}
+
+static void neopix_init()
+{
+  neopix_led_data_init(neopix_led[cx_idle],              IDLE_RGB);
+  neopix_led_data_init(neopix_led[cx_establishing],      CONNECTING_RGB);
+  neopix_led_data_init(neopix_led[cx_active],            ACTIVE_RGB);
+  neopix_led_data_init(neopix_led[cx_passive],           PASSIVE_RGB);
+  neopix_led_data_init(neopix_led[cx_active_congested],  ACTIVE_CONGESTED_RGB);
+  neopix_led_data_init(neopix_led[cx_passive_congested], PASSIVE_CONGESTED_RGB);
+
+  if (!neopix_led_init(NEO_PIXEL_PIN)) {
+    debug_strz("neopixel pin init failed");
+    return;
+  }
+  neopix_conn_set(cx_idle);
+  delay(NPX_IDLE_DELAY+1);
+}
+
+static void neopix_process()
+{
+  if (!neopix_write_data)
+    return;
+  static uint32_t last_set;
+  uint32_t const now = millis();
+  if (elapsed(last_set, now) < NPX_IDLE_DELAY)
+    return;
+  neopix_led_write(NEO_PIXEL_PIN, neopix_write_data);
+  neopix_write_data = NULL;
+  last_set = now;
+}
+
+static inline void neopix_conn_up(cx_status_t sta)
+{
+  if (neopix_conn_status != sta)
+    neopix_conn_set(sta);
+}
+#endif // NEO_PIXEL_PIN
+
 static inline c_status_t get_connect_status()
 {
   return !bt_connected_centrals ? c_idle : c_passive;
@@ -56,11 +110,18 @@ static inline cx_status_t get_connect_status_ex(bool congested)
   }
 }
 
-static bool is_congested;
-
 static inline bool get_connected_indicator()
 {
   return get_connect_status() >= c_active;
+}
+
+static void show_conn_status(bool congested = false)
+{
+#ifdef NEO_PIXEL_PIN
+  neopix_conn_up(get_connect_status_ex(congested));
+#elif defined(CONNECTED_LED)
+  digitalWrite(CONNECTED_LED, get_connected_indicator() ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
+#endif
 }
 
 static inline bool transmit_plain(
@@ -140,67 +201,6 @@ static uint8_t* get_chunk_buff(size_t sz, void* ctx)
   return buff;
 }
 #endif
-
-#ifdef NEO_PIXEL_PIN
-#define NPX_LED_BITS (3*8)
-#define NPX_IDLE_DELAY 2
-static rmt_data_t  neopix_led[cx_status_cnt][NPX_LED_BITS];
-static rmt_data_t* neopix_write_data;
-static cx_status_t neopix_conn_status;
-static bool        neopix_user_controlled;
-
-static inline void neopix_conn_set(cx_status_t sta)
-{
-  if (!neopix_user_controlled)
-    neopix_write_data = neopix_led[sta];
-  neopix_conn_status = sta;
-}
-
-static void neopix_init()
-{
-  neopix_led_data_init(neopix_led[cx_idle],              IDLE_RGB);
-  neopix_led_data_init(neopix_led[cx_establishing],      CONNECTING_RGB);
-  neopix_led_data_init(neopix_led[cx_active],            ACTIVE_RGB);
-  neopix_led_data_init(neopix_led[cx_passive],           PASSIVE_RGB);
-  neopix_led_data_init(neopix_led[cx_active_congested],  ACTIVE_CONGESTED_RGB);
-  neopix_led_data_init(neopix_led[cx_passive_congested], PASSIVE_CONGESTED_RGB);
-
-  if (!neopix_led_init(NEO_PIXEL_PIN)) {
-    debug_strz("neopixel pin init failed");
-    return;
-  }
-  neopix_conn_set(cx_idle);
-  delay(NPX_IDLE_DELAY+1);
-}
-
-static void neopix_process()
-{
-  if (!neopix_write_data)
-    return;
-  static uint32_t last_set;
-  uint32_t const now = millis();
-  if (elapsed(last_set, now) < NPX_IDLE_DELAY)
-    return;
-  neopix_led_write(NEO_PIXEL_PIN, neopix_write_data);
-  neopix_write_data = NULL;
-  last_set = now;
-}
-
-static inline void neopix_conn_up(cx_status_t sta)
-{
-  if (neopix_conn_status != sta)
-    neopix_conn_set(sta);
-}
-#endif
-
-static void show_conn_status(bool congested = false)
-{
-#ifdef NEO_PIXEL_PIN
-  neopix_conn_up(get_connect_status_ex(congested));
-#elif defined(CONNECTED_LED)
-  digitalWrite(CONNECTED_LED, get_connected_indicator() ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
-#endif
-}
 
 static void hw_init()
 {

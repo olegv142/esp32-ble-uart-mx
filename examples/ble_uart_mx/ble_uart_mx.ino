@@ -56,6 +56,7 @@
 #include "mx_types.h"
 #include "mx_uart.h"
 #include "bt_device.h"
+#include "bt_remote.h"
 #include "stream_tags.h"
 #include "watchdog.h"
 #include "debug.h"
@@ -83,12 +84,90 @@ static Peer*    peers[MAX_PEERS];
 static unsigned npeers;
 static int      connected_peers;
 
+#ifdef EXT_FRAMES
+static XFrameReceiver centr_xrx('<');
+#endif
+
 static uint8_t  auth_key[] = { AUTH_KEY };
 static uint8_t  passkey[16];
 static bool     passkey_valid;
 
 #define PASSKEY_B64_LEN MAX_BASE64_ENCODED_LEN(PASSKEY_LEN)
 static char     passkey_b64[PASSKEY_B64_LEN];
+
+#ifdef STATUS_REPORT_INTERVAL
+static uint32_t last_status_ts;
+#endif
+
+#define CLI_BUFF_SZ UART_RX_BUFFER_SZ
+static uint8_t   cli_buff[CLI_BUFF_SZ];
+static size_t    cli_buff_data_sz;
+
+static uint8_t last_rx_tag;
+
+static QueueHandle_t rx_queue;
+
+static struct err_count rx_queue_full;
+static struct err_count write_err;
+static struct err_count parse_err;
+static struct err_count lost_frames;
+
+static bool   is_congested;
+
+#ifdef NEO_PIXEL_PIN
+#define NPX_LED_BITS (3*8)
+#define NPX_IDLE_DELAY 2
+static rmt_data_t  neopix_led[cx_status_cnt][NPX_LED_BITS];
+static rmt_data_t* neopix_write_data;
+static cx_status_t neopix_conn_status;
+static bool        neopix_user_controlled;
+#ifdef LED_CONTROL_API
+static rmt_data_t  neopix_user_data[NPX_LED_BITS];
+#endif
+
+static inline void neopix_conn_set(cx_status_t sta)
+{
+  if (!neopix_user_controlled)
+    neopix_write_data = neopix_led[sta];
+  neopix_conn_status = sta;
+}
+
+static void neopix_init()
+{
+  neopix_led_data_init(neopix_led[cx_idle],              IDLE_RGB);
+  neopix_led_data_init(neopix_led[cx_establishing],      CONNECTING_RGB);
+  neopix_led_data_init(neopix_led[cx_active],            ACTIVE_RGB);
+  neopix_led_data_init(neopix_led[cx_passive],           PASSIVE_RGB);
+  neopix_led_data_init(neopix_led[cx_active_congested],  ACTIVE_CONGESTED_RGB);
+  neopix_led_data_init(neopix_led[cx_passive_congested], PASSIVE_CONGESTED_RGB);
+
+  if (!neopix_led_init(NEO_PIXEL_PIN)) {
+    debug_strz("neopixel pin init failed");
+    return;
+  }
+  neopix_conn_set(cx_idle);
+  delay(NPX_IDLE_DELAY+1);
+}
+
+static void neopix_process()
+{
+  if (!neopix_write_data)
+    return;
+  static uint32_t last_set;
+  uint32_t const now = millis();
+  if (elapsed(last_set, now) < NPX_IDLE_DELAY)
+    return;
+  neopix_led_write(NEO_PIXEL_PIN, neopix_write_data);
+  neopix_write_data = NULL;
+  last_set = now;
+}
+
+static inline void neopix_conn_up(cx_status_t sta)
+{
+  if (neopix_conn_status != sta)
+    neopix_conn_set(sta);
+}
+#endif // NEO_PIXEL_PIN
 
 static inline c_status_t get_connect_status()
 {
@@ -115,26 +194,6 @@ static inline cx_status_t get_connect_status_ex(bool congested)
   }
 }
 
-#ifdef STATUS_REPORT_INTERVAL
-static uint32_t last_status_ts;
-#endif
-
-#define CLI_BUFF_SZ UART_RX_BUFFER_SZ
-static uint8_t   cli_buff[CLI_BUFF_SZ];
-static size_t    cli_buff_data_sz;
-
-static uint8_t last_rx_tag;
-
-static QueueHandle_t rx_queue;
-
-static struct err_count rx_queue_full;
-static struct err_count write_err;
-static struct err_count parse_err;
-static struct err_count lost_frames;
-static struct err_count unknown_data_src;
-
-static bool   is_congested;
-
 static inline bool is_idle()
 {
   return !npeers;
@@ -150,9 +209,14 @@ static inline bool get_connected_indicator()
   return get_connect_status() >= c_active;
 }
 
-#ifdef EXT_FRAMES
-static XFrameReceiver centr_xrx('<');
+static void show_conn_status(bool congested = false)
+{
+#ifdef NEO_PIXEL_PIN
+  neopix_conn_up(get_connect_status_ex(congested));
+#elif defined(CONNECTED_LED)
+  digitalWrite(CONNECTED_LED, get_connected_indicator() ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
 #endif
+}
 
 static inline bool transmit_plain(
     uint8_t* pdata, size_t len,
@@ -254,17 +318,7 @@ static void uart_print_data(uint8_t const* data, size_t len, char tag)
 }
 #endif
 
-static bool remote_write_(BLERemoteCharacteristic* ch, uint8_t* data, size_t len, bool with_response)
-{
-  BLEClient * const clnt = ch->getRemoteService()->getClient();
-  return ESP_OK == esp_ble_gattc_write_char(
-    clnt->getGattcIf(), clnt->getConnId(), ch->getHandle(), len, data,
-    with_response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP,
-    ESP_GATT_AUTH_REQ_NONE
-  );
-}
-
-class Peer : public BLEClientCallbacks
+class Peer : public RemoteClient
 {
 public:
   void onConnect(BLEClient *pclient) {
@@ -318,8 +372,17 @@ public:
 #endif
   }
 
-  void connect();
-  void subscribe();
+  void connect()
+  {
+    report_connecting();
+    show_conn_status();
+    if (!m_rx_queue) {
+      m_rx_queue = xQueueCreate(RX_QUEUE, sizeof(struct data_chunk));
+      if (!m_rx_queue)
+        fatal("No memory");
+    }
+    RemoteClient::connect();
+  }
 
   bool remote_write(uint8_t* data, size_t len)
   {
@@ -328,7 +391,7 @@ public:
       xSemaphoreGive(m_wr_sem);
       return true;
     }
-    if (!remote_write_(m_remoteRx, data, len, true))
+    if (!send_data(data, len, true))
     {
       // failed due to congestion
       xSemaphoreGive(m_wr_sem);
@@ -384,11 +447,8 @@ public:
     return transmit_frame(data, len, alloc_chunk_queued_, transmit_chunk_queued_, this);
   }
 
-  bool notify_data(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length)
+  virtual void notify_data(uint8_t *pData, size_t length)
   {
-    if (pBLERemoteCharacteristic != m_remoteTx)
-      return false;
-
     struct data_chunk ch = {.data = (uint8_t*)malloc(length), .len = length};
     if (!ch.data)
       fatal("No memory");
@@ -398,14 +458,13 @@ public:
       ++m_rx_queue_full.cnt;
       is_congested = true;
     }
-    return true;
   }
 
   void receive(struct data_chunk const* chunk)
   {
 #ifdef ECHO
     if (m_writable && is_connected())
-      if (!remote_write_(m_remoteRx, chunk->data, chunk->len, false)) {
+      if (!send_data(chunk->data, chunk->len, false)) {
         ++write_err.cnt;
         is_congested = true;
       }
@@ -467,22 +526,29 @@ public:
          + chk_error_cnt2(&m_tx_queue_full, "tx queue [", m_tag, "] full");
   }
 
-  void write_worker();
+  void write_worker()
+  {
+    for (;;) {
+      size_t size = 0;
+      uint8_t *data = (uint8_t*)xRingbufferReceive(m_wr_queue, &size, portMAX_DELAY);
+      if (!data || !size)
+        continue;
+      BUG_ON(size > MAX_SIZE);
+      while (!remote_write(data, size))
+        vTaskDelay(pdMS_TO_TICKS(CONGESTION_DELAY));
+      vRingbufferReturnItem(m_wr_queue, data);
+    }
+  }
 
   static void write_worker_(void* ctx) {
     ((Peer*)ctx)->write_worker();
   }
 
   Peer(unsigned idx, String const& addr)
-    : m_tag('0' + idx)
-    , m_addr(addr)
-    , m_writable(false)
+    : RemoteClient(addr)
+    , m_tag('0' + idx)
     , m_connected(false)
-    , m_subscribed(false)
     , m_was_connected(false)
-    , m_Client(nullptr)
-    , m_remoteTx(nullptr)
-    , m_remoteRx(nullptr)
     , m_wr_task(nullptr)
     , m_wr_queue(xRingbufferCreateNoSplit(MAX_SIZE, TX_QUEUE * MAX_CHUNKS))
     , m_wr_sem(xSemaphoreCreateBinary())
@@ -501,15 +567,9 @@ public:
 
 private:
   char const  m_tag;
-  String      m_addr;
-  bool        m_writable;
   bool        m_connected;
-  bool        m_subscribed;
   bool        m_was_connected;
 
-  BLEClient*  m_Client;
-  BLERemoteCharacteristic* m_remoteTx;
-  BLERemoteCharacteristic* m_remoteRx;
   TaskHandle_t             m_wr_task;
   RingbufHandle_t          m_wr_queue;
   SemaphoreHandle_t        m_wr_sem;
@@ -547,70 +607,6 @@ static void bt_gattc_event_cb(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if
   for (unsigned i = 0; i < MAX_PEERS; ++i)
     if (peers[i] && peers[i]->on_gattc_evt(event, gattc_if, param))
       return;
-}
-
-#ifdef NEO_PIXEL_PIN
-#define NPX_LED_BITS (3*8)
-#define NPX_IDLE_DELAY 2
-static rmt_data_t  neopix_led[cx_status_cnt][NPX_LED_BITS];
-static rmt_data_t* neopix_write_data;
-static cx_status_t neopix_conn_status;
-static bool        neopix_user_controlled;
-#ifdef LED_CONTROL_API
-static rmt_data_t  neopix_user_data[NPX_LED_BITS];
-#endif
-
-static inline void neopix_conn_set(cx_status_t sta)
-{
-  if (!neopix_user_controlled)
-    neopix_write_data = neopix_led[sta];
-  neopix_conn_status = sta;
-}
-
-static void neopix_init()
-{
-  neopix_led_data_init(neopix_led[cx_idle],              IDLE_RGB);
-  neopix_led_data_init(neopix_led[cx_establishing],      CONNECTING_RGB);
-  neopix_led_data_init(neopix_led[cx_active],            ACTIVE_RGB);
-  neopix_led_data_init(neopix_led[cx_passive],           PASSIVE_RGB);
-  neopix_led_data_init(neopix_led[cx_active_congested],  ACTIVE_CONGESTED_RGB);
-  neopix_led_data_init(neopix_led[cx_passive_congested], PASSIVE_CONGESTED_RGB);
-
-  if (!neopix_led_init(NEO_PIXEL_PIN)) {
-    debug_strz("neopixel pin init failed");
-    return;
-  }
-  neopix_conn_set(cx_idle);
-  delay(NPX_IDLE_DELAY+1);
-}
-
-static void neopix_process()
-{
-  if (!neopix_write_data)
-    return;
-  static uint32_t last_set;
-  uint32_t const now = millis();
-  if (elapsed(last_set, now) < NPX_IDLE_DELAY)
-    return;
-  neopix_led_write(NEO_PIXEL_PIN, neopix_write_data);
-  neopix_write_data = NULL;
-  last_set = now;
-}
-
-static inline void neopix_conn_up(cx_status_t sta)
-{
-  if (neopix_conn_status != sta)
-    neopix_conn_set(sta);
-}
-#endif
-
-static void show_conn_status(bool congested = false)
-{
-#ifdef NEO_PIXEL_PIN
-  neopix_conn_up(get_connect_status_ex(congested));
-#elif defined(CONNECTED_LED)
-  digitalWrite(CONNECTED_LED, get_connected_indicator() ? CONNECTED_LED_LVL : !(CONNECTED_LED_LVL));
-#endif
 }
 
 static void hw_init()
@@ -660,120 +656,6 @@ void setup()
   bt_device_init(bt_rx_cb);
   BLEDevice::setCustomGattcHandler(bt_gattc_event_cb);
   bt_device_start();
-}
-
-static void peerNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
-{
-  for (unsigned i = 0; i < MAX_PEERS; ++i)
-    if (peers[i] && peers[i]->notify_data(pBLERemoteCharacteristic, pData, length))
-      return;
-
-  ++unknown_data_src.cnt;
-}
-
-void Peer::connect()
-{
-  report_connecting();
-
-#ifndef NO_DEBUG
-  uint32_t const start = millis();
-  uart_debug_begin();
-  uart_print_strz("connecting to ");
-  uart_print(m_addr);
-  uart_end();
-#endif
-
-  show_conn_status();
-
-  if (!m_Client) {
-    m_Client = BLEDevice::createClient();
-    m_Client->setClientCallbacks(this);
-  }
-  if (!m_rx_queue) {
-    m_rx_queue = xQueueCreate(RX_QUEUE, sizeof(struct data_chunk));
-    if (!m_rx_queue)
-      fatal("No memory");
-  }
-
-  m_Client->connect(m_addr);
-  m_Client->setMTU(MAX_SIZE+3);  // Request increased MTU from server (default is 23 otherwise)
-
-  // Obtain a reference to the service we are after in the remote BLE server.
-  BLERemoteService *pRemoteService = m_Client->getService(SERVICE_UUID);
-  // Reset itself on error to avoid dealing with de-initialization
-  if (!pRemoteService)
-    fatal("Failed to find our service UUID");
-  // Obtain a reference to the characteristic in the service of the remote BLE server.
-  m_remoteTx = pRemoteService->getCharacteristic(CHARACTERISTIC_UUID_TX);
-  if (!m_remoteTx)
-    fatal("Failed to find our characteristic UUID");
-  if (!m_remoteTx->canNotify())
-    fatal("Notification not supported by the server");
-#ifndef DUAL_CHAR
-  m_remoteRx = m_remoteTx;
-#else
-  m_remoteRx = pRemoteService->getCharacteristic(CHARACTERISTIC_UUID_RX);
-  if (!m_remoteRx)
-    fatal("Failed to find our characteristic UUID");
-#endif
-  m_writable = m_remoteRx->canWrite();
-
-#ifndef NO_DEBUG
-  uart_debug_begin();
-  uart_print_strz("connected to ");
-  uart_print(m_addr);
-  uart_print_strz(" in ");
-  uart_print(millis() - start);
-  uart_print_strz(" msec");
-  if (m_writable)
-    uart_print_strz(", writable");
-  else
-    uart_print_strz(", readonly");
-  uart_print_strz(", rssi=");
-  uart_print(m_Client->getRssi());
-  uart_end();
-#endif
-}
-
-void Peer::subscribe()
-{
-#ifndef NO_DEBUG
-  uint32_t const start = millis();
-  uart_debug_begin();
-  uart_print_strz("subscribing to ");
-  uart_print(m_addr);
-  uart_end();
-#endif
-
-  // Subscribe to updates
-  m_remoteTx->registerForNotify(peerNotifyCallback);
-  m_subscribed = true;
-
-#ifndef NO_DEBUG
-  uart_debug_begin();
-  uart_print_strz("subscribed to ");
-  uart_print(m_addr);
-  uart_print_strz(" in ");
-  uart_print(millis() - start);
-  uart_print_strz(" msec, ");
-  uart_print(ESP.getFreeHeap());
-  uart_print_strz(" bytes free");
-  uart_end();
-#endif
-}
-
-void Peer::write_worker()
-{
-  for (;;) {
-    size_t size = 0;
-    uint8_t *data = (uint8_t*)xRingbufferReceive(m_wr_queue, &size, portMAX_DELAY);
-    if (!data || !size)
-      continue;
-    BUG_ON(size > MAX_SIZE);
-    while (!remote_write(data, size))
-      vTaskDelay(pdMS_TO_TICKS(CONGESTION_DELAY));
-    vRingbufferReturnItem(m_wr_queue, data);
-  }
 }
 
 static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
@@ -1150,7 +1032,7 @@ static bool cli_receive()
 static unsigned chk_errors()
 {
   unsigned err_cnt =
-      chk_error_cnt(&unknown_data_src, "got data from unknown source")
+      chk_error_cnt(&bt_unknown_data_src, "got data from unknown source")
     + chk_error_cnt(&rx_queue_full, "rx queue full")
     + chk_error_cnt(&write_err,     "write failed")
     + chk_error_cnt(&bt_notify_err, "notify failed")
