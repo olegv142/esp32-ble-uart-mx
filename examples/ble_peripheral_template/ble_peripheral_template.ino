@@ -10,7 +10,6 @@
 #include "watchdog.h"
 #include "debug.h"
 
-#include <string.h>
 #include <malloc.h>
 
 #ifdef NEO_PIXEL_PIN

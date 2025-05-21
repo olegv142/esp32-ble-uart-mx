@@ -5,8 +5,6 @@
 #include "util.h"
 
 #include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 #include <BLE2902.h>
 #include <esp_mac.h>

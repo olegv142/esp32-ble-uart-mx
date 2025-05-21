@@ -48,20 +48,9 @@
 */
 
 #include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEScan.h>
-#include <BLEAdvertisedDevice.h>
-#include <BLE2902.h>
-#include <esp_mac.h>
-#include <esp_gatt_defs.h>
-#include <esp_gattc_api.h>
-#include <string.h>
-#include <malloc.h>
 #include <freertos/queue.h>
-#include <esp_cpu.h>
-#include <esp_gap_ble_api.h>
-#include <Esp.h>
 #include <rom/md5_hash.h>
+#include <malloc.h>
 
 #include "mx_config.h"
 #include "mx_types.h"
