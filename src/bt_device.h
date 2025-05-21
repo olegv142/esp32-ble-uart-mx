@@ -7,14 +7,8 @@
 #include "mx_types.h"
 #include <Arduino.h>
 
-class BLECharacteristic;
-
-extern String   bt_dev_name;
-extern String   bt_dev_addr;
-
-extern BLECharacteristic* bt_char_tx; // peripheral transmit there
-extern BLECharacteristic* bt_char_rx; // peripheral receive there
-extern bool               bt_congested;
+extern String             bt_dev_name;
+extern String             bt_dev_addr;
 extern struct err_count   bt_notify_err;
 extern int                bt_connected_centrals;
 extern bool               bt_advertising_enabled;

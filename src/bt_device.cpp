@@ -14,8 +14,8 @@ String   bt_dev_addr;
 
 static bt_rx_cb_t bt_rx_cb;
 
-BLECharacteristic* bt_char_tx; // peripheral transmit there
-BLECharacteristic* bt_char_rx; // peripheral receive there
+static BLECharacteristic* bt_char_tx; // peripheral transmit there
+static BLECharacteristic* bt_char_rx; // peripheral receive there
 
 struct err_count bt_notify_err;
 
