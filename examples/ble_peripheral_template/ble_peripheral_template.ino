@@ -1,4 +1,5 @@
 /*
+ Example of the simple peripheral device sending dummy data with regular intervals.
  Author: Oleg Volkov
 */
 
