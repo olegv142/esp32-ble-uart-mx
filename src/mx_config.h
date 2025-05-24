@@ -176,8 +176,12 @@
 #define WDT_TIMEOUT 12000 // msec
 #endif
 
+#ifndef IDLE_DELAY
+#define IDLE_DELAY 10
+#endif
+
 #ifndef CONGESTION_DELAY
-#define CONGESTION_DELAY 10
+#define CONGESTION_DELAY 25
 #endif
 
 #ifndef RX_QUEUE
