@@ -78,9 +78,8 @@ static inline void transmit_to_central(uint8_t* pdata, size_t sz)
   bt_char_tx->setValue(pdata, sz);
 #ifdef BT_INDICATES
   bt_char_tx->indicate();
-#else
-  bt_char_tx->notify();
 #endif
+  bt_char_tx->notify();
 }
 
 class MyCharCallbacks : public BLECharacteristicCallbacks {
