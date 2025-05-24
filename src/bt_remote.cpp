@@ -20,6 +20,7 @@ RemoteClient::RemoteClient(String const& addr)
   : m_addr(addr)
   , m_Client(nullptr)
   , m_writable(false)
+  , m_indicates(false)
   , m_subscribed(false)
   , m_remoteTx(nullptr)
   , m_remoteRx(nullptr)
@@ -72,7 +73,8 @@ void RemoteClient::connect(void)
   if (!m_remoteRx)
     fatal("Failed to find our characteristic UUID");
 #endif
-  m_writable = m_remoteRx->canWrite();
+  m_writable  = m_remoteRx->canWrite();
+  m_indicates = m_remoteTx->canIndicate();
 
 #ifndef NO_DEBUG
   uart_debug_begin();
@@ -85,6 +87,8 @@ void RemoteClient::connect(void)
     uart_print_strz(", writable");
   else
     uart_print_strz(", readonly");
+  if (m_indicates)
+    uart_print_strz(", indicates");
   uart_print_strz(", rssi=");
   uart_print(m_Client->getRssi());
   uart_end();
@@ -102,6 +106,11 @@ void RemoteClient::subscribe(void)
 #endif
 
   // Subscribe to updates
+#ifdef BT_INDICATE_SUPPORT
+  if (m_indicates)
+    m_remoteTx->registerForNotify(remote_client_notify, false);
+  else
+#endif
   m_remoteTx->registerForNotify(remote_client_notify);
   m_subscribed = true;
 

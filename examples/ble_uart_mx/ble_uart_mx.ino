@@ -555,7 +555,7 @@ public:
     , m_connected(false)
     , m_was_connected(false)
     , m_wr_task(nullptr)
-    , m_wr_queue(xRingbufferCreateNoSplit(MAX_SIZE, TX_QUEUE * MAX_CHUNKS))
+    , m_wr_queue(xRingbufferCreateNoSplit(MAX_SIZE, TX_QUEUE))
     , m_wr_sem(xSemaphoreCreateBinary())
     , m_rx_queue(0)
 #ifdef EXT_FRAMES

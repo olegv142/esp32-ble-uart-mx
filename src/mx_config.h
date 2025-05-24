@@ -144,6 +144,10 @@
 #endif
 #endif
 
+#ifdef BT_INDICATES
+#define BT_INDICATE_SUPPORT
+#endif
+
 #ifndef MAX_BURST
 // How many messages may be submitted at once
 #define MAX_BURST 1
@@ -177,11 +181,11 @@
 #endif
 
 #ifndef RX_QUEUE
-#define RX_QUEUE 32
+#define RX_QUEUE (2*MAX_CHUNKS)
 #endif
 
 #ifndef TX_QUEUE
-#define TX_QUEUE 2
+#define TX_QUEUE MAX_CHUNKS
 #endif
 
 #ifdef CENTRAL_ONLY

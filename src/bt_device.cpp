@@ -76,7 +76,11 @@ class MyServerCallbacks: public BLEServerCallbacks {
 static inline void transmit_to_central(uint8_t* pdata, size_t sz)
 {
   bt_char_tx->setValue(pdata, sz);
+#ifdef BT_INDICATES
+  bt_char_tx->indicate();
+#else
   bt_char_tx->notify();
+#endif
 }
 
 class MyCharCallbacks : public BLECharacteristicCallbacks {
@@ -139,6 +143,9 @@ void bt_device_start(void)
   bt_char_tx = pService->createCharacteristic(
     CHARACTERISTIC_UUID_TX,
     BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ
+#ifdef BT_INDICATES
+    | BLECharacteristic::PROPERTY_INDICATE
+#endif
 #ifndef DUAL_CHAR
     | prop_write
 #endif

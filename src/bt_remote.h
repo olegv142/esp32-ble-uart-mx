@@ -26,6 +26,7 @@ protected:
   String      m_addr;
   BLEClient*  m_Client;
   bool        m_writable;
+  bool        m_indicates;
   bool        m_subscribed;
   BLERemoteCharacteristic* m_remoteTx;
   BLERemoteCharacteristic* m_remoteRx;
