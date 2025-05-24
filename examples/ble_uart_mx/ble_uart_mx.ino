@@ -1103,10 +1103,9 @@ void loop()
 #ifdef NEO_PIXEL_PIN
   neopix_process();
 #endif
-  if (!is_congested)
+  if (!is_congested) {
     watchdog_reset();
-#ifdef UART_THROTTLE
-  else
+    delay(IDLE_DELAY);
+  } else
     delay(CONGESTION_DELAY);
-#endif
 }
