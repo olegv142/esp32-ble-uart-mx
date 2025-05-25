@@ -13,41 +13,37 @@ bool transmit_xframe(
     void* ctx
   )
 {
-  static uint8_t last_frame_sn;
-  static uint8_t last_chunk_sn;
+  static uint8_t  last_frame_sn;
+  static uint8_t  last_chunk_sn;
+  static uint32_t last_chksum;
   uint8_t tx_sn = last_frame_sn;
   // The following flag is set in case previous transmission was incomplete
-  bool incomplete = (last_chunk_sn != last_frame_sn);
-  uint32_t chksum = CHKSUM_INI;
+  // so we will skip already transmitted frames
+  bool skip = (last_chunk_sn != last_frame_sn);
+  if (!skip)
+      last_chksum = CHKSUM_INI;
   uint8_t first = 1, last;
   while (len) {
     size_t chunk = len;
-    uint8_t* pdata = tx_data;
     if (!(last = (chunk <= MAX_CHUNK)))
       chunk = MAX_CHUNK;
-    uint8_t const chunk_hdr = mk_xframe_hdr(++tx_sn, binary, first, last);
-    chksum = chksum_up(chunk_hdr, chksum);
-    if (!incomplete) {
+    tx_sn += 1;
+    if (!skip) {
       uint8_t* const chunk_buff = get_chunk(XHDR_SIZE + chunk + CHKSUM_SIZE, ctx);
       if (!chunk_buff)
         return false;
+      uint8_t const chunk_hdr = mk_xframe_hdr(tx_sn, binary, first, last);
       chunk_buff[0] = chunk_hdr;
-      chksum = chksum_copy(tx_data, chunk, chunk_buff + 1, chksum);
-      pdata = chunk_buff;
-    } else {
-      // already transmitted chunk, just update checksum
-      chksum = chksum_update(tx_data, chunk, chksum);
-      pdata = nullptr;
-    }
+      uint32_t const chksum = chksum_copy(tx_data, chunk, chunk_buff + 1, chksum_up(chunk_hdr, last_chksum));
+      if (!tx_chunk(chunk_buff, XHDR_SIZE + chunk + CHKSUM_SIZE, ctx))
+        return false;
+      last_chksum = chksum;
+      last_chunk_sn = tx_sn;
+    } else if (last_chunk_sn == tx_sn)
+      skip = false;
     first = 0;
-    if (pdata && !tx_chunk(pdata, XHDR_SIZE + chunk + CHKSUM_SIZE, ctx))
-      return false;
     tx_data += chunk;
     len -= chunk;
-    if (!incomplete)
-      last_chunk_sn = tx_sn;
-    else if (last_chunk_sn == tx_sn)
-      incomplete = false;
   }
   last_frame_sn = tx_sn;
   return true;
