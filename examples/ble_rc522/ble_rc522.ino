@@ -1,5 +1,9 @@
 /*
- Example of the simple peripheral device sending dummy data with regular intervals.
+ Example of the RF ID detector based on MFRC522 board sending data via Bluetooth.
+ It broadcasts 2 types of messages:
+  I<version in hex><chip version in hex>  - idle message, for ex. I0118 is transmitted for chines RC522 clone
+  D<UID bytes in hex>                     - card detected message, for example D350b1806
+ Use https://olegv142.github.io/esp32-ble-uart-mx/?dual&xf for receiving those messages.
  Author: Oleg Volkov
 */
 
@@ -27,14 +31,6 @@
 #ifdef EXT_FRAMES
 #include "checksum.h"
 #include "xframe.h"
-#endif
-
-#ifdef SIMPLE_LINK
-#pragma GCC diagnostic ignored "-Wunused-function"
-#endif
-
-#ifndef TELL_UPTIME
-#define TELL_UPTIME 1000
 #endif
 
 static void rc522_start();
@@ -251,25 +247,6 @@ static bool transmit_to_central(const char* data, size_t len)
 #endif
 }
 
-static void tell_uptime()
-{
-  static uint32_t last_uptime;
-  static uint32_t last_uptime_sn;
-  uint32_t const uptime = millis();
-  if (uptime >= last_uptime + TELL_UPTIME) {
-    last_uptime = uptime;
-    String msg(++last_uptime_sn);
-    msg += "#";
-    msg += uptime;
-    msg += "#";
-    msg += bt_dev_addr;
-    msg += "#";
-    msg += bt_dev_name;
-    if (!transmit_to_central(msg.c_str(), msg.length()))
-      is_congested = true;
-  }
-}
-
 static unsigned chk_errors()
 {
   return chk_error_cnt(&bt_notify_err, "notify failed");
@@ -285,29 +262,23 @@ static void rc522_start()
   mfrc522.PCD_Init();   // Init MFRC522
 }
 
-static void rc522_print_version()
+static void rc522_tell_version()
 {
-#ifndef NO_DEBUG
-  unsigned const ver = mfrc522.PCD_ReadRegister(MFRC522::VersionReg);
-  uart_debug_begin();
-  uart_print_strz("MFRC522 ver.");
-  uart_print_hex(ver);
-  uart_end();
-#endif
+  unsigned const chip_ver = mfrc522.PCD_ReadRegister(MFRC522::VersionReg);
+  char buff[6] = {'I'};
+  print_hex_byte(VERSION, buff + 1);
+  print_hex_byte(chip_ver, buff + 3);
+  if (!transmit_to_central(buff, 5))
+    is_congested = true;
 }
 
-static void rc522_print_uid()
+static void rc522_tell_uid()
 {
-#ifndef NO_DEBUG
-  uart_debug_begin();
-  uart_print_strz("UID:");
-  char buf[16] = {};
-  for (byte i = 0; i < mfrc522.uid.size; ++i) {
-    snprintf(buf, sizeof(buf) - 1, " %02x", mfrc522.uid.uidByte[i]);
-    uart_print(buf);
-  }
-  uart_end();
-#endif
+  char buff[1+2*sizeof(mfrc522.uid.uidByte)+1] = {'D'};
+  for (byte i = 0; i < mfrc522.uid.size; ++i)
+    print_hex_byte(mfrc522.uid.uidByte[i], buff + 1 + 2*i);
+  if (!transmit_to_central(buff, 1 + 2*mfrc522.uid.size))
+    is_congested = true;
 }
 
 static void rc522_poll()
@@ -323,14 +294,13 @@ static void rc522_poll()
       mfrc522.PICC_WakeupA(atqa_answer, &atqa_size);
     }
     if (!mfrc522.PICC_ReadCardSerial()) {
-      rc522_print_version();
+      rc522_tell_version();
     } else {
-      rc522_print_uid();
+      rc522_tell_uid();
     }
     mfrc522.PICC_HaltA();
   }
 }
-
 
 //------------------------- Main loop
 
@@ -342,7 +312,7 @@ void loop()
   bt_maybe_start_advertising();
 
   if (bt_advertising_enabled)
-    tell_uptime();
+    rc522_poll();
 
   static uint32_t last_err_ts;
   static unsigned last_err_cnt;
@@ -356,7 +326,9 @@ void loop()
 #ifdef NEO_PIXEL_PIN
   neopix_process();
 #endif
-  if (!is_congested)
+  if (!is_congested) {
     watchdog_reset();
-  rc522_poll();
+    delay(IDLE_DELAY);
+  } else
+    delay(CONGESTION_DELAY);
 }

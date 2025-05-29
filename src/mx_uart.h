@@ -78,6 +78,18 @@ static inline void uart_print_hex(unsigned long val)
   uart_write(s.c_str(), s.length());
 }
 
+static inline void print_hex_byte(uint8_t v, char buff[3])
+{
+  snprintf(buff, 3, "%02x", v);
+}
+
+static inline void uart_print_hex_byte(uint8_t v)
+{
+  char buff[3];
+  print_hex_byte(v, buff);
+  uart_write(buff, 2);
+}
+
 static inline void debug_msg(const char* msg)
 {
 #ifndef NO_DEBUG

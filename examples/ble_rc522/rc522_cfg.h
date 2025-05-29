@@ -1,5 +1,7 @@
 #pragma once
 
+#define VERSION   1
+
 #define RST_PIN   3
 #define MISO_PIN  4
 #define MOSI_PIN  5
