@@ -3,7 +3,7 @@ This is the multipurpose dual role BLE to serial bridge capable of creating mult
 
 The contains the set of reusable components that can be utilized to build BLE enabled devices with varying capabilities. The **examples** folder contains three such projects. The **ble_uart_mx** is multipurpose flexibly configurable BLE to serial adapter. The **ble_peripheral_template** is an example of the simple BLE peripheral device capable of sending messages to connected central. The **ble_rc522** project illustrates using BLE for communicating with MFRC522 RFID card reader. Its based on the **ble_peripheral_template** with addition of the code interfacing with the MFRC522 chip. Here is the <a href="https://github.com/olegv142/esp32-ble/blob/main/doc/ble_rc522.jpg?raw=true">photo</a> of such device using the <a href="https://github.com/WeActStudio/WeActStudio.ESP32C3CoreBoard">WeAct ESP32C3 core board</a> for communicating with RFID card reader and acting as BLE peripheral device. The ease of interfacing with various devices was the primary reason for making this code Arduino-compatible.
 
-Yet another part of the project is versatile JS library that can be used to communicate with the adapter from Web BLE application running in a browser.
+Yet another part of the project is versatile JS library that can be used to communicate with the adapter from Web BLE application running in a browser. The corresponding code may be found in the **docs** folder.
 
 ## Architecture and communication protocol
 
