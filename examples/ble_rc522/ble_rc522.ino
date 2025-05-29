@@ -10,7 +10,10 @@
 #include "stream_tags.h"
 #include "watchdog.h"
 #include "debug.h"
+#include "rc522_cfg.h"
 
+#include <SPI.h>
+#include <MFRC522.h>
 #include <malloc.h>
 
 #ifdef NEO_PIXEL_PIN
@@ -33,6 +36,8 @@
 #ifndef TELL_UPTIME
 #define TELL_UPTIME 1000
 #endif
+
+static void rc522_start();
 
 static bool is_congested;
 
@@ -222,6 +227,7 @@ void setup()
   watchdog_init();
   bt_device_init(nullptr);
   bt_device_start();
+  rc522_start();
 }
 
 static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
@@ -269,6 +275,65 @@ static unsigned chk_errors()
   return chk_error_cnt(&bt_notify_err, "notify failed");
 }
 
+//------------------------- MFRC522 stuff
+
+MFRC522 mfrc522(SS_PIN, RST_PIN);  // Create MFRC522 instance
+
+static void rc522_start()
+{
+  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);
+  mfrc522.PCD_Init();   // Init MFRC522
+}
+
+static void rc522_print_version()
+{
+#ifndef NO_DEBUG
+  unsigned const ver = mfrc522.PCD_ReadRegister(MFRC522::VersionReg);
+  uart_debug_begin();
+  uart_print_strz("MFRC522 ver.");
+  uart_print_hex(ver);
+  uart_end();
+#endif
+}
+
+static void rc522_print_uid()
+{
+#ifndef NO_DEBUG
+  uart_debug_begin();
+  uart_print_strz("UID:");
+  char buf[16] = {};
+  for (byte i = 0; i < mfrc522.uid.size; ++i) {
+    snprintf(buf, sizeof(buf) - 1, " %02x", mfrc522.uid.uidByte[i]);
+    uart_print(buf);
+  }
+  uart_end();
+#endif
+}
+
+static void rc522_poll()
+{
+  static uint32_t last_status_ts;
+  uint32_t const now = millis();
+  bool new_card = false;
+  if ((new_card = mfrc522.PICC_IsNewCardPresent()) || elapsed(last_status_ts, now) >= STATUS_REPORT_INTERVAL) {
+    last_status_ts = now;
+    if (!new_card) {
+      byte atqa_answer[2];
+      byte atqa_size = 2;
+      mfrc522.PICC_WakeupA(atqa_answer, &atqa_size);
+    }
+    if (!mfrc522.PICC_ReadCardSerial()) {
+      rc522_print_version();
+    } else {
+      rc522_print_uid();
+    }
+    mfrc522.PICC_HaltA();
+  }
+}
+
+
+//------------------------- Main loop
+
 void loop()
 {
   bool const was_congested = is_congested;
@@ -293,4 +358,5 @@ void loop()
 #endif
   if (!is_congested)
     watchdog_reset();
+  rc522_poll();
 }
