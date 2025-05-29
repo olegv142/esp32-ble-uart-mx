@@ -1,5 +1,7 @@
 # esp32-ble-uart-mx
-This is the multipurpose dual role BLE to serial bridge capable of creating multiple connections to other peripheral devices as well as acting as peripheral accepting connections from other central device. Its operation is controlled by the host via the same serial link as used for data transfers. Multiple compile time configuration options are provided to meet requirements in a variety of applications. For example it may be used for gathering telemetry data from some set of devices, providing communication link for commands / responses from controlling application or for creating bidirectional wireless communication channel between the pair of devices. It uses Arduino as building platform to keep code compact and make building and flashing as simple as possible. The adapter was tested on ESP32, ESP32C3, ESP32C6 and ESP32S3 with Espressif board support package versions 3.0.3 and 3.0.7.
+This is the multipurpose dual role BLE to serial bridge capable of creating multiple connections to other peripheral devices as well as acting as peripheral accepting connections from other central device. Its operation is controlled by the host via the same serial link as used for data transfers. Multiple compile time configuration options are provided to meet requirements in a variety of applications. For example it may be used for gathering telemetry data from some set of devices, providing communication link for commands / responses from controlling application or for creating bidirectional wireless communication channel between the pair of devices. It uses Arduino as building platform to keep code compact and make building and flashing as simple as possible. The adapter was tested on ESP32, ESP32C3, ESP32C6 and ESP32S3 with Espressif board support package versions ranging from 3.0.3 to 3.2.0.
+
+The contains the set of reusable components that can be utilized to build BLE enabled devices with varying capabilities. The **examples** folder contains three such projects. The **ble_uart_mx** is multipurpose flexibly configurable BLE to serial adapter. The **ble_peripheral_template** is an example of the simple BLE peripheral device capable of sending messages to connected central. The **ble_rc522** project illustrates using BLE for communicating with MFRC522 RFID card reader. Its based on the **ble_peripheral_template** with addition of the code interfacing with the MFRC522 chip.
 
 Yet another part of the project is versatile JS library that can be used to communicate with the adapter from Web BLE application running in a browser.
 
@@ -136,7 +138,7 @@ In case you are failed to flash ESP32 board from Arduino do the following:
 <h3>Compilation options</h3>
 </summary>
 
-The compilation options are placed onto the separate header **ble_uart_mx/user_config.h** which includes the particular user configuration file (**ble_uart_mx/config/usb_peripheral.h** by default). With those options one can
+The compilation options are placed onto the separate header **ble_uart_mx/user_config.h** which includes the particular user configuration file (**src/config/usb_peripheral.h** by default). With those options one can
 * choose device name
 * choose between single and dual characteristic configuration
 * choose between USB CDC (virtual serial port) and hardware UART for communications as well as configure hardware UART parameters (pins, flow control)
