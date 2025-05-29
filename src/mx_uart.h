@@ -60,9 +60,21 @@ static inline void uart_print(unsigned val)
   uart_write(s.c_str(), s.length());
 }
 
+static inline void uart_print_hex(unsigned val)
+{
+  String s(val, HEX);
+  uart_write(s.c_str(), s.length());
+}
+
 static inline void uart_print(unsigned long val)
 {
   String s(val);
+  uart_write(s.c_str(), s.length());
+}
+
+static inline void uart_print_hex(unsigned long val)
+{
+  String s(val, HEX);
   uart_write(s.c_str(), s.length());
 }
 
