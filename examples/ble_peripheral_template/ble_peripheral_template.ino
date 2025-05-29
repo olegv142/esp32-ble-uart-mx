@@ -1,5 +1,6 @@
 /*
  Example of the simple peripheral device sending dummy data with regular intervals.
+ Use https://olegv142.github.io/esp32-ble-uart-mx/?dual&xf for receiving those messages.
  Author: Oleg Volkov
 */
 
@@ -24,10 +25,6 @@
 #ifdef EXT_FRAMES
 #include "checksum.h"
 #include "xframe.h"
-#endif
-
-#ifdef SIMPLE_LINK
-#pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
 #ifndef TELL_UPTIME
@@ -291,6 +288,9 @@ void loop()
 #ifdef NEO_PIXEL_PIN
   neopix_process();
 #endif
-  if (!is_congested)
+  if (!is_congested) {
     watchdog_reset();
+    delay(IDLE_DELAY);
+  } else
+    delay(CONGESTION_DELAY);
 }
