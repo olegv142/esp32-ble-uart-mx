@@ -7,7 +7,7 @@ struct err_count bad_chunks;
 struct err_count skip_chunks;
 
 bool transmit_xframe(
-    uint8_t* tx_data, size_t len, uint8_t binary,
+    uint8_t const* tx_data, size_t len, uint8_t binary,
     uint8_t* (*get_chunk)(size_t sz, void* ctx),
     bool (*tx_chunk)(uint8_t* chunk, size_t sz, void* ctx),
     void* ctx

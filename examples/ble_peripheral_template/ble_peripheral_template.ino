@@ -18,10 +18,6 @@
 #include "neopix.h"
 #endif
 
-#ifdef BINARY_DATA_SUPPORT
-#include "mx_encoding.h"
-#endif
-
 #ifdef EXT_FRAMES
 #include "checksum.h"
 #include "xframe.h"
@@ -121,75 +117,6 @@ static void show_conn_status(bool congested = false)
 #endif
 }
 
-static inline bool transmit_plain(
-    uint8_t* pdata, size_t len,
-    uint8_t* (*get_chunk)(size_t sz, void* ctx),
-    bool (*tx_chunk)(uint8_t* chunk, size_t sz, void* ctx),
-    void* ctx
-  )
-{
-  if (get_chunk) {
-    uint8_t* const chunk_buff = get_chunk(len, ctx);
-    if (!chunk_buff)
-      return false;
-    memcpy(chunk_buff, pdata, len);
-    pdata = chunk_buff;
-  }
-  return tx_chunk(pdata, len, ctx);
-}
-
-// Optionally split frame onto fragments and transmit it by calling provided callback.
-// Returns false if callback returns false which means BLE stack congestion detected.
-static bool transmit_frame(
-    const char* data, size_t len,
-    uint8_t* (*get_chunk)(size_t sz, void* ctx),
-    bool (*tx_chunk)(uint8_t* chunk, size_t sz, void* ctx),
-    void* ctx
-  )
-{
-  uint8_t* tx_data = (uint8_t*)data;
-#ifdef BINARY_DATA_SUPPORT
-  static uint8_t* tx_buff;
-  uint8_t binary = 0;
-  if (len && (binary = (data[0] == ENCODED_DATA_START_TAG))) {
-    if (len > 1 + MAX_ENCODED_FRAME_LEN) {
-      // All such errors may be due to uart buffer overflow while not using RTS
-      // flow control. So just print debug message and return true.
-      // Note that returning false means BLE stack congestion.
-      debug_strz("encoded data size exceeds limit");
-      return true;
-    }
-    if ((len % 4) != 1) {
-      debug_strz("invalid encoded data size");
-      return true;
-    }
-    if (!tx_buff) {
-        tx_buff = (uint8_t*)malloc(MAX_FRAME);
-        if (!tx_buff) {
-            debug_strz("failed to allocate transmit buffer");
-            return true;
-        }
-    }
-    len = decode(data + 1, len - 1, tx_data = tx_buff);
-  }
-#endif
-
-  if (!len) {
-    debug_strz("bad data to transmit");
-    return true;
-  }
-  if (len > MAX_FRAME) {
-    debug_strz("data size exceeds limit");
-    return true;
-  }
-
-#ifdef EXT_FRAMES
-  return transmit_xframe(tx_data, len, binary, get_chunk, tx_chunk, ctx);
-#else
-  return transmit_plain(tx_data, len, get_chunk, tx_chunk, ctx);
-#endif
-}
-
 #if defined(EXT_FRAMES)
 static uint8_t* get_chunk_buff(size_t sz, void* ctx)
 {
@@ -229,20 +156,28 @@ static bool transmit_chunk_to_central(uint8_t* pdata, size_t sz, void* ctx)
   return res;
 }
 
-static bool transmit_to_central(const char* data, size_t len)
+static bool transmit_to_central(uint8_t const* data, size_t len, bool binary=false)
 {
   if (!bt_advertising_enabled) {
     debug_strz("can't transmit while hidden");
     return true;
   }
+  if (!len) {
+    debug_strz("bad data to transmit");
+    return true;
+  }
+  if (len > MAX_FRAME) {
+    debug_strz("data size exceeds limit");
+    return true;
+  }
 #ifdef EXT_FRAMES
-  return transmit_frame(data, len, get_chunk_buff, transmit_chunk_to_central, nullptr);
+  return transmit_xframe(data, len, binary, get_chunk_buff, transmit_chunk_to_central, nullptr);
 #else
-  return transmit_frame(data, len, nullptr, transmit_chunk_to_central, nullptr);
+  return transmit_chunk_to_central((uint8_t*)data, len, nullptr);
 #endif
 }
 
-static void tell_uptime()
+static void send_dummy_message()
 {
   static uint32_t last_uptime;
   static uint32_t last_uptime_sn;
@@ -256,7 +191,7 @@ static void tell_uptime()
     msg += bt_dev_addr;
     msg += "#";
     msg += bt_dev_name;
-    if (!transmit_to_central(msg.c_str(), msg.length()))
+    if (!transmit_to_central((uint8_t const*)msg.c_str(), msg.length()))
       is_congested = true;
   }
 }
@@ -274,7 +209,7 @@ void loop()
   bt_maybe_start_advertising();
 
   if (bt_advertising_enabled)
-    tell_uptime();
+    send_dummy_message();
 
   static uint32_t last_err_ts;
   static unsigned last_err_cnt;
