@@ -86,7 +86,7 @@ static unsigned npeers;
 static int      connected_peers;
 
 #ifdef EXT_FRAMES
-static XFrameReceiver centr_xrx('<');
+static XFrameReceiverToUart centr_xrx('<');
 #endif
 
 static uint8_t  auth_key[] = { AUTH_KEY };
@@ -582,7 +582,7 @@ private:
   struct err_count         m_rx_queue_full;
   struct err_count         m_tx_queue_full;
 #ifdef EXT_FRAMES
-  XFrameReceiver m_xrx;
+  XFrameReceiverToUart m_xrx;
 #endif
 };
 

@@ -117,22 +117,37 @@ void XFrameReceiver::flush(void)
 {
   uint8_t const is_binary = m_chunks[0].data[0] & XH_BINARY;
   char enc_buff[MAX_ENCODED_CHUNK_LEN];
+  frame_start(is_binary);
+  for (int i = 0; i <= m_last_chunk; ++i) {
+    size_t len = m_chunks[i].len - XHDR_SIZE - CHKSUM_SIZE;
+    const uint8_t* const pchunk = m_chunks[i].data + XHDR_SIZE;
+    const uint8_t* out_data = pchunk;
+    if (is_binary) {
+      len = encode(pchunk, len, enc_buff);
+      out_data = (const uint8_t*)enc_buff;
+    }
+    chunk_output(out_data, len);
+  }
+  frame_end();
+  reset();
+}
+
+void XFrameReceiverToUart::frame_start(bool binary)
+{
   uart_begin();
 #ifndef SIMPLE_LINK
   uart_print(m_tag);
 #endif
-  if (is_binary)
+  if (binary)
     uart_print(ENCODED_DATA_START_TAG);
-  for (int i = 0; i <= m_last_chunk; ++i) {
-    size_t len = m_chunks[i].len - XHDR_SIZE - CHKSUM_SIZE;
-    const uint8_t* const pchunk = m_chunks[i].data + XHDR_SIZE;
-    const char* out_data = (const char*)pchunk;
-    if (is_binary) {
-      len = encode(pchunk, len, enc_buff);
-      out_data = enc_buff;
-    }
-    uart_write(out_data, len);
-  }
+}
+
+void XFrameReceiverToUart::chunk_output(const uint8_t* data, size_t len)
+{
+  uart_write((const char*)data, len);
+}
+
+void XFrameReceiverToUart::frame_end()
+{
   uart_end();
-  reset();
 }

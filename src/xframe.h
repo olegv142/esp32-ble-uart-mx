@@ -48,7 +48,11 @@ public:
   void receive(struct data_chunk const* chunk);
   void reset(void);
 
-private:
+protected:
+  virtual void frame_start(bool binary) = 0;
+  virtual void chunk_output(const uint8_t* data, size_t len) = 0;
+  virtual void frame_end() = 0;
+
   void flush(void);
 
   char const m_tag;
@@ -56,6 +60,16 @@ private:
   int        m_last_chunk;
   uint32_t   m_last_chksum;
   struct data_chunk m_chunks[MAX_CHUNKS];
+};
+
+class XFrameReceiverToUart : public XFrameReceiver {
+public:
+  XFrameReceiverToUart(char tag) : XFrameReceiver(tag) {}
+  
+protected:
+  virtual void frame_start(bool binary);
+  virtual void chunk_output(const uint8_t* data, size_t len);
+  virtual void frame_end();
 };
 
 extern struct err_count bad_chunks;
